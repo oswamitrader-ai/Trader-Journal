@@ -1,0 +1,911 @@
+import JSZip from 'jszip';
+
+export interface ExtensionConfig {
+  dailyLossLimit: number;
+  blockedDomains: string[];
+  appName: string;
+  antiFuriaCustomWindowEnabled?: boolean;
+  antiFuriaStartTime?: string;
+  antiFuriaEndTime?: string;
+}
+
+export const DEFAULT_BLOCKED_DOMAINS = [
+  'exnova.com',
+  'trade.exnova.com',
+  'xnova.com',
+  'trade.xnova.com',
+  'quotex.com',
+  'qxbroker.com',
+  'iqoption.com',
+  'pocketoption.com',
+  'binomo.com',
+  'olymptrade.com',
+];
+
+// Generates an icon on an offscreen canvas and returns base64 PNG data URL
+function generateIconDataUrl(size: number): string {
+  if (typeof document === 'undefined') return '';
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+
+  // Shield background
+  ctx.fillStyle = '#dc2626'; // solid crimson red
+  ctx.beginPath();
+  const r = size * 0.15;
+  ctx.roundRect(0, 0, size, size, r);
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = '#f87171';
+  ctx.lineWidth = Math.max(1, size * 0.05);
+  ctx.stroke();
+
+  // White Lock icon inside
+  ctx.fillStyle = '#ffffff';
+  const pad = size * 0.28;
+  const bodyW = size - pad * 2;
+  const bodyH = size * 0.38;
+  const bodyY = size * 0.48;
+
+  // Lock body
+  ctx.beginPath();
+  ctx.roundRect(pad, bodyY, bodyW, bodyH, size * 0.08);
+  ctx.fill();
+
+  // Lock shackle
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = Math.max(2, size * 0.1);
+  ctx.beginPath();
+  const shackleR = bodyW * 0.32;
+  const shackleCenterX = size / 2;
+  const shackleCenterY = bodyY;
+  ctx.arc(shackleCenterX, shackleCenterY, shackleR, Math.PI, 0, false);
+  ctx.stroke();
+
+  // Keyhole
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath();
+  ctx.arc(size / 2, bodyY + bodyH * 0.42, size * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+
+  return canvas.toDataURL('image/png').split(',')[1]; // returns base64 string
+}
+
+export async function generateExtensionZip(config?: Partial<ExtensionConfig>): Promise<Blob> {
+  const zip = new JSZip();
+  const domains = config?.blockedDomains && config.blockedDomains.length > 0
+    ? config.blockedDomains
+    : DEFAULT_BLOCKED_DOMAINS;
+
+  const dailyLossLimit = config?.dailyLossLimit ?? 30;
+  const customWindowEnabled = config?.antiFuriaCustomWindowEnabled ?? false;
+  const startTime = config?.antiFuriaStartTime || '07:00';
+  const endTime = config?.antiFuriaEndTime || '11:30';
+
+  // 1. MANIFEST.JSON
+  const manifest = {
+    manifest_version: 3,
+    name: 'Anti-Fúria Trader: Bloqueador Exnova & Corretoras',
+    version: '1.0.0',
+    description: 'Bloqueia o acesso a corretoras de Opções Binárias (Exnova, Quotex, etc.) imediatamente após o Stop Loss ser atingido no Diário de Trade.',
+    permissions: [
+      'storage',
+      'tabs',
+      'webNavigation',
+      'alarms',
+    ],
+    host_permissions: [
+      '<all_urls>',
+    ],
+    action: {
+      default_popup: 'popup.html',
+      default_title: 'Anti-Fúria Trader: Status da Trava',
+    },
+    background: {
+      service_worker: 'background.js',
+    },
+    content_scripts: [
+      {
+        matches: ['<all_urls>'],
+        js: ['content.js'],
+        run_at: 'document_start',
+      },
+    ],
+    web_accessible_resources: [
+      {
+        resources: ['blocked.html', 'blocked.js', 'icon.png'],
+        matches: ['<all_urls>'],
+      },
+    ],
+  };
+
+  // 2. BACKGROUND.JS
+  const backgroundJs = `// Anti-Fúria Trader - Service Worker (Manifest V3)
+const DEFAULT_DOMAINS = ${JSON.stringify(domains, null, 2)};
+
+// Helper: Unblock all tabs currently showing blocked.html
+function unblockAllTabs() {
+  chrome.tabs.query({}, (tabs) => {
+    tabs.forEach((tab) => {
+      if (tab.id && tab.url && tab.url.includes('blocked.html')) {
+        try {
+          const urlObj = new URL(tab.url);
+          const orig = urlObj.searchParams.get('orig');
+          if (orig) {
+            chrome.tabs.update(tab.id, { url: decodeURIComponent(orig) });
+          } else {
+            chrome.tabs.reload(tab.id);
+          }
+        } catch (e) {
+          console.error('[Anti-Fúria] Erro ao desbloquear aba:', e);
+        }
+      }
+    });
+  });
+}
+
+// Helper: Check if a URL matches any blocked domain
+function isUrlBlocked(url, domains) {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    return domains.some(d => host === d.toLowerCase() || host.endsWith('.' + d.toLowerCase()));
+  } catch (e) {
+    return false;
+  }
+}
+
+// Redirect or block tab if stop is active
+function enforceTabBlock(tabId, url, domains) {
+  if (isUrlBlocked(url, domains)) {
+    const blockedUrl = chrome.runtime.getURL('blocked.html?orig=' + encodeURIComponent(url));
+    chrome.tabs.update(tabId, { url: blockedUrl });
+    console.warn('[Anti-Fúria] Bloqueio acionado na aba:', url);
+  }
+}
+
+// Initialize default state
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.get(['blockedDomains', 'isStopHit', 'dailyLossLimit'], (res) => {
+    const savedDoms = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
+    chrome.storage.local.set({
+      blockedDomains: savedDoms,
+      isStopHit: res.isStopHit || false,
+      dailyLossLimit: res.dailyLossLimit || ${dailyLossLimit},
+      antiFuriaCustomWindowEnabled: ${customWindowEnabled},
+      antiFuriaStartTime: "${startTime}",
+      antiFuriaEndTime: "${endTime}",
+      todayPnl: 0,
+      lastDate: new Date().toISOString().split('T')[0],
+      strictMode: true,
+      testMode: false,
+    });
+  });
+
+  // Schedule alarm for midnight reset
+  chrome.alarms.create('midnightReset', {
+    periodInMinutes: 15,
+  });
+});
+
+// Periodic check for new day (auto-unlock on the next morning)
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'midnightReset') {
+    const today = new Date().toISOString().split('T')[0];
+    chrome.storage.local.get(['lastDate'], (data) => {
+      if (data.lastDate && data.lastDate !== today) {
+        console.log('[Anti-Fúria] Novo dia iniciado. Resetando trava de stop.');
+        chrome.storage.local.set({
+          lastDate: today,
+          isStopHit: false,
+          testMode: false,
+          todayPnl: 0,
+        }, () => {
+          unblockAllTabs();
+        });
+      }
+    });
+  }
+});
+
+// Intercept navigations via webNavigation
+chrome.webNavigation.onBeforeNavigate.addListener((details) => {
+  if (details.frameId !== 0) return; // Only top level navigation
+  chrome.storage.local.get(['isStopHit', 'blockedDomains'], (data) => {
+    if (data.isStopHit && Array.isArray(data.blockedDomains)) {
+      enforceTabBlock(details.tabId, details.url, data.blockedDomains);
+    }
+  });
+});
+
+// Message listener from web app or popup
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'UPDATE_STOP_STATUS') {
+    chrome.storage.local.get(['testMode'], (st) => {
+      // If user manually triggered testMode, do not let automatic web app sync unlock it until user disables testMode
+      if (st && st.testMode && !msg.isStopHit) {
+        sendResponse({ success: true, testMode: true });
+        return;
+      }
+
+      const isHit = Boolean(msg.isStopHit);
+      const pnl = Number(msg.todayPnl) || 0;
+      const limit = Number(msg.dailyLossLimit) || ${dailyLossLimit};
+      const today = new Date().toISOString().split('T')[0];
+
+      chrome.storage.local.set({
+        isStopHit: isHit,
+        todayPnl: pnl,
+        dailyLossLimit: limit,
+        lastDate: today,
+      }, () => {
+        if (isHit) {
+          chrome.storage.local.get(['blockedDomains'], (res) => {
+            const doms = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
+            chrome.tabs.query({}, (tabs) => {
+              tabs.forEach((tab) => {
+                if (tab.id && tab.url && isUrlBlocked(tab.url, doms)) {
+                  const blockedUrl = chrome.runtime.getURL('blocked.html?orig=' + encodeURIComponent(tab.url));
+                  chrome.tabs.update(tab.id, { url: blockedUrl });
+                }
+              });
+            });
+          });
+        } else {
+          unblockAllTabs();
+        }
+        sendResponse({ success: true, isStopHit: isHit });
+      });
+    });
+    return true;
+  }
+
+  if (msg.type === 'GET_STATUS') {
+    chrome.storage.local.get(null, (data) => {
+      sendResponse(data);
+    });
+    return true;
+  }
+
+  if (msg.type === 'TEST_BLOCK_TRIGGER') {
+    chrome.storage.local.set({ isStopHit: true, testMode: true, todayPnl: -${dailyLossLimit} }, () => {
+      chrome.storage.local.get(['blockedDomains'], (res) => {
+        const doms = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
+        chrome.tabs.query({}, (tabs) => {
+          tabs.forEach((tab) => {
+            if (tab.id && tab.url && isUrlBlocked(tab.url, doms)) {
+              const blockedUrl = chrome.runtime.getURL('blocked.html?orig=' + encodeURIComponent(tab.url));
+              chrome.tabs.update(tab.id, { url: blockedUrl });
+            }
+          });
+        });
+      });
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  if (msg.type === 'TEST_UNLOCK') {
+    chrome.storage.local.set({ isStopHit: false, testMode: false, todayPnl: 0 }, () => {
+      unblockAllTabs();
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  if (msg.type === 'ADD_DOMAIN') {
+    chrome.storage.local.get(['blockedDomains'], (res) => {
+      const current = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
+      const clean = msg.domain.trim().toLowerCase().replace(/^https?:\\/\\//, '').replace(/\\/.*$/, '');
+      if (clean && !current.includes(clean)) {
+        current.push(clean);
+        chrome.storage.local.set({ blockedDomains: current }, () => {
+          sendResponse({ success: true, domains: current });
+        });
+      } else {
+        sendResponse({ success: false, domains: current });
+      }
+    });
+    return true;
+  }
+
+  if (msg.type === 'REMOVE_DOMAIN') {
+    chrome.storage.local.get(['blockedDomains'], (res) => {
+      const current = (Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS).filter(d => d !== msg.domain);
+      chrome.storage.local.set({ blockedDomains: current }, () => {
+        sendResponse({ success: true, domains: current });
+      });
+    });
+    return true;
+  }
+});
+`;
+
+  // 3. CONTENT.JS (Injected in pages to bridge with the Trader Journal app)
+  const contentJs = `// Content script bridging Trader Web App with the Extension
+(function() {
+  function syncFromPage() {
+    const bridgeEl = document.getElementById('anti-furia-status-bridge');
+    if (bridgeEl) {
+      const isStopHit = bridgeEl.getAttribute('data-stophit') === 'true';
+      const todayPnl = parseFloat(bridgeEl.getAttribute('data-today-pnl') || '0');
+      const dailyLossLimit = parseFloat(bridgeEl.getAttribute('data-loss-limit') || '30');
+      const winRate = parseFloat(bridgeEl.getAttribute('data-winrate') || '0');
+      const profitFactor = parseFloat(bridgeEl.getAttribute('data-profit-factor') || '0');
+      const todayTradesCount = parseInt(bridgeEl.getAttribute('data-trades-count') || '0', 10);
+      const currentCapital = parseFloat(bridgeEl.getAttribute('data-capital') || '0');
+
+      chrome.runtime.sendMessage({
+        type: 'UPDATE_STOP_STATUS',
+        isStopHit: isStopHit,
+        todayPnl: todayPnl,
+        dailyLossLimit: dailyLossLimit,
+        winRate: winRate,
+        profitFactor: profitFactor,
+        todayTradesCount: todayTradesCount,
+        currentCapital: currentCapital,
+      });
+    }
+  }
+
+  // Listen to window postMessage from the web app
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'ANTI_FURIA_SYNC') {
+      chrome.runtime.sendMessage({
+        type: 'UPDATE_STOP_STATUS',
+        isStopHit: event.data.isStopHit,
+        todayPnl: event.data.todayPnl,
+        dailyLossLimit: event.data.dailyLossLimit,
+        winRate: event.data.winRate,
+        profitFactor: event.data.profitFactor,
+        todayTradesCount: event.data.todayTradesCount,
+        currentCapital: event.data.currentCapital,
+      });
+    }
+  });
+
+  // Observe DOM for changes in the status bridge
+  const observer = new MutationObserver(() => syncFromPage());
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+
+  // Initial check
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    syncFromPage();
+  } else {
+    document.addEventListener('DOMContentLoaded', syncFromPage);
+  }
+})();
+`;
+
+  // 4. BLOCKED.HTML (The psychological intervention screen with rich trader stats)
+  const blockedHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Acesso Bloqueado | Stop Loss Atingido</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body {
+      background: #090d16;
+      color: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      max-width: 640px;
+      width: 100%;
+      background: #0f172a;
+      border: 2px solid #ef4444;
+      border-radius: 24px;
+      box-shadow: 0 25px 50px -12px rgba(239, 68, 68, 0.25);
+      overflow: hidden;
+      animation: fadeIn 0.4s ease-out;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .header {
+      background: #dc2626;
+      color: white;
+      padding: 26px 24px;
+      text-align: center;
+    }
+    .icon-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 60px;
+      height: 60px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 50%;
+      margin-bottom: 10px;
+    }
+    .icon-badge svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 2.5; }
+    .header h1 { font-size: 21px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; }
+    .header p { font-size: 13px; opacity: 0.95; margin-top: 4px; font-weight: 500; }
+    .content { padding: 24px; }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 520px) {
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .metric-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+    .metric-label { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; }
+    .metric-val { font-size: 15px; font-weight: 800; font-family: monospace; color: #f1f5f9; margin-top: 3px; }
+    .metric-val.green { color: #34d399; }
+    .metric-val.cyan { color: #38bdf8; }
+    .metric-val.red { color: #f87171; }
+
+    .stats-box {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 14px 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+      border: 1px solid #334155;
+    }
+    .stat-item { text-align: center; }
+    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; font-weight: 600; }
+    .stat-val { font-size: 20px; font-weight: 800; font-family: monospace; margin-top: 4px; color: #f87171; }
+
+    .quote-box {
+      background: rgba(220, 38, 38, 0.1);
+      border-left: 4px solid #ef4444;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+    .quote-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #fca5a5; margin-bottom: 6px; }
+
+    .countdown-card {
+      background: #020617;
+      border: 1px dashed #475569;
+      border-radius: 16px;
+      padding: 14px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .countdown-title { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; }
+    .countdown-digits { font-size: 28px; font-weight: 900; font-family: monospace; color: #38bdf8; margin-top: 4px; }
+    .btn-row { display: flex; gap: 12px; }
+    .btn {
+      flex: 1;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: none;
+    }
+    .btn-primary { background: #334155; color: white; }
+    .btn-primary:hover { background: #475569; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="icon-badge">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      </div>
+      <h1>Acesso Bloqueado pelo Plano de Trade</h1>
+      <p>Você atingiu o seu limite de Stop Loss diário na corretora</p>
+    </div>
+
+    <div class="content">
+      <!-- 4-Card Rich Metrics Grid -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Assertividade</div>
+          <div class="metric-val green" id="winRateVal">--%</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Fator de Lucro</div>
+          <div class="metric-val cyan" id="profitFactorVal">--</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Trades Hoje</div>
+          <div class="metric-val" id="tradesCountVal">--</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Saldo Atual</div>
+          <div class="metric-val" id="capitalVal">R$ --</div>
+        </div>
+      </div>
+
+      <!-- Stop Loss Details Bar -->
+      <div class="stats-box">
+        <div class="stat-item">
+          <div class="stat-label">Limite de Stop</div>
+          <div class="stat-val" id="lossLimit">R$ 30,00</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Resultado Hoje</div>
+          <div class="stat-val red" id="todayPnl">-R$ 30,00</div>
+        </div>
+      </div>
+
+      <!-- Tactical AI Mentor Advice Card -->
+      <div class="quote-box">
+        <div class="quote-title">🧠 Diagnóstico do Mentor IA</div>
+        <div id="aiMentorAdvice">
+          Carregando análise do seu histórico operacional...
+        </div>
+      </div>
+
+      <div class="countdown-card">
+        <div class="countdown-title">Acesso liberado novamente à meia-noite (00:00:00)</div>
+        <div class="countdown-digits" id="timer">--h --m --s</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnDashboard">Voltar ao Diário de Trade</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="blocked.js"></script>
+</body>
+</html>
+`;
+
+  // 4b. BLOCKED.JS (External script for Manifest V3 CSP compliance)
+  const blockedJs = `(function() {
+  let targetUnlockDate = null;
+
+  function formatBRL(val) {
+    const num = Number(val) || 0;
+    const absStr = Math.abs(num).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (num < 0 ? '-R$ ' : 'R$ ') + absStr;
+  }
+
+  function generateAiAdvice(winRate, profitFactor, tradesCount, todayPnl, lossLimit) {
+    const limitFormatted = formatBRL(lossLimit);
+
+    if (winRate > 0 && winRate >= 50) {
+      return 'Sua taxa de assertividade geral é de <strong>' + winRate.toFixed(1) + '%</strong> com Fator de Lucro de <strong>' + profitFactor.toFixed(2) + '</strong>. Seu histórico prova que sua técnica funciona! Não destrua semanas de lucro consistente por conta de um Stop Loss diário de <strong>' + limitFormatted + '</strong>. Aceitar a perda de hoje protege o seu capital para continuar vencendo no próximo ciclo.';
+    } else if (tradesCount >= 4) {
+      return 'Você já realizou <strong>' + tradesCount + ' operações</strong> hoje e atingiu o limite de Stop Loss. Continuar operando sob forte emoção (tilt/fúria) é o principal motivo de quebra de bancas. Feche a corretora agora, estude seu histórico no diário e volte revigorado na sua próxima janela!';
+    } else if (winRate > 0) {
+      return 'Sua assertividade atual é de <strong>' + winRate.toFixed(1) + '%</strong>. O mercado financeiro é uma maratona de longo prazo. Respeitar o seu limite de perda de <strong>' + limitFormatted + '</strong> é a única regra inegociável que garante a sua sobrevivência e longevidade no trading.';
+    } else {
+      return 'O maior destruidor de bancas em Opções Binárias e Mercado Financeiro não é a taxa de acerto, é o dia de fúria após tomar o stop. Aceitar a perda de <strong>' + limitFormatted + '</strong> é a decisão que separa um apostador de um trader profissional.';
+    }
+  }
+
+  function calculateTargetUnlockDate(data) {
+    const now = new Date();
+    const unlock = new Date();
+
+    if (data && data.antiFuriaCustomWindowEnabled && data.antiFuriaStartTime) {
+      const parts = data.antiFuriaStartTime.split(':');
+      const startH = parseInt(parts[0], 10) || 0;
+      const startM = parseInt(parts[1], 10) || 0;
+
+      unlock.setHours(startH, startM, 0, 0);
+      if (now >= unlock) {
+        unlock.setDate(unlock.getDate() + 1);
+      }
+    } else {
+      unlock.setHours(24, 0, 0, 0);
+    }
+    return unlock;
+  }
+
+  function goToDashboard() {
+    if (typeof chrome !== 'undefined' && chrome.tabs) {
+      chrome.tabs.query({}, (tabs) => {
+        const appTab = tabs.find(t => t.url && (t.url.includes('localhost') || t.url.includes('127.0.0.1')));
+        if (appTab && appTab.id) {
+          chrome.tabs.update(appTab.id, { active: true });
+          if (appTab.windowId) {
+            chrome.windows.update(appTab.windowId, { focused: true });
+          }
+        } else {
+          chrome.tabs.create({ url: 'http://localhost:3000' });
+        }
+      });
+    } else {
+      window.location.href = 'http://localhost:3000';
+    }
+  }
+
+  function redirectBack() {
+    const params = new URLSearchParams(window.location.search);
+    const orig = params.get('orig');
+    if (orig) {
+      window.location.href = decodeURIComponent(orig);
+    } else {
+      goToDashboard();
+    }
+  }
+
+  function updateCountdown() {
+    const now = new Date();
+    const unlock = targetUnlockDate || new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+    const diff = unlock.getTime() - now.getTime();
+
+    const timerEl = document.getElementById('timer');
+    if (!timerEl) return;
+
+    if (diff <= 0) {
+      timerEl.innerText = '00h 00m 00s';
+      redirectBack();
+      return;
+    }
+
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((diff % (1000 * 60)) / 1000);
+
+    timerEl.innerText = 
+      String(hours).padStart(2, '0') + 'h ' +
+      String(mins).padStart(2, '0') + 'm ' +
+      String(secs).padStart(2, '0') + 's';
+  }
+
+  // Load state from extension storage & listen to live unlock changes
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(['dailyLossLimit', 'todayPnl', 'isStopHit', 'antiFuriaCustomWindowEnabled', 'antiFuriaStartTime', 'winRate', 'profitFactor', 'todayTradesCount', 'currentCapital'], (data) => {
+      const limitEl = document.getElementById('lossLimit');
+      const pnlEl = document.getElementById('todayPnl');
+      const titleEl = document.querySelector('.countdown-title');
+      const winRateEl = document.getElementById('winRateVal');
+      const pfEl = document.getElementById('profitFactorVal');
+      const tradesEl = document.getElementById('tradesCountVal');
+      const capitalEl = document.getElementById('capitalVal');
+      const adviceEl = document.getElementById('aiMentorAdvice');
+
+      const limit = Number(data.dailyLossLimit) || ${dailyLossLimit};
+      const pnl = Number(data.todayPnl);
+      const winRate = Number(data.winRate) || 0;
+      const profitFactor = Number(data.profitFactor) || 0;
+      const tradesCount = Number(data.todayTradesCount) || 0;
+      const capital = Number(data.currentCapital) || 0;
+
+      if (limitEl) limitEl.innerText = formatBRL(limit);
+      if (pnlEl) pnlEl.innerText = formatBRL(isNaN(pnl) || pnl === 0 ? -limit : pnl);
+      if (winRateEl) winRateEl.innerText = winRate > 0 ? winRate.toFixed(1) + '%' : 'N/A';
+      if (pfEl) pfEl.innerText = profitFactor > 0 ? profitFactor.toFixed(2) : 'N/A';
+      if (tradesEl) tradesEl.innerText = tradesCount > 0 ? tradesCount + ' trades' : '1 trade';
+      if (capitalEl) capitalEl.innerText = capital > 0 ? formatBRL(capital) : 'R$ --';
+
+      if (adviceEl) {
+        adviceEl.innerHTML = generateAiAdvice(winRate, profitFactor, tradesCount, pnl < 0 ? pnl : -limit, limit);
+      }
+
+      targetUnlockDate = calculateTargetUnlockDate(data);
+
+      if (titleEl) {
+        if (data && data.antiFuriaCustomWindowEnabled && data.antiFuriaStartTime) {
+          titleEl.innerText = 'Acesso liberado novamente no próximo ciclo às ' + data.antiFuriaStartTime + 'h';
+        } else {
+          titleEl.innerText = 'Acesso liberado novamente à meia-noite (00:00:00)';
+        }
+      }
+
+      if (data.isStopHit === false) {
+        redirectBack();
+      }
+    });
+
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      if (namespace === 'local' && changes.isStopHit && changes.isStopHit.newValue === false) {
+        redirectBack();
+      }
+    });
+  }
+
+  // Start countdown timer immediately
+  updateCountdown();
+  setInterval(updateCountdown, 1000);
+
+  // Attach button event listener
+  const initEvents = () => {
+    const btn = document.getElementById('btnDashboard');
+    if (btn) {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        goToDashboard();
+      };
+    }
+  };
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    initEvents();
+  } else {
+    document.addEventListener('DOMContentLoaded', initEvents);
+  }
+})();
+`;
+
+  // 5. POPUP.HTML & POPUP.JS (Toolbar interface)
+  const popupHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Anti-Fúria Trader</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { width: 320px; background: #0f172a; color: #f8fafc; padding: 16px; }
+    .header { display: flex; align-items: center; justify-content: space-between; border-b: 1px solid #1e293b; padding-bottom: 12px; margin-bottom: 14px; }
+    .logo { font-size: 13px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px; }
+    .status-badge { font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 9999px; text-transform: uppercase; }
+    .status-active { background: #dc2626; color: white; }
+    .status-inactive { background: #059669; color: white; }
+    .status-card { background: #1e293b; border-radius: 12px; padding: 12px; margin-bottom: 14px; }
+    .domains-title { font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 700; margin-bottom: 6px; }
+    .domain-list { max-height: 120px; overflow-y: auto; font-size: 12px; }
+    .domain-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #334155; }
+    .add-row { display: flex; gap: 6px; margin-top: 8px; }
+    .input { flex: 1; background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 6px 8px; color: white; font-size: 11px; }
+    .btn-add { background: #2563eb; color: white; border: none; border-radius: 6px; padding: 6px 10px; font-size: 11px; font-weight: 700; cursor: pointer; }
+    .btn-test { width: 100%; background: #dc2626; color: white; border: none; border-radius: 8px; padding: 10px; font-size: 12px; font-weight: 700; cursor: pointer; margin-top: 8px; }
+    .btn-unlock { width: 100%; background: #334155; color: #94a3b8; border: none; border-radius: 8px; padding: 6px; font-size: 11px; cursor: pointer; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🛡️ Anti-Fúria Trader</div>
+    <div id="statusBadge" class="status-badge status-inactive">Liberado</div>
+  </div>
+
+  <div class="status-card">
+    <div style="font-size: 11px; color: #94a3b8; font-weight: 600;">Status da Trava de Stop:</div>
+    <div id="statusMsg" style="font-size: 13px; font-weight: 700; margin-top: 4px; color: #34d399;">
+      Operações liberadas normalmente
+    </div>
+  </div>
+
+  <div class="domains-title">Corretoras Bloqueadas no Stop:</div>
+  <div class="domain-list" id="domainList"></div>
+
+  <div class="add-row">
+    <input type="text" id="newDomain" class="input" placeholder="ex: minhacorretora.com" />
+    <button id="btnAdd" class="btn-add">Adicionar</button>
+  </div>
+
+  <button id="btnTest" class="btn-test">Simular Stop Loss (Testar)</button>
+  <button id="btnUnlock" class="btn-unlock">Desativar Trava (Modo Teste)</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+`;
+
+  const popupJs = `function render() {
+  chrome.storage.local.get(['isStopHit', 'blockedDomains'], (data) => {
+    const badge = document.getElementById('statusBadge');
+    const msg = document.getElementById('statusMsg');
+    const list = document.getElementById('domainList');
+
+    if (data.isStopHit) {
+      badge.className = 'status-badge status-active';
+      badge.innerText = 'BLOQUEADO';
+      msg.innerText = 'Stop Loss atingido! Acesso a corretoras bloqueado.';
+      msg.style.color = '#f87171';
+    } else {
+      badge.className = 'status-badge status-inactive';
+      badge.innerText = 'LIBERADO';
+      msg.innerText = 'Operações liberadas normalmente.';
+      msg.style.color = '#34d399';
+    }
+
+    list.innerHTML = '';
+    const doms = data.blockedDomains || [];
+    doms.forEach(d => {
+      const item = document.createElement('div');
+      item.className = 'domain-item';
+      item.innerHTML = '<span>' + d + '</span><span style="color:#ef4444;cursor:pointer;font-weight:bold" data-domain="' + d + '">×</span>';
+      list.appendChild(item);
+    });
+
+    list.querySelectorAll('[data-domain]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const domToRemove = e.target.getAttribute('data-domain');
+        chrome.runtime.sendMessage({ type: 'REMOVE_DOMAIN', domain: domToRemove }, () => render());
+      });
+    });
+  });
+}
+
+document.getElementById('btnAdd').addEventListener('click', () => {
+  const input = document.getElementById('newDomain');
+  if (input.value.trim()) {
+    chrome.runtime.sendMessage({ type: 'ADD_DOMAIN', domain: input.value.trim() }, () => {
+      input.value = '';
+      render();
+    });
+  }
+});
+
+document.getElementById('btnTest').addEventListener('click', () => {
+  chrome.runtime.sendMessage({ type: 'TEST_BLOCK_TRIGGER' }, () => render());
+});
+
+document.getElementById('btnUnlock').addEventListener('click', () => {
+  chrome.runtime.sendMessage({ type: 'TEST_UNLOCK' }, () => render());
+});
+
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener(() => render());
+}
+
+document.addEventListener('DOMContentLoaded', render);
+`;
+
+  // 6. README.TXT (Tutorial fácil para o usuário)
+  const readmeTxt = `=====================================================
+🛡️ EXTENSÃO ANTI-FÚRIA TRADER: BLOQUEADOR DE CORRETORAS
+=====================================================
+
+Esta extensão foi desenvolvida para proteger o seu capital no mercado de Opções Binárias.
+Assim que você atinge o seu Stop Loss no Diário de Trade, o acesso a corretoras (Exnova, Quotex, etc.)
+é BLOQUEADO IMEDIATAMENTE no seu navegador até o dia seguinte (às 00:00:00).
+
+COMO INSTALAR NO GOOGLE CHROME / BRAVE / EDGE (1 MINUTO):
+--------------------------------------------------------
+1. Extraia o conteúdo deste arquivo .ZIP em uma pasta no seu computador (ex: na pasta Documentos ou Área de Trabalho).
+2. Abra o Google Chrome (ou Brave / Edge) e acesse na barra de endereços:
+   chrome://extensions
+3. No canto superior direito da página, ATIVE a chave "Modo de Desenvolvedor" (Developer Mode).
+4. Clique no botão "Carregar sem compactação" (Load unpacked) que aparecerá no canto superior esquerdo.
+5. Selecione a pasta onde você extraiu estes arquivos.
+6. Pronto! O ícone de escudo da extensão aparecerá na sua barra de ferramentas.
+
+COMO TESTAR:
+------------
+1. Abra o seu Diário de Trade no navegador.
+2. Registre as operações normais do dia. Ao atingir o Stop Loss diário, a extensão detectará e
+   fechará ou redirecionará qualquer tentativa de abrir a Exnova (exnova.com / trade.exnova.com).
+3. Você também pode clicar no ícone da extensão a qualquer momento para ver o status ou testar o bloqueio!
+
+Boas operações e mantenha a disciplina inegociável!
+`;
+
+  // Add files to zip
+  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+  zip.file('background.js', backgroundJs);
+  zip.file('content.js', contentJs);
+  zip.file('blocked.html', blockedHtml);
+  zip.file('blocked.js', blockedJs);
+  zip.file('popup.html', popupHtml);
+  zip.file('popup.js', popupJs);
+  zip.file('LEIAME_INSTRUCOES.txt', readmeTxt);
+
+  // Generate icon png base64
+  try {
+    const icon128Base64 = generateIconDataUrl(128);
+    if (icon128Base64) {
+      zip.file('icon.png', icon128Base64, { base64: true });
+    }
+  } catch (e) {
+    console.warn('Could not generate canvas icon, continuing...', e);
+  }
+
+  return await zip.generateAsync({ type: 'blob' });
+}

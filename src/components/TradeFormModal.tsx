@@ -1,0 +1,957 @@
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  PlusCircle,
+  Check,
+  ArrowUp,
+  ArrowDown,
+  Settings2,
+  Trash2,
+  Edit2,
+  Plus,
+  RotateCcw,
+} from 'lucide-react';
+import { Trade, TradeType, TradeResult } from '../types';
+
+interface TradeFormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (trade: Trade) => void;
+  editingTrade?: Trade | null;
+}
+
+const DEFAULT_ASSETS = ['WIN', 'WDO', 'PETR4', 'VALE3', 'BTC/USD', 'ETH/USD', 'EUR/USD'];
+const ASSETS_STORAGE_KEY = 'trader_saved_assets';
+
+const DEFAULT_STRATEGIES = [
+  'Price Action',
+  'Rompimento',
+  'Pullback',
+  'Médias Móveis',
+  'Retração Fibonacci',
+  'VWAP / Reversão',
+  'Order Flow / Tape Reading',
+];
+const STRATEGIES_STORAGE_KEY = 'trader_saved_strategies';
+
+export const TradeFormModal: React.FC<TradeFormModalProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  editingTrade,
+}) => {
+  const [date, setDate] = useState<string>('');
+  const [time, setTime] = useState<string>('');
+  const [asset, setAsset] = useState<string>('WIN');
+  const [type, setType] = useState<TradeType>('BUY');
+  const [strategy, setStrategy] = useState<string>('Price Action');
+  const [contractsOrQuantity, setContractsOrQuantity] = useState<number>(100);
+  const [pnl, setPnl] = useState<number>(250);
+  const [result, setResult] = useState<TradeResult>('GAIN');
+  const [entryPrice, setEntryPrice] = useState<string>('');
+  const [exitPrice, setExitPrice] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
+
+  // Asset Management State
+  const [savedAssets, setSavedAssets] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(ASSETS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return DEFAULT_ASSETS;
+  });
+  const [isManagingAssets, setIsManagingAssets] = useState(false);
+  const [isAddingInline, setIsAddingInline] = useState(false);
+  const [newAssetInput, setNewAssetInput] = useState('');
+  const [editingAssetIdx, setEditingAssetIdx] = useState<number | null>(null);
+  const [editingAssetText, setEditingAssetText] = useState('');
+
+  // Strategy Management State
+  const [savedStrategies, setSavedStrategies] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(STRATEGIES_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return DEFAULT_STRATEGIES;
+  });
+  const [isManagingStrategies, setIsManagingStrategies] = useState(false);
+  const [isAddingStrategyInline, setIsAddingStrategyInline] = useState(false);
+  const [newStrategyInput, setNewStrategyInput] = useState('');
+  const [editingStrategyIdx, setEditingStrategyIdx] = useState<number | null>(null);
+  const [editingStrategyText, setEditingStrategyText] = useState('');
+
+  // Persist assets to localStorage
+  const updateSavedAssets = (newAssets: string[]) => {
+    setSavedAssets(newAssets);
+    try {
+      localStorage.setItem(ASSETS_STORAGE_KEY, JSON.stringify(newAssets));
+    } catch (e) {
+      console.warn('Erro ao salvar ativos no localStorage:', e);
+    }
+  };
+
+  const handleAddAsset = (assetToAdd: string) => {
+    const trimmed = assetToAdd.trim().toUpperCase();
+    if (!trimmed) return;
+    if (!savedAssets.includes(trimmed)) {
+      const updated = [...savedAssets, trimmed];
+      updateSavedAssets(updated);
+    }
+    setAsset(trimmed);
+    setNewAssetInput('');
+    setIsAddingInline(false);
+  };
+
+  const handleDeleteAsset = (assetToDelete: string) => {
+    const updated = savedAssets.filter((a) => a !== assetToDelete);
+    updateSavedAssets(updated.length > 0 ? updated : ['WIN']);
+    if (asset === assetToDelete) {
+      setAsset(updated[0] || 'WIN');
+    }
+  };
+
+  const handleSaveEditAsset = (idx: number) => {
+    const trimmed = editingAssetText.trim().toUpperCase();
+    if (!trimmed) {
+      setEditingAssetIdx(null);
+      return;
+    }
+    const oldVal = savedAssets[idx];
+    const updated = [...savedAssets];
+    updated[idx] = trimmed;
+    updateSavedAssets(updated);
+    if (asset === oldVal) {
+      setAsset(trimmed);
+    }
+    setEditingAssetIdx(null);
+  };
+
+  const handleResetAssets = () => {
+    updateSavedAssets(DEFAULT_ASSETS);
+  };
+
+  // Persist strategies to localStorage
+  const updateSavedStrategies = (newStrategies: string[]) => {
+    setSavedStrategies(newStrategies);
+    try {
+      localStorage.setItem(STRATEGIES_STORAGE_KEY, JSON.stringify(newStrategies));
+    } catch (e) {
+      console.warn('Erro ao salvar estratégias no localStorage:', e);
+    }
+  };
+
+  const handleAddStrategy = (strategyToAdd: string) => {
+    const trimmed = strategyToAdd.trim();
+    if (!trimmed) return;
+    if (!savedStrategies.includes(trimmed)) {
+      const updated = [...savedStrategies, trimmed];
+      updateSavedStrategies(updated);
+    }
+    setStrategy(trimmed);
+    setNewStrategyInput('');
+    setIsAddingStrategyInline(false);
+  };
+
+  const handleDeleteStrategy = (strategyToDelete: string) => {
+    const updated = savedStrategies.filter((s) => s !== strategyToDelete);
+    updateSavedStrategies(updated.length > 0 ? updated : ['Price Action']);
+    if (strategy === strategyToDelete) {
+      setStrategy(updated[0] || 'Price Action');
+    }
+  };
+
+  const handleSaveEditStrategy = (idx: number) => {
+    const trimmed = editingStrategyText.trim();
+    if (!trimmed) {
+      setEditingStrategyIdx(null);
+      return;
+    }
+    const oldVal = savedStrategies[idx];
+    const updated = [...savedStrategies];
+    updated[idx] = trimmed;
+    updateSavedStrategies(updated);
+    if (strategy === oldVal) {
+      setStrategy(trimmed);
+    }
+    setEditingStrategyIdx(null);
+  };
+
+  const handleResetStrategies = () => {
+    updateSavedStrategies(DEFAULT_STRATEGIES);
+  };
+
+  useEffect(() => {
+    if (editingTrade) {
+      setDate(editingTrade.date);
+      setTime(editingTrade.time || '');
+      setAsset(editingTrade.asset);
+      setType(editingTrade.type);
+      setStrategy(editingTrade.strategy);
+      setContractsOrQuantity(editingTrade.contractsOrQuantity);
+      setPnl(editingTrade.pnl);
+      setResult(editingTrade.result);
+      setEntryPrice(editingTrade.entryPrice ? String(editingTrade.entryPrice) : '');
+      setExitPrice(editingTrade.exitPrice ? String(editingTrade.exitPrice) : '');
+      setNotes(editingTrade.notes || '');
+    } else {
+      // Default new trade: real today's date and clean values
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      setDate(todayStr);
+      setTime(
+        `${now.getHours().toString().padStart(2, '0')}:${now
+          .getMinutes()
+          .toString()
+          .padStart(2, '0')}`
+      );
+      setAsset(savedAssets[0] || '');
+      setType('BUY');
+      setStrategy(savedStrategies[0] || '');
+      setContractsOrQuantity(0);
+      setPnl(0);
+      setResult('GAIN');
+      setEntryPrice('');
+      setExitPrice('');
+      setNotes('');
+    }
+  }, [editingTrade, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Determine result status if not manually set
+    let finalResult = result;
+    if (pnl > 0.001) finalResult = 'GAIN';
+    else if (pnl < -0.001) finalResult = 'LOSS';
+    else finalResult = 'BREAKEVEN';
+
+    const normalizedAsset = asset.trim().toUpperCase() || 'WIN';
+    const normalizedStrategy = strategy.trim() || 'Price Action';
+
+    // Auto-save asset to saved assets list if not already there
+    if (!savedAssets.includes(normalizedAsset)) {
+      updateSavedAssets([...savedAssets, normalizedAsset]);
+    }
+
+    // Auto-save strategy to saved strategies list if not already there
+    if (!savedStrategies.includes(normalizedStrategy)) {
+      updateSavedStrategies([...savedStrategies, normalizedStrategy]);
+    }
+
+    const currentDateStr = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const tradeData: Trade = {
+      id: editingTrade?.id || `trade-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      date: date || currentDateStr,
+      time: time || currentTimeStr,
+      asset: normalizedAsset,
+      type,
+      strategy: normalizedStrategy,
+      result: finalResult,
+      pnl: Number(pnl) || 0,
+      contractsOrQuantity: Number(contractsOrQuantity) || 0,
+      entryPrice: entryPrice ? Number(entryPrice) : undefined,
+      exitPrice: exitPrice ? Number(exitPrice) : undefined,
+      notes: notes.trim(),
+    };
+
+    onSave(tradeData);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-sm overflow-y-auto pt-safe pb-safe">
+      <div className="relative w-full max-w-xl max-h-[94vh] flex flex-col rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl my-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-800 p-4 sm:p-5 shrink-0">
+          <div className="flex items-center gap-2">
+            <PlusCircle className="h-5 w-5 text-emerald-400" />
+            <h3 className="text-base font-bold text-white">
+              {editingTrade ? 'Editar Operação' : 'Registrar Nova Operação'}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4 text-xs">
+          {/* Row 1: Date & Time */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block font-semibold text-slate-300">Data do Trade</label>
+              <input
+                type="date"
+                required
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block font-semibold text-slate-300">Horário</label>
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Row 2: Asset & Type */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Asset Section with Editing & Adding Capabilities */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-300">Ativo Negociado</label>
+                <button
+                  type="button"
+                  onClick={() => setIsManagingAssets(!isManagingAssets)}
+                  className="flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition font-medium"
+                >
+                  <Settings2 className="h-3 w-3" />
+                  {isManagingAssets ? 'Fechar' : 'Gerenciar / Editar'}
+                </button>
+              </div>
+
+              {/* Main Asset Text Input */}
+              <input
+                type="text"
+                required
+                placeholder="Ex: WIN, WDO, PETR4, BTC..."
+                value={asset}
+                onChange={(e) => setAsset(e.target.value.toUpperCase())}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white uppercase focus:border-emerald-500 focus:outline-none font-mono font-bold tracking-wider"
+              />
+
+              {/* Quick Asset Chips */}
+              {!isManagingAssets && (
+                <div className="mt-1.5 space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Ativos rápidos:</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingInline(true)}
+                      className="flex items-center gap-0.5 text-emerald-400 hover:underline font-medium"
+                    >
+                      <Plus className="h-2.5 w-2.5" /> + Novo
+                    </button>
+                  </div>
+
+                  {/* Inline Add Input */}
+                  {isAddingInline && (
+                    <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-950 border border-emerald-500/40">
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Nome (ex: AAPL, SOL)"
+                        value={newAssetInput}
+                        onChange={(e) => setNewAssetInput(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddAsset(newAssetInput);
+                          } else if (e.key === 'Escape') {
+                            setIsAddingInline(false);
+                          }
+                        }}
+                        className="flex-1 bg-transparent px-2 py-0.5 text-xs text-white uppercase font-mono focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddAsset(newAssetInput)}
+                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold"
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingInline(false);
+                          setNewAssetInput('');
+                        }}
+                        className="p-1 text-slate-400 hover:text-white"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Chips */}
+                  <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto pr-0.5">
+                    {savedAssets.map((a) => {
+                      const isSelected = asset.trim().toUpperCase() === a.trim().toUpperCase();
+                      return (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => setAsset(a)}
+                          className={`rounded px-2 py-0.5 text-[10px] font-mono transition ${
+                            isSelected
+                              ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                          }`}
+                        >
+                          {a}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Prompt to save typed asset if not in list */}
+                  {asset.trim() && !savedAssets.includes(asset.trim().toUpperCase()) && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddAsset(asset.trim().toUpperCase())}
+                      className="flex items-center gap-1 text-[10px] text-emerald-400/90 hover:text-emerald-300 pt-0.5"
+                    >
+                      <Plus className="h-2.5 w-2.5" /> Salvar "{asset.trim().toUpperCase()}" nos ativos rápidos
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Management Drawer/Panel */}
+              {isManagingAssets && (
+                <div className="mt-2 p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-slate-300 pb-1 border-b border-slate-800">
+                    <span className="font-semibold text-[11px]">Editar ou Adicionar Ativos</span>
+                    <button
+                      type="button"
+                      onClick={handleResetAssets}
+                      title="Restaurar lista padrão"
+                      className="text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
+                    >
+                      <RotateCcw className="h-2.5 w-2.5" /> Padrão
+                    </button>
+                  </div>
+
+                  {/* Add Input inside manager */}
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Ex: MGLU3, XAUUSD..."
+                      value={newAssetInput}
+                      onChange={(e) => setNewAssetInput(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddAsset(newAssetInput);
+                        }
+                      }}
+                      className="flex-1 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1 text-xs text-white font-mono uppercase focus:border-emerald-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddAsset(newAssetInput)}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition"
+                    >
+                      <Plus className="h-3 w-3" /> Adicionar
+                    </button>
+                  </div>
+
+                  {/* List of items with Edit / Delete */}
+                  <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                    {savedAssets.map((a, idx) => (
+                      <div
+                        key={a}
+                        className="flex items-center justify-between py-1 px-2 rounded bg-slate-900/60 border border-slate-800/60"
+                      >
+                        {editingAssetIdx === idx ? (
+                          <div className="flex items-center gap-1 flex-1 mr-1">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editingAssetText}
+                              onChange={(e) => setEditingAssetText(e.target.value.toUpperCase())}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveEditAsset(idx);
+                                } else if (e.key === 'Escape') {
+                                  setEditingAssetIdx(null);
+                                }
+                              }}
+                              className="flex-1 rounded border border-emerald-500 bg-slate-950 px-1.5 py-0.5 text-xs text-white font-mono uppercase focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEditAsset(idx)}
+                              className="p-1 text-emerald-400 hover:text-emerald-300"
+                              title="Salvar"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingAssetIdx(null)}
+                              className="p-1 text-slate-400 hover:text-white"
+                              title="Cancelar"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="font-mono text-xs font-bold text-slate-200">
+                            {a}
+                          </span>
+                        )}
+
+                        {editingAssetIdx !== idx && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAssetIdx(idx);
+                                setEditingAssetText(a);
+                              }}
+                              title={`Editar ${a}`}
+                              className="p-1 text-slate-400 hover:text-emerald-400 transition"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAsset(a)}
+                              title={`Excluir ${a}`}
+                              className="p-1 text-slate-400 hover:text-rose-400 transition"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsManagingAssets(false)}
+                    className="w-full py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold rounded transition text-center"
+                  >
+                    Concluir Edição
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block font-semibold text-slate-300">Direção da Operação</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setType('BUY')}
+                  className={`flex items-center justify-center gap-1 rounded-xl py-2 font-bold transition ${
+                    type === 'BUY'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
+                      : 'border border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <ArrowUp className="h-4 w-4" /> Compra
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setType('SELL')}
+                  className={`flex items-center justify-center gap-1 rounded-xl py-2 font-bold transition ${
+                    type === 'SELL'
+                      ? 'bg-amber-600 text-white shadow-md shadow-amber-900/30'
+                      : 'border border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <ArrowDown className="h-4 w-4" /> Venda
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Strategy & Valor de Entrada (Substituindo Contratos) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Strategy Section with Editing & Adding Capabilities */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-300">Estratégia / Setup</label>
+                <button
+                  type="button"
+                  onClick={() => setIsManagingStrategies(!isManagingStrategies)}
+                  className="flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition font-medium"
+                >
+                  <Settings2 className="h-3 w-3" />
+                  {isManagingStrategies ? 'Fechar' : 'Gerenciar / Editar'}
+                </button>
+              </div>
+
+              {/* Main Strategy Text Input */}
+              <input
+                type="text"
+                required
+                value={strategy}
+                onChange={(e) => setStrategy(e.target.value)}
+                placeholder="Ex: Price Action, Rompimento..."
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-medium"
+              />
+
+              {/* Quick Strategy Chips */}
+              {!isManagingStrategies && (
+                <div className="mt-1.5 space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Estratégias rápidas:</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingStrategyInline(true)}
+                      className="flex items-center gap-0.5 text-emerald-400 hover:underline font-medium"
+                    >
+                      <Plus className="h-2.5 w-2.5" /> + Nova
+                    </button>
+                  </div>
+
+                  {/* Inline Add Input */}
+                  {isAddingStrategyInline && (
+                    <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-950 border border-emerald-500/40">
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Nome (ex: Fluxo Institucional)"
+                        value={newStrategyInput}
+                        onChange={(e) => setNewStrategyInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddStrategy(newStrategyInput);
+                          } else if (e.key === 'Escape') {
+                            setIsAddingStrategyInline(false);
+                          }
+                        }}
+                        className="flex-1 bg-transparent px-2 py-0.5 text-xs text-white focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddStrategy(newStrategyInput)}
+                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold"
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingStrategyInline(false);
+                          setNewStrategyInput('');
+                        }}
+                        className="p-1 text-slate-400 hover:text-white"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Chips */}
+                  <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto pr-0.5">
+                    {savedStrategies.map((s) => {
+                      const isSelected = strategy.trim().toLowerCase() === s.trim().toLowerCase();
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setStrategy(s)}
+                          className={`rounded px-2 py-0.5 text-[10px] transition ${
+                            isSelected
+                              ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Prompt to save typed strategy if not in list */}
+                  {strategy.trim() &&
+                    !savedStrategies.some(
+                      (s) => s.trim().toLowerCase() === strategy.trim().toLowerCase()
+                    ) && (
+                      <button
+                        type="button"
+                        onClick={() => handleAddStrategy(strategy.trim())}
+                        className="flex items-center gap-1 text-[10px] text-emerald-400/90 hover:text-emerald-300 pt-0.5"
+                      >
+                        <Plus className="h-2.5 w-2.5" /> Salvar "{strategy.trim()}" nas estratégias rápidas
+                      </button>
+                    )}
+                </div>
+              )}
+
+              {/* Management Drawer/Panel */}
+              {isManagingStrategies && (
+                <div className="mt-2 p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-slate-300 pb-1 border-b border-slate-800">
+                    <span className="font-semibold text-[11px]">Editar ou Adicionar Estratégias</span>
+                    <button
+                      type="button"
+                      onClick={handleResetStrategies}
+                      title="Restaurar lista padrão"
+                      className="text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
+                    >
+                      <RotateCcw className="h-2.5 w-2.5" /> Padrão
+                    </button>
+                  </div>
+
+                  {/* Add Input inside manager */}
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Ex: Falsa Quebra, Scalp 2 Min..."
+                      value={newStrategyInput}
+                      onChange={(e) => setNewStrategyInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddStrategy(newStrategyInput);
+                        }
+                      }}
+                      className="flex-1 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddStrategy(newStrategyInput)}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition"
+                    >
+                      <Plus className="h-3 w-3" /> Adicionar
+                    </button>
+                  </div>
+
+                  {/* List of items with Edit / Delete */}
+                  <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                    {savedStrategies.map((s, idx) => (
+                      <div
+                        key={s}
+                        className="flex items-center justify-between py-1 px-2 rounded bg-slate-900/60 border border-slate-800/60"
+                      >
+                        {editingStrategyIdx === idx ? (
+                          <div className="flex items-center gap-1 flex-1 mr-1">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editingStrategyText}
+                              onChange={(e) => setEditingStrategyText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveEditStrategy(idx);
+                                } else if (e.key === 'Escape') {
+                                  setEditingStrategyIdx(null);
+                                }
+                              }}
+                              className="flex-1 rounded border border-emerald-500 bg-slate-950 px-1.5 py-0.5 text-xs text-white focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEditStrategy(idx)}
+                              className="p-1 text-emerald-400 hover:text-emerald-300"
+                              title="Salvar"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingStrategyIdx(null)}
+                              className="p-1 text-slate-400 hover:text-white"
+                              title="Cancelar"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-200">{s}</span>
+                        )}
+
+                        {editingStrategyIdx !== idx && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingStrategyIdx(idx);
+                                setEditingStrategyText(s);
+                              }}
+                              title={`Editar ${s}`}
+                              className="p-1 text-slate-400 hover:text-emerald-400 transition"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStrategy(s)}
+                              title={`Excluir ${s}`}
+                              className="p-1 text-slate-400 hover:text-rose-400 transition"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsManagingStrategies(false)}
+                    className="w-full py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold rounded transition text-center"
+                  >
+                    Concluir Edição
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Valor de Entrada Section */}
+            <div>
+              <label className="mb-1 block font-semibold text-slate-300">
+                Valor de Entrada (R$)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2 font-mono font-bold text-slate-400">R$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  required
+                  value={contractsOrQuantity}
+                  onChange={(e) => setContractsOrQuantity(Number(e.target.value))}
+                  placeholder="Ex: 100,00 ou 500,00"
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 pl-10 pr-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-mono font-bold"
+                />
+              </div>
+              <p className="mt-1 text-[10px] text-slate-400">
+                Valor financeiro ou margem alocada na entrada deste trade.
+              </p>
+            </div>
+          </div>
+
+          {/* Row 4: Financial Result (P&L em R$) */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
+            <div className="flex items-center justify-between mb-2">
+              <label className="font-bold text-white text-xs">
+                Resultado Líquido da Operação (R$)
+              </label>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPnl(Math.abs(pnl) || 200);
+                    setResult('GAIN');
+                  }}
+                  className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                    pnl > 0 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  + Gain
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPnl(-Math.abs(pnl || 150));
+                    setResult('LOSS');
+                  }}
+                  className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                    pnl < 0 ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  - Loss
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPnl(0);
+                    setResult('BREAKEVEN');
+                  }}
+                  className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                    pnl === 0 ? 'bg-slate-600 text-white' : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  0x0 (Empate)
+                </button>
+              </div>
+            </div>
+
+            <div className="relative">
+              <span className="absolute left-3 top-2 font-mono font-bold text-slate-400">R$</span>
+              <input
+                type="number"
+                step="any"
+                required
+                value={pnl}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setPnl(val);
+                  if (val > 0.001) setResult('GAIN');
+                  else if (val < -0.001) setResult('LOSS');
+                  else setResult('BREAKEVEN');
+                }}
+                className={`w-full rounded-xl border border-slate-800 bg-slate-900 pl-10 pr-3 py-2 text-base font-extrabold font-mono focus:outline-none ${
+                  pnl > 0 ? 'text-emerald-400' : pnl < 0 ? 'text-rose-400' : 'text-white'
+                }`}
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Insira o valor financeiro direto em reais (positivo para ganho, negativo para perda).
+            </p>
+          </div>
+
+          {/* Row 5: Notes */}
+          <div>
+            <label className="mb-1 block font-semibold text-slate-300">
+              Observações / Checklist Psicológico & Técnico
+            </label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Ex: Rompimento limpo com volume; esperei o pullback na média de 20; segui o plano sem hesitação."
+              className="w-full rounded-xl border border-slate-800 bg-slate-950 p-3 text-white focus:border-emerald-500 focus:outline-none resize-none"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-slate-800 px-4 py-2 font-semibold text-slate-400 hover:text-white transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="rounded-xl bg-emerald-600 px-5 py-2 font-bold text-white shadow-lg shadow-emerald-900/30 hover:bg-emerald-500 transition"
+            >
+              {editingTrade ? 'Atualizar Trade' : 'Salvar Operação'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+

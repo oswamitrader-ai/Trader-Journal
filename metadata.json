@@ -1,0 +1,6 @@
+{
+  "name": "Painel de Gerenciamento Trader",
+  "description": "Painel completo de gerenciamento de capital para traders com cálculo de assertividade, drawdown acumulado, variação diária comparativa, calendário de negociações, filtros por ativo e estratégia, alertas de metas e limites de perda, resumos semanais, análise com IA e Extensão Trava Anti-Fúria para bloqueio automático de corretoras (Exnova, Quotex, etc.) após o stop loss.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
