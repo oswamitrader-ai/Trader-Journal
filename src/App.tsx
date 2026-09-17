@@ -210,10 +210,11 @@ export default function App() {
     [trades]
   );
 
-  // Today's stats (take the latest trading date or today)
+  // Today's stats — must match the ACTUAL calendar date, not just the last trading day
   const todayPerformance = useMemo<DayPerformance | undefined>(() => {
     if (dailyPerformance.length === 0) return undefined;
-    return dailyPerformance[dailyPerformance.length - 1];
+    const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    return dailyPerformance.find((d) => d.date === todayStr);
   }, [dailyPerformance]);
 
   const selectedDayPerformance = useMemo<DayPerformance | undefined>(() => {
