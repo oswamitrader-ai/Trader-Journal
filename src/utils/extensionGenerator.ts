@@ -242,6 +242,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         todayPnl: pnl,
         dailyLossLimit: limit,
         lastDate: today,
+        winRate: Number(msg.winRate) || 0,
+        profitFactor: Number(msg.profitFactor) || 0,
+        todayTradesCount: Number(msg.todayTradesCount) || 0,
+        currentCapital: Number(msg.currentCapital) || 0,
       }, () => {
         if (isHit) {
           chrome.storage.local.get(['blockedDomains'], (res) => {
