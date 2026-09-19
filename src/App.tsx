@@ -36,6 +36,7 @@ import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { AntiFuriaExtensionModal } from './components/AntiFuriaExtensionModal';
 import { CapitalHistoryModal } from './components/CapitalHistoryModal';
 import { KellyCalculatorModal } from './components/KellyCalculatorModal';
+import { ImportTradesModal } from './components/ImportTradesModal';
 import {
   supabase,
   checkSupabaseConnection,
@@ -148,6 +149,7 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isAiMentorOpen, setIsAiMentorOpen] = useState(false);
   const [isKellyModalOpen, setIsKellyModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isAntiFuriaModalOpen, setIsAntiFuriaModalOpen] = useState(false);
@@ -339,6 +341,17 @@ export default function App() {
     });
   };
 
+  const handleImportTrades = (importedTrades: Trade[]) => {
+    if (!importedTrades || importedTrades.length === 0) return;
+    setTrades((prev) => [...importedTrades, ...prev]);
+    // Sync each imported trade to Supabase in background
+    importedTrades.forEach((trade) => {
+      upsertTradeToSupabase(trade).catch((err) => {
+        console.warn('Erro ao sincronizar trade importado:', err);
+      });
+    });
+  };
+
   const handleDeleteTrade = (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta operação?')) {
       setTrades((prev) => prev.filter((t) => t.id !== id));
@@ -513,6 +526,7 @@ export default function App() {
         currentCapital={metrics.currentCapital}
         supabaseStatus={supabaseHealth.status}
         onOpenNewTrade={handleOpenNewTrade}
+        onOpenImportModal={() => setIsImportModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         onOpenAiMentor={() => setIsAiMentorOpen(true)}
         onOpenKellyCalculator={() => setIsKellyModalOpen(true)}
@@ -692,6 +706,7 @@ export default function App() {
             <TradeList
               trades={trades}
               onOpenNewTrade={handleOpenNewTrade}
+              onOpenImportModal={() => setIsImportModalOpen(true)}
               onEditTrade={handleEditTrade}
               onDeleteTrade={handleDeleteTrade}
               onResetData={handleResetData}
@@ -738,6 +753,7 @@ export default function App() {
             <TradeList
               trades={trades}
               onOpenNewTrade={handleOpenNewTrade}
+              onOpenImportModal={() => setIsImportModalOpen(true)}
               onEditTrade={handleEditTrade}
               onDeleteTrade={handleDeleteTrade}
               onResetData={handleResetData}
@@ -891,6 +907,12 @@ export default function App() {
         onClose={() => setIsKellyModalOpen(false)}
         metrics={metrics}
         currentCapital={metrics.currentCapital}
+      />
+
+      <ImportTradesModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportTrades={handleImportTrades}
       />
     </div>
   );

@@ -13,6 +13,7 @@ import {
   XCircle,
   RotateCcw,
   Calculator,
+  Upload,
 } from 'lucide-react';
 import { OverallMetrics, RiskSettings, NotificationAlert } from '../types';
 import { formatCurrency, formatPercent } from '../utils/calculations';
@@ -27,6 +28,7 @@ interface NavbarProps {
   currentCapital?: number;
   supabaseStatus?: SupabaseConnectionStatus;
   onOpenNewTrade: () => void;
+  onOpenImportModal?: () => void;
   onOpenSettings: () => void;
   onOpenAiMentor: () => void;
   onOpenKellyCalculator?: () => void;
@@ -45,6 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentCapital,
   supabaseStatus = 'connecting',
   onOpenNewTrade,
+  onOpenImportModal,
   onOpenSettings,
   onOpenAiMentor,
   onOpenKellyCalculator,
@@ -210,6 +213,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Brain className="h-4 w-4 text-teal-300" />
             <span>Mentor IA</span>
           </button>
+
+          {/* Import CSV Button */}
+          {onOpenImportModal && (
+            <button
+              id="btn-importar-csv"
+              onClick={onOpenImportModal}
+              title="Importar Relatório de Performance (ProfitChart, MT4/MT5, Exnova)"
+              className="hidden xl:flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-blue-950/40 px-3 py-2 text-xs font-bold text-blue-300 shadow-md transition-all hover:bg-blue-900/50 hover:text-white active:scale-95 shrink-0"
+            >
+              <Upload className="h-4 w-4 text-blue-400" />
+              <span>Importar CSV</span>
+            </button>
+          )}
 
           {/* Kelly Calculator Button */}
           {onOpenKellyCalculator && (

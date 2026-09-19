@@ -14,6 +14,7 @@ import {
   XCircle,
   MinusCircle,
   Tag,
+  Upload,
 } from 'lucide-react';
 import { Trade } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
@@ -21,6 +22,7 @@ import { formatCurrency, formatDate } from '../utils/calculations';
 interface TradeListProps {
   trades: Trade[];
   onOpenNewTrade: () => void;
+  onOpenImportModal?: () => void;
   onEditTrade: (trade: Trade) => void;
   onDeleteTrade: (id: string) => void;
   onResetData: () => void;
@@ -29,6 +31,7 @@ interface TradeListProps {
 export const TradeList: React.FC<TradeListProps> = ({
   trades,
   onOpenNewTrade,
+  onOpenImportModal,
   onEditTrade,
   onDeleteTrade,
   onResetData,
@@ -141,6 +144,17 @@ export const TradeList: React.FC<TradeListProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {onOpenImportModal && (
+            <button
+              onClick={onOpenImportModal}
+              title="Importar relatório de performance da ProfitChart, MetaTrader ou Exnova"
+              className="flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-blue-950/40 px-3 py-1.5 text-xs font-bold text-blue-300 hover:bg-blue-900/50 hover:text-white transition shadow-sm"
+            >
+              <Upload className="h-3.5 w-3.5 text-blue-400" />
+              <span>Importar CSV</span>
+            </button>
+          )}
+
           <button
             onClick={exportToCsv}
             title="Exportar dados filtrados para arquivo CSV"
