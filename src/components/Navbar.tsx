@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  HelpCircle,
   RotateCcw,
 } from 'lucide-react';
 import { OverallMetrics, RiskSettings, NotificationAlert } from '../types';
@@ -52,7 +51,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetData = () => {},
 }) => {
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Safe defaults for risk settings
   const dailyProfitTarget = settings?.dailyProfitTarget ?? 500;
@@ -314,79 +312,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Settings className="h-4 w-4" />
           </button>
-
-          {/* Quick Help / Info */}
-          <button
-            id="btn-ajuda"
-            onClick={() => setShowHelpModal(true)}
-            title="Instruções de Uso"
-            className="flex h-8.5 w-8.5 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-emerald-400 transition-all hover:bg-slate-700 hover:text-emerald-300 active:scale-95 shrink-0 shadow-sm"
-          >
-            <HelpCircle className="h-4.5 w-4.5" />
-          </button>
         </div>
       </div>
-
-      {/* Help Modal */}
-      {showHelpModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md pt-safe pb-safe overflow-y-auto"
-          onClick={() => setShowHelpModal(false)}
-        >
-          <div
-            className="relative my-auto w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 sm:p-6 shadow-2xl space-y-4 text-left"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <HelpCircle className="h-5 w-5 text-emerald-400" />
-                Como funciona o seu Painel de Trader
-              </h3>
-              <button
-                onClick={() => setShowHelpModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs sm:text-sm text-slate-300 leading-relaxed">
-              <p>
-                Este painel foi construído especificamente para o dia a dia do trader disciplinado, cobrindo:
-              </p>
-              <ul className="space-y-2 list-disc list-inside text-xs text-slate-300">
-                <li>
-                  <strong className="text-white">Assertividade (Win Rate):</strong> Percentual de trades vencedores sobre o total de operações.
-                </li>
-                <li>
-                  <strong className="text-white">Variação Diária Comparada:</strong> Calcula a evolução percentual de ganhos de hoje comparado ao dia anterior.
-                </li>
-                <li>
-                  <strong className="text-white">Drawdown Acumulado:</strong> Monitora o maior rebaixamento histórico do seu capital em R$ e % a partir do pico (High Watermark).
-                </li>
-                <li>
-                  <strong className="text-white">Calendário Mensal:</strong> Visão visual de dias verdes/vermelhos com filtros por Ativo (WIN, WDO, Ações, Cripto) e Estratégia.
-                </li>
-                <li>
-                  <strong className="text-white">Alertas de Meta e Stop:</strong> Notificação automática caso atinja a Meta de Ganho ou o Limite de Perda Diário.
-                </li>
-                <li>
-                  <strong className="text-white">Mentor IA:</strong> Análise com inteligência artificial sobre seus pontos fortes, fraquezas e psicologia de trade.
-                </li>
-              </ul>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setShowHelpModal(false)}
-                className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-500 transition active:scale-95 shadow-md"
-              >
-                Entendido!
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 };
