@@ -16,6 +16,7 @@ import {
   BellOff,
   Trophy,
   AlertTriangle,
+  Calculator,
 } from 'lucide-react';
 import { OverallMetrics, RiskSettings, DayPerformance } from '../types';
 import { formatCurrency, formatPercent } from '../utils/calculations';
@@ -34,6 +35,7 @@ interface KpiCardsProps {
   dailyPerformance?: DayPerformance[];
   dailyProfitTarget?: number;
   onOpenCapitalModal?: () => void;
+  onOpenKellyCalculator?: () => void;
 }
 
 export const KpiCards: React.FC<KpiCardsProps> = ({
@@ -43,6 +45,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
   dailyPerformance,
   dailyProfitTarget: propDailyProfitTarget,
   onOpenCapitalModal,
+  onOpenKellyCalculator,
 }) => {
   const [showPfModal, setShowPfModal] = useState(false);
   const [pushPermission, setPushPermission] = useState<string>(() => getNotificationPermission());
@@ -378,8 +381,24 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Assertividade
           </span>
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
-            <Target className="h-4 w-4" />
+          <div className="flex items-center gap-1.5">
+            {onOpenKellyCalculator && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenKellyCalculator();
+                }}
+                title="Abrir Calculadora do Critério de Kelly (Dimensionar Lotes)"
+                className="flex items-center gap-1 rounded-lg bg-teal-500/15 px-2 py-0.5 text-[10px] font-bold text-teal-300 border border-teal-500/30 hover:bg-teal-500/25 transition active:scale-95"
+              >
+                <Calculator className="h-3 w-3" />
+                <span>Calc. Kelly</span>
+              </button>
+            )}
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
+              <Target className="h-4 w-4" />
+            </div>
           </div>
         </div>
 

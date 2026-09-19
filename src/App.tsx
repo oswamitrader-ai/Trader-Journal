@@ -35,6 +35,7 @@ import { AiTraderMentorModal } from './components/AiTraderMentorModal';
 import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { AntiFuriaExtensionModal } from './components/AntiFuriaExtensionModal';
 import { CapitalHistoryModal } from './components/CapitalHistoryModal';
+import { KellyCalculatorModal } from './components/KellyCalculatorModal';
 import {
   supabase,
   checkSupabaseConnection,
@@ -146,6 +147,7 @@ export default function App() {
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isAiMentorOpen, setIsAiMentorOpen] = useState(false);
+  const [isKellyModalOpen, setIsKellyModalOpen] = useState(false);
   const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isAntiFuriaModalOpen, setIsAntiFuriaModalOpen] = useState(false);
@@ -513,6 +515,7 @@ export default function App() {
         onOpenNewTrade={handleOpenNewTrade}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         onOpenAiMentor={() => setIsAiMentorOpen(true)}
+        onOpenKellyCalculator={() => setIsKellyModalOpen(true)}
         onOpenSupabase={() => setIsSupabaseModalOpen(true)}
         onOpenAntiFuria={() => setIsAntiFuriaModalOpen(true)}
         onClearNotifications={handleClearNotifications}
@@ -656,6 +659,7 @@ export default function App() {
           dailyPerformance={dailyPerformance}
           dailyProfitTarget={settings.dailyProfitTarget}
           onOpenCapitalModal={() => setIsCapitalModalOpen(true)}
+          onOpenKellyCalculator={() => setIsKellyModalOpen(true)}
         />
 
         {/* Conditional View Sections */}
@@ -879,6 +883,13 @@ export default function App() {
         winRate={metrics.winRate}
         profitFactor={metrics.profitFactor}
         todayTradesCount={todayPerformance?.tradesCount || 0}
+        currentCapital={metrics.currentCapital}
+      />
+
+      <KellyCalculatorModal
+        isOpen={isKellyModalOpen}
+        onClose={() => setIsKellyModalOpen(false)}
+        metrics={metrics}
         currentCapital={metrics.currentCapital}
       />
     </div>

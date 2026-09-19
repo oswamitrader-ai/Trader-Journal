@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   XCircle,
   RotateCcw,
+  Calculator,
 } from 'lucide-react';
 import { OverallMetrics, RiskSettings, NotificationAlert } from '../types';
 import { formatCurrency, formatPercent } from '../utils/calculations';
@@ -28,6 +29,7 @@ interface NavbarProps {
   onOpenNewTrade: () => void;
   onOpenSettings: () => void;
   onOpenAiMentor: () => void;
+  onOpenKellyCalculator?: () => void;
   onOpenSupabase?: () => void;
   onOpenAntiFuria?: () => void;
   onClearNotifications?: () => void;
@@ -45,6 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenNewTrade,
   onOpenSettings,
   onOpenAiMentor,
+  onOpenKellyCalculator,
   onOpenSupabase = () => {},
   onOpenAntiFuria,
   onClearNotifications = () => {},
@@ -207,6 +210,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Brain className="h-4 w-4 text-teal-300" />
             <span>Mentor IA</span>
           </button>
+
+          {/* Kelly Calculator Button */}
+          {onOpenKellyCalculator && (
+            <button
+              id="btn-calculadora-kelly"
+              onClick={onOpenKellyCalculator}
+              title="Calculadora do Critério de Kelly (Dimensionamento de Lote & Contratos)"
+              className="hidden md:flex items-center gap-1.5 rounded-xl border border-teal-500/40 bg-slate-800/90 px-3 py-2 text-xs font-bold text-teal-300 shadow-md transition-all hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
+            >
+              <Calculator className="h-4 w-4 text-teal-400" />
+              <span>Calc. Kelly</span>
+            </button>
+          )}
 
           {/* 1. Anti-Fúria Extension Button (Always visible on mobile) */}
           {onOpenAntiFuria && (

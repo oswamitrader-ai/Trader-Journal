@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   BarChart2,
   TrendingUp,
@@ -9,6 +9,10 @@ import {
   Info,
   Smile,
   Target,
+  Dices,
+  AlertTriangle,
+  TrendingDown,
+  Shield,
 } from 'lucide-react';
 import {
   Radar,
@@ -19,7 +23,13 @@ import {
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   Legend as RechartsLegend,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
 } from 'recharts';
+import { runMonteCarloSimulation, MonteCarloResult } from '../utils/monteCarlo';
 import { Trade, DayPerformance, OverallMetrics, RiskSettings } from '../types';
 import {
   formatCurrency,
@@ -48,7 +58,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
   settings,
   onSelectDay,
 }) => {
-  const [activeTab, setActiveTab] = useState<'daily' | 'equity' | 'drawdown' | 'breakdown' | 'radar' | 'emotion'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'equity' | 'drawdown' | 'breakdown' | 'radar' | 'emotion' | 'montecarlo'>('daily');
   const [hoveredDay, setHoveredDay] = useState<DayPerformance | null>(null);
   const [selectedRadarStrategies, setSelectedRadarStrategies] = useState<string[]>([]);
 
@@ -236,6 +246,18 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
           >
             <Smile className="h-3.5 w-3.5" />
             <span>Emocional</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('montecarlo')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
+              activeTab === 'montecarlo'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Dices className="h-3.5 w-3.5" />
+            <span>Monte Carlo</span>
           </button>
         </div>
       </div>
@@ -953,6 +975,346 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             </div>
           </div>
         )}
+
+        {/* 7. MONTE CARLO SIMULATION */}
+        {activeTab === 'montecarlo' && (
+          <MonteCarloPanel metrics={metrics} trades={trades} />
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   Monte Carlo Simulation Panel
+   ============================================================ */
+
+interface MonteCarloPanelProps {
+  metrics: OverallMetrics;
+  trades: Trade[];
+}
+
+const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) => {
+  const [projectionDays, setProjectionDays] = useState<30 | 60 | 90>(90);
+  const [numSimulations, setNumSimulations] = useState<number>(1000);
+
+  const tradesPerDay = useMemo(() => {
+    if (!trades || trades.length === 0) return 3;
+    const daySet = new Set(trades.map(t => t.date));
+    return Math.max(1, Math.round(trades.length / daySet.size));
+  }, [trades]);
+
+  const result = useMemo<MonteCarloResult | null>(() => {
+    if (metrics.totalTrades < 5) return null;
+
+    return runMonteCarloSimulation({
+      winRate: metrics.winRate / 100,
+      avgWin: metrics.avgWin,
+      avgLoss: metrics.avgLoss,
+      initialCapital: metrics.currentCapital > 0 ? metrics.currentCapital : metrics.initialCapital,
+      tradesPerDay,
+      numSimulations,
+      projectionDays,
+      ruinThreshold: 0.1,
+    });
+  }, [metrics, tradesPerDay, numSimulations, projectionDays]);
+
+  if (metrics.totalTrades < 5) {
+    return (
+      <div className="pt-2">
+        <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-8 text-center">
+          <Dices className="h-12 w-12 text-cyan-400/40 mx-auto mb-3" />
+          <p className="text-sm text-slate-400">
+            Registre pelo menos <strong className="text-cyan-300">5 trades</strong> para executar a simulação de Monte Carlo.
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            A simulação utiliza sua taxa de acerto e payoff reais para projeções probabilísticas.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!result) return null;
+
+  const riskColor = result.riskOfRuin < 0.05 ? 'text-emerald-400' : result.riskOfRuin < 0.2 ? 'text-amber-400' : 'text-rose-400';
+  const riskBg = result.riskOfRuin < 0.05 ? 'bg-emerald-500/10 border-emerald-500/20' : result.riskOfRuin < 0.2 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-rose-500/10 border-rose-500/20';
+  const riskLabel = result.riskOfRuin < 0.05 ? 'SEGURO' : result.riskOfRuin < 0.2 ? 'ATENÇÃO' : 'CRÍTICO';
+
+  const riskPercent = Math.min(100, result.riskOfRuin * 100);
+  const expectancyPositive = result.expectancy > 0;
+
+  // Custom tooltip for area chart
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload || payload.length === 0) return null;
+    const data = payload[0]?.payload;
+    if (!data) return null;
+    return (
+      <div className="rounded-lg border border-slate-700 bg-slate-900/95 p-3 text-xs shadow-xl backdrop-blur">
+        <p className="font-bold text-cyan-300 mb-1.5">Dia {data.day}</p>
+        <div className="space-y-0.5">
+          <p className="text-emerald-300">P90 (Otimista): <strong>{formatCurrency(data.p90)}</strong></p>
+          <p className="text-emerald-400/80">P75: <strong>{formatCurrency(data.p75)}</strong></p>
+          <p className="text-cyan-300 font-bold">P50 (Mediana): <strong>{formatCurrency(data.p50)}</strong></p>
+          <p className="text-amber-400/80">P25: <strong>{formatCurrency(data.p25)}</strong></p>
+          <p className="text-rose-400">P10 (Pessimista): <strong>{formatCurrency(data.p10)}</strong></p>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="pt-2 space-y-4">
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 rounded-lg bg-slate-950/60 border border-slate-800 px-3 py-1.5">
+          <span className="text-[11px] text-slate-400">Projeção:</span>
+          {([30, 60, 90] as const).map(d => (
+            <button
+              key={d}
+              onClick={() => setProjectionDays(d)}
+              className={`rounded px-2 py-0.5 text-[11px] font-bold transition ${
+                projectionDays === d
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 rounded-lg bg-slate-950/60 border border-slate-800 px-3 py-1.5">
+          <span className="text-[11px] text-slate-400">Simulações:</span>
+          {[500, 1000, 2000].map(n => (
+            <button
+              key={n}
+              onClick={() => setNumSimulations(n)}
+              className={`rounded px-2 py-0.5 text-[11px] font-bold transition ${
+                numSimulations === n
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Risk of Ruin Gauge + KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Risk of Ruin Card */}
+        <div className={`rounded-xl border p-4 ${riskBg}`}>
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className={`h-4 w-4 ${riskColor}`} />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Risco de Ruína</span>
+          </div>
+          {/* Gauge */}
+          <div className="relative flex items-center justify-center mb-3">
+            <svg viewBox="0 0 120 70" className="w-32 h-20">
+              {/* Background arc */}
+              <path
+                d="M 10 60 A 50 50 0 0 1 110 60"
+                fill="none"
+                stroke="#1e293b"
+                strokeWidth="8"
+                strokeLinecap="round"
+              />
+              {/* Colored arc */}
+              <path
+                d="M 10 60 A 50 50 0 0 1 110 60"
+                fill="none"
+                stroke={result.riskOfRuin < 0.05 ? '#10b981' : result.riskOfRuin < 0.2 ? '#f59e0b' : '#ef4444'}
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={`${riskPercent * 1.57} 157`}
+                style={{ transition: 'stroke-dasharray 0.5s ease' }}
+              />
+            </svg>
+            <div className="absolute bottom-0 text-center">
+              <p className={`text-2xl font-black font-mono ${riskColor}`}>
+                {(result.riskOfRuin * 100).toFixed(1)}%
+              </p>
+            </div>
+          </div>
+          <div className="text-center">
+            <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${riskBg} ${riskColor}`}>
+              {riskLabel}
+            </span>
+            <p className="text-[10px] text-slate-500 mt-1">
+              {result.ruinCount} de {result.totalSimulations} simulações quebraram
+            </p>
+          </div>
+        </div>
+
+        {/* Expectancy + Avg DD */}
+        <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-4 space-y-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className={`h-3.5 w-3.5 ${expectancyPositive ? 'text-emerald-400' : 'text-rose-400'}`} />
+              <span className="text-[11px] text-slate-400 uppercase tracking-wider">Expectância / Trade</span>
+            </div>
+            <p className={`text-xl font-black font-mono ${expectancyPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {expectancyPositive ? '+' : ''}{formatCurrency(result.expectancy)}
+            </p>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Valor médio esperado por operação
+            </p>
+          </div>
+          <div className="border-t border-slate-800 pt-3">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingDown className="h-3.5 w-3.5 text-amber-400" />
+              <span className="text-[11px] text-slate-400 uppercase tracking-wider">Drawdown Médio Máx.</span>
+            </div>
+            <p className="text-xl font-black font-mono text-amber-400">
+              {result.avgMaxDrawdown.toFixed(1)}%
+            </p>
+          </div>
+        </div>
+
+        {/* Projections 30/60/90 */}
+        <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="h-4 w-4 text-cyan-400" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Projeção (Mediana)</span>
+          </div>
+          <div className="space-y-2">
+            {[
+              { label: '30 dias', value: result.projections.days30 },
+              { label: '60 dias', value: result.projections.days60 },
+              { label: '90 dias', value: result.projections.days90 },
+            ].map(item => {
+              const diff = item.value - (metrics.currentCapital > 0 ? metrics.currentCapital : metrics.initialCapital);
+              const isUp = diff >= 0;
+              return (
+                <div key={item.label} className="flex items-center justify-between rounded-lg bg-slate-900/50 px-3 py-2">
+                  <span className="text-xs text-slate-400">{item.label}</span>
+                  <div className="text-right">
+                    <p className="text-sm font-bold font-mono text-slate-200">
+                      {formatCurrency(item.value)}
+                    </p>
+                    <p className={`text-[10px] font-mono ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {isUp ? '+' : ''}{formatCurrency(diff)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Area Chart - Capital Projection Bands */}
+      <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <Layers className="h-4 w-4 text-cyan-400" />
+            Banda de Projeção de Capital ({numSimulations} simulações)
+          </h4>
+          <div className="flex flex-wrap items-center gap-3 text-[10px]">
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-400/60" />
+              P75-P90
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-cyan-400" />
+              P50 (Mediana)
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-400/60" />
+              P10-P25
+            </span>
+          </div>
+        </div>
+
+        <div style={{ width: '100%', height: 320 }}>
+          <ResponsiveContainer>
+            <AreaChart data={result.dailyPercentiles} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="mcGradientTop" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="#10b981" stopOpacity={0.05} />
+                </linearGradient>
+                <linearGradient id="mcGradientMid" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.05} />
+                </linearGradient>
+                <linearGradient id="mcGradientBottom" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis
+                dataKey="day"
+                tick={{ fill: '#64748b', fontSize: 10 }}
+                tickFormatter={(v: number) => `D${v}`}
+                stroke="#334155"
+              />
+              <YAxis
+                tick={{ fill: '#64748b', fontSize: 10 }}
+                tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`}
+                stroke="#334155"
+                width={55}
+              />
+              <RechartsTooltip content={<CustomTooltip />} />
+              {/* P10-P90 band (widest) */}
+              <Area type="monotone" dataKey="p90" stackId="band" stroke="none" fill="url(#mcGradientTop)" />
+              <Area type="monotone" dataKey="p10" stackId="band2" stroke="none" fill="transparent" />
+              {/* P25-P75 band */}
+              <Area type="monotone" dataKey="p75" stroke="none" fill="url(#mcGradientMid)" fillOpacity={0.3} />
+              <Area type="monotone" dataKey="p25" stroke="none" fill="url(#mcGradientBottom)" fillOpacity={0.2} />
+              {/* Median line */}
+              <Area type="monotone" dataKey="p50" stroke="#06b6d4" strokeWidth={2.5} fill="none" dot={false} />
+              {/* P90 line */}
+              <Area type="monotone" dataKey="p90" stroke="#10b981" strokeWidth={1} strokeDasharray="4 4" fill="none" dot={false} />
+              {/* P10 line */}
+              <Area type="monotone" dataKey="p10" stroke="#f59e0b" strokeWidth={1} strokeDasharray="4 4" fill="none" dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Final Capital Distribution */}
+      <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-4">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-3">
+          <Dices className="h-4 w-4 text-cyan-400" />
+          Distribuição de Capital Final ({projectionDays} dias)
+        </h4>
+        <div className="grid grid-cols-5 gap-2">
+          {[
+            { label: 'P10 (Pior cenário)', value: result.finalCapitalPercentiles.p10, color: 'text-rose-400' },
+            { label: 'P25', value: result.finalCapitalPercentiles.p25, color: 'text-amber-400' },
+            { label: 'P50 (Mediana)', value: result.finalCapitalPercentiles.p50, color: 'text-cyan-300' },
+            { label: 'P75', value: result.finalCapitalPercentiles.p75, color: 'text-emerald-400' },
+            { label: 'P90 (Melhor cenário)', value: result.finalCapitalPercentiles.p90, color: 'text-emerald-300' },
+          ].map(item => (
+            <div key={item.label} className="rounded-lg bg-slate-900/60 p-2.5 text-center">
+              <p className="text-[10px] text-slate-500 mb-0.5">{item.label}</p>
+              <p className={`text-sm font-bold font-mono ${item.color}`}>
+                {formatCurrency(item.value)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Methodology info */}
+      <div className="rounded-lg bg-slate-950/30 border border-slate-800/50 px-4 py-3">
+        <div className="flex items-start gap-2">
+          <Info className="h-3.5 w-3.5 text-slate-500 shrink-0 mt-0.5" />
+          <div className="text-[10px] text-slate-500 space-y-0.5">
+            <p>
+              <strong className="text-slate-400">Metodologia:</strong> {numSimulations} simulações independentes, cada uma com {tradesPerDay} trades/dia durante {projectionDays} dias.
+            </p>
+            <p>
+              Cada trade é sorteado aleatoriamente com probabilidade de acerto de <strong className="text-slate-400">{(metrics.winRate).toFixed(1)}%</strong>,
+              ganho médio de <strong className="text-emerald-400">{formatCurrency(metrics.avgWin)}</strong> e
+              perda média de <strong className="text-rose-400">{formatCurrency(metrics.avgLoss)}</strong>.
+              Ruína = capital cair abaixo de 10% do capital atual.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
