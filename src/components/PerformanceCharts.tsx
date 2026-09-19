@@ -7,7 +7,19 @@ import {
   Layers,
   ChevronRight,
   Info,
+  Smile,
+  Target,
 } from 'lucide-react';
+import {
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  Legend as RechartsLegend,
+} from 'recharts';
 import { Trade, DayPerformance, OverallMetrics, RiskSettings } from '../types';
 import {
   formatCurrency,
@@ -16,6 +28,7 @@ import {
   formatDate,
   getStatsByAsset,
   getStatsByStrategy,
+  getStatsByEmotion,
 } from '../utils/calculations';
 
 interface PerformanceChartsProps {
@@ -26,6 +39,8 @@ interface PerformanceChartsProps {
   onSelectDay: (date: string) => void;
 }
 
+const RADAR_COLORS = ['#10b981', '#a855f7', '#3b82f6', '#f59e0b', '#06b6d4', '#f43f5e'];
+
 export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
   dailyData,
   trades,
@@ -33,8 +48,9 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
   settings,
   onSelectDay,
 }) => {
-  const [activeTab, setActiveTab] = useState<'daily' | 'equity' | 'drawdown' | 'breakdown'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'equity' | 'drawdown' | 'breakdown' | 'radar' | 'emotion'>('daily');
   const [hoveredDay, setHoveredDay] = useState<DayPerformance | null>(null);
+  const [selectedRadarStrategies, setSelectedRadarStrategies] = useState<string[]>([]);
 
   const dailyProfitTarget = settings?.dailyProfitTarget ?? 500;
   const dailyLossLimit = settings?.dailyLossLimit ?? 300;
@@ -42,6 +58,55 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
   // Asset and Strategy stats
   const assetStats = getStatsByAsset(trades);
   const strategyStats = getStatsByStrategy(trades);
+  const emotionStats = getStatsByEmotion(trades);
+
+  // Prepare Strategy Radar Data
+  const activeStrategies = strategyStats.filter((s) => s.tradesCount > 0);
+  const displayedRadarStrategies =
+    selectedRadarStrategies.length > 0
+      ? activeStrategies.filter((s) => selectedRadarStrategies.includes(s.strategy))
+      : activeStrategies.slice(0, 5);
+
+  const maxPnl = Math.max(...activeStrategies.map((s) => s.pnl), 1);
+  const maxAvgWin = Math.max(...activeStrategies.map((s) => s.avgWin), 1);
+
+  const radarMetrics = [
+    { key: 'winRate', label: 'Taxa de Acerto (%)' },
+    { key: 'profitFactor', label: 'Fator de Lucro' },
+    { key: 'payoff', label: 'Payoff (R:R)' },
+    { key: 'pnl', label: 'Retorno (P&L)' },
+    { key: 'avgWin', label: 'Média de Gain' },
+  ];
+
+  const radarChartData = radarMetrics.map((metric) => {
+    const row: Record<string, any> = { subject: metric.label };
+    displayedRadarStrategies.forEach((s) => {
+      let val = 0;
+      if (metric.key === 'winRate') {
+        val = s.winRate;
+      } else if (metric.key === 'profitFactor') {
+        val = Math.min(100, Math.max(0, (s.profitFactor / 3) * 100));
+      } else if (metric.key === 'payoff') {
+        val = Math.min(100, Math.max(0, (s.payoff / 2.5) * 100));
+      } else if (metric.key === 'pnl') {
+        val = maxPnl > 0 ? Math.max(0, (s.pnl / maxPnl) * 100) : 0;
+      } else if (metric.key === 'avgWin') {
+        val = maxAvgWin > 0 ? Math.max(0, (s.avgWin / maxAvgWin) * 100) : 0;
+      }
+      row[s.strategy] = Math.round(val);
+    });
+    return row;
+  });
+
+  const toggleRadarStrategy = (stratName: string) => {
+    if (selectedRadarStrategies.includes(stratName)) {
+      if (selectedRadarStrategies.length > 1) {
+        setSelectedRadarStrategies(selectedRadarStrategies.filter((s) => s !== stratName));
+      }
+    } else {
+      setSelectedRadarStrategies([...selectedRadarStrategies, stratName]);
+    }
+  };
 
   // Helper for Daily Chart dimensions
   const chartHeight = 260;
@@ -142,6 +207,35 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
           >
             <PieChart className="h-3.5 w-3.5" />
             <span>Ativos & Setups</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (selectedRadarStrategies.length === 0 && activeStrategies.length > 0) {
+                setSelectedRadarStrategies(activeStrategies.slice(0, 4).map((s) => s.strategy));
+              }
+              setActiveTab('radar');
+            }}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
+              activeTab === 'radar'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Target className="h-3.5 w-3.5" />
+            <span>Radar Risco x Retorno</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('emotion')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
+              activeTab === 'emotion'
+                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Smile className="h-3.5 w-3.5" />
+            <span>Emocional</span>
           </button>
         </div>
       </div>
@@ -656,6 +750,199 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                       <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
                         <div
                           className={`h-full ${isPositive ? 'bg-purple-500' : 'bg-rose-500'}`}
+                          style={{ width: `${Math.min(100, Math.max(10, item.winRate))}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 5. STRATEGY COMPARISON RADAR CHART */}
+        {activeTab === 'radar' && (
+          <div className="pt-2 space-y-4">
+            <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Target className="h-4 w-4 text-amber-400" />
+                    Painel Comparativo de Estratégias (Gráfico de Radar)
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    Visualize comparativamente qual estratégia performa melhor em termos de risco-retorno (Win Rate, Payoff, Fator de Lucro e Retorno).
+                  </p>
+                </div>
+
+                {/* Strategy Selector Chips */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 font-medium">Comparar:</span>
+                  {activeStrategies.map((s, idx) => {
+                    const isSelected = displayedRadarStrategies.some((d) => d.strategy === s.strategy);
+                    const color = RADAR_COLORS[idx % RADAR_COLORS.length];
+                    return (
+                      <button
+                        key={s.strategy}
+                        type="button"
+                        onClick={() => toggleRadarStrategy(s.strategy)}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-bold transition flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                            : 'bg-slate-950 text-slate-500 border border-slate-900 hover:text-slate-300'
+                        }`}
+                      >
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: isSelected ? color : '#64748b' }}
+                        />
+                        {s.strategy}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {activeStrategies.length === 0 ? (
+                <div className="py-16 text-center text-sm text-slate-400">
+                  Nenhuma estratégia registrada para comparação.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+                  {/* Radar Chart Canvas */}
+                  <div className="lg:col-span-2 h-[340px] w-full relative">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarChartData}>
+                        <PolarGrid stroke="#334155" strokeDasharray="3 3" />
+                        <PolarAngleAxis
+                          dataKey="subject"
+                          tick={{ fill: '#cbd5e1', fontSize: 11, fontWeight: 600 }}
+                        />
+                        <PolarRadiusAxis
+                          angle={30}
+                          domain={[0, 100]}
+                          stroke="#475569"
+                          tick={{ fill: '#64748b', fontSize: 9 }}
+                        />
+                        {displayedRadarStrategies.map((strat, idx) => {
+                          const origIdx = activeStrategies.findIndex((s) => s.strategy === strat.strategy);
+                          const color = RADAR_COLORS[(origIdx >= 0 ? origIdx : idx) % RADAR_COLORS.length];
+                          return (
+                            <Radar
+                              key={strat.strategy}
+                              name={strat.strategy}
+                              dataKey={strat.strategy}
+                              stroke={color}
+                              fill={color}
+                              fillOpacity={0.3}
+                              strokeWidth={2}
+                            />
+                          );
+                        })}
+                        <RechartsTooltip
+                          contentStyle={{
+                            backgroundColor: '#090d16',
+                            borderColor: '#334155',
+                            borderRadius: '12px',
+                            color: '#fff',
+                            fontSize: '12px',
+                          }}
+                        />
+                        <RechartsLegend
+                          wrapperStyle={{ paddingTop: '12px', fontSize: '11px', color: '#cbd5e1' }}
+                        />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Summary Metric Cards for Selected Strategies */}
+                  <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
+                    {displayedRadarStrategies.map((strat, idx) => {
+                      const origIdx = activeStrategies.findIndex((s) => s.strategy === strat.strategy);
+                      const color = RADAR_COLORS[(origIdx >= 0 ? origIdx : idx) % RADAR_COLORS.length];
+                      return (
+                        <div
+                          key={strat.strategy}
+                          className="rounded-xl border border-slate-800 bg-slate-900/90 p-3 space-y-1.5"
+                          style={{ borderLeftColor: color, borderLeftWidth: '4px' }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-white text-xs">{strat.strategy}</span>
+                            <span
+                              className={`font-mono font-bold text-xs ${
+                                strat.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
+                            >
+                              {strat.pnl >= 0 ? '+' : ''}
+                              {formatCurrency(strat.pnl)}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1 text-[10px] text-slate-400 pt-1 border-t border-slate-800/60">
+                            <div>
+                              <span>Win Rate:</span>
+                              <div className="font-mono font-bold text-emerald-400">
+                                {strat.winRate.toFixed(0)}%
+                              </div>
+                            </div>
+                            <div>
+                              <span>Profit Factor:</span>
+                              <div className="font-mono font-bold text-purple-400">
+                                {strat.profitFactor.toFixed(2)}
+                              </div>
+                            </div>
+                            <div>
+                              <span>Payoff:</span>
+                              <div className="font-mono font-bold text-amber-400">
+                                {strat.payoff.toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 6. EMOTION BREAKDOWN */}
+        {activeTab === 'emotion' && (
+          <div className="pt-2">
+            <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-3">
+                <Smile className="h-4 w-4 text-blue-400" />
+                Performance por Estado Emocional
+              </h4>
+              <div className="space-y-3">
+                {emotionStats.map((item) => {
+                  const isPositive = item.pnl >= 0;
+                  return (
+                    <div key={item.emotion} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-slate-200">{item.emotion}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-slate-400">
+                            {item.tradesCount} {item.tradesCount === 1 ? 'trade' : 'trades'} (
+                            <strong className="text-blue-400">{item.winRate.toFixed(0)}% win</strong>)
+                          </span>
+                          <span
+                            className={`font-mono font-bold ${
+                              isPositive ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                          >
+                            {isPositive ? '+' : ''}
+                            {formatCurrency(item.pnl)}
+                          </span>
+                        </div>
+                      </div>
+                      {/* Bar */}
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className={`h-full ${isPositive ? 'bg-blue-500' : 'bg-rose-500'}`}
                           style={{ width: `${Math.min(100, Math.max(10, item.winRate))}%` }}
                         />
                       </div>

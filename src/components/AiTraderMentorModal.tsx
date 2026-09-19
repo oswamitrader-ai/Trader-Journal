@@ -11,6 +11,7 @@ import {
   Lightbulb,
   CheckCircle2,
   RefreshCw,
+  Sliders,
 } from 'lucide-react';
 import {
   OverallMetrics,
@@ -166,6 +167,65 @@ export const AiTraderMentorModal: React.FC<AiTraderMentorModalProps> = ({
     }
   };
 
+  // Dicas de Manejo (Gestão Conservadora baseada no Profit Factor)
+  const pf = metrics.profitFactor;
+  let lotAdvice = {
+    title: 'Mão Padrão Recomendada (100% da Mão Base)',
+    badge: 'Consistente',
+    badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    borderColor: 'border-emerald-500/30 bg-emerald-950/20',
+    iconColor: 'text-emerald-400',
+    description:
+      'Seu Fator de Lucro está em nível saudável. Mantenha o tamanho de lote padrão estipulado em seu plano de trade, sem aumentar a mão desnecessariamente.',
+    action: 'Mantenha 100% da mão padrão sem alavancagem extra.',
+  };
+
+  if (pf >= 2.0) {
+    lotAdvice = {
+      title: 'Desempenho de Alta Vantagem (Fator de Lucro >= 2.0)',
+      badge: 'Excelente',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      borderColor: 'border-emerald-500/30 bg-emerald-950/20',
+      iconColor: 'text-emerald-400',
+      description:
+        'Sua estratégia apresenta excelente expectativa matemática positiva. Você tem margem estatística para operar com sua mão cheia padrão ou realizar expansões graduais de lote (ex: +10%), contanto que respeite o stop loss financeiro.',
+      action: 'Mão Cheia Padrão (100% a 110% do lote habitual).',
+    };
+  } else if (pf >= 1.3) {
+    lotAdvice = {
+      title: 'Desempenho Estável (Fator de Lucro entre 1.3 e 1.99)',
+      badge: 'Estável',
+      badgeColor: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+      borderColor: 'border-teal-500/30 bg-teal-950/20',
+      iconColor: 'text-teal-400',
+      description:
+        'Seus ganhos superam com folga as perdas. Mantenha exatamente o lote base do seu gerenciamento (100%), focando em selecionar apenas os setups com melhor simetria risco-retorno.',
+      action: 'Mantenha 100% da mão base.',
+    };
+  } else if (pf >= 1.0) {
+    lotAdvice = {
+      title: 'Gestão Defensiva: Redução de Mão (Fator de Lucro entre 1.0 e 1.29)',
+      badge: 'Atenção / Margem Apertada',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      borderColor: 'border-amber-500/30 bg-amber-950/20',
+      iconColor: 'text-amber-400',
+      description:
+        'Sua vantagem matemática está apertada. Aplicando a gestão conservadora, é recomendado reduzir o tamanho da sua mão em 25% a 30% até que a média de ganhos aumente e a assertividade se consolide.',
+      action: 'Reduzir mão para 70% a 75% do lote padrão.',
+    };
+  } else {
+    lotAdvice = {
+      title: 'Alerta de Risco: Mão Mínima Defensiva (Fator de Lucro < 1.0)',
+      badge: 'Redução Drástica Necessária',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+      borderColor: 'border-rose-500/30 bg-rose-950/20',
+      iconColor: 'text-rose-400',
+      description:
+        'Sua curva está no prejuízo acumulado. Recomendação de gestão conservadora estrita: reduza a mão em 50% ou opere com o lote mínimo de 1 contrato/lote base até acumular 5 a 10 trades positivos consecutivos.',
+      action: 'Operar no lote mínimo ou 50% da mão para proteção patrimonial.',
+    };
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-sm pt-safe pb-safe">
       <div className="flex h-[92vh] sm:h-[85vh] w-full max-w-3xl flex-col rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden">
@@ -235,6 +295,41 @@ export const AiTraderMentorModal: React.FC<AiTraderMentorModalProps> = ({
           {/* TAB 1: DIAGNÓSTICO DE PERFORMANCE */}
           {activeTab === 'audit' && (
             <div className="space-y-4">
+              {/* CARD DICAS DE MANEJO (Gestão de Tamanho de Mão / Lote baseada no Profit Factor) */}
+              <div className={`rounded-2xl border ${lotAdvice.borderColor} p-4 space-y-2.5 backdrop-blur-sm`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 ${lotAdvice.iconColor} border border-slate-800`}>
+                      <Sliders className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        Dicas de Manejo (Tamanho da Mão / Lote)
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Ajustes automáticos de gestão conservadora baseados no Fator de Lucro atual ({pf.toFixed(2)})
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border self-start sm:self-center ${lotAdvice.badgeColor}`}>
+                    {lotAdvice.badge}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <h5 className="font-bold text-white text-xs">
+                    {lotAdvice.title}
+                  </h5>
+                  <p className="text-slate-300 text-xs leading-relaxed">
+                    {lotAdvice.description}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2 p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px]">
+                    <strong className="text-slate-400">Orientação Tática:</strong>
+                    <span className="font-bold text-teal-300 font-mono">{lotAdvice.action}</span>
+                  </div>
+                </div>
+              </div>
               {/* Trigger Card */}
               {!analysisResult && !isAnalyzing && (
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 text-center space-y-3">

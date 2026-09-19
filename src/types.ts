@@ -15,6 +15,19 @@ export interface Trade {
   exitPrice?: number;
   notes?: string;
   tags?: string[];
+  emotionalState?: string; // e.g., 'Calmo', 'Ansioso', 'Eufórico'
+}
+
+export type CapitalTransactionType = 'DEPOSIT' | 'WITHDRAWAL';
+
+export interface CapitalTransaction {
+  id: string;
+  type: CapitalTransactionType;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  time?: string; // HH:mm
+  broker?: string; // Ex: 'Exnova', 'XP', 'Clear'
+  notes?: string;
 }
 
 export interface RiskSettings {

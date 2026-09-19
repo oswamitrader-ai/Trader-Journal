@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Wallet,
   Target,
@@ -11,25 +11,61 @@ import {
   ShieldAlert,
   CalendarDays,
   Info,
+  Bell,
+  BellRing,
+  BellOff,
+  Trophy,
+  AlertTriangle,
 } from 'lucide-react';
 import { OverallMetrics, RiskSettings, DayPerformance } from '../types';
 import { formatCurrency, formatPercent } from '../utils/calculations';
 import { ProfitFactorPayoffModal } from './ProfitFactorPayoffModal';
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+  checkAndTrigger80PercentPush,
+} from '../utils/browserNotifications';
 
 interface KpiCardsProps {
   metrics: OverallMetrics;
   settings?: RiskSettings;
   todayPerformance?: DayPerformance;
+  dailyPerformance?: DayPerformance[];
   dailyProfitTarget?: number;
+  onOpenCapitalModal?: () => void;
 }
 
 export const KpiCards: React.FC<KpiCardsProps> = ({
   metrics,
   settings,
   todayPerformance,
-  dailyProfitTarget,
+  dailyPerformance,
+  dailyProfitTarget: propDailyProfitTarget,
+  onOpenCapitalModal,
 }) => {
   const [showPfModal, setShowPfModal] = useState(false);
+  const [pushPermission, setPushPermission] = useState<string>(() => getNotificationPermission());
+
+  const todayPnl = todayPerformance?.pnl ?? 0;
+  const targetVal = settings?.dailyProfitTarget ?? propDailyProfitTarget ?? 500;
+  const lossVal = settings?.dailyLossLimit ?? 300;
+
+  // Auto trigger push notifications when threshold (80%) is reached
+  useEffect(() => {
+    if (pushPermission === 'granted') {
+      checkAndTrigger80PercentPush(todayPnl, targetVal, lossVal);
+    }
+  }, [todayPnl, targetVal, lossVal, pushPermission]);
+
+  const handleTogglePushPermission = async () => {
+    const granted = await requestNotificationPermission();
+    setPushPermission(granted ? 'granted' : 'denied');
+    if (granted) {
+      checkAndTrigger80PercentPush(todayPnl, targetVal, lossVal);
+    }
+  };
+
   const isPositiveNet = (metrics?.netProfit ?? 0) >= 0;
   const isWinRateGood = (metrics?.winRate ?? 0) >= 50;
   const isDayOverDayPositive = (metrics?.dayOverDayGrowthPercent ?? 0) >= 0;
@@ -39,21 +75,276 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
   const isDrawdownSafe = maxDdPercent < 6;
   const isDrawdownWarning = maxDdPercent >= 6 && maxDdPercent <= 12;
 
+  // Calculations for Meta Diária Card (Target)
+  const targetProgressPct = Math.min(100, Math.max(0, (todayPnl / (targetVal || 1)) * 100));
+  const isNearTarget80 = todayPnl >= targetVal * 0.8 && todayPnl < targetVal;
+  const isTargetAchieved = todayPnl >= targetVal;
+
+  // Calculations for Limite de Perda Card (Stop)
+  const currentLossAbs = Math.abs(Math.min(0, todayPnl));
+  const lossProgressPct = Math.min(100, Math.max(0, (currentLossAbs / (lossVal || 1)) * 100));
+  const isNearStop80 = todayPnl <= -lossVal * 0.8 && todayPnl > -lossVal;
+  const isStopLossReached = todayPnl <= -lossVal;
+
+  // Weekly Drawdown points calculation (for the current operating week / last 7 operating days)
+  const weeklyDays = (dailyPerformance || []).slice(-7);
+  let runningPeak = metrics.initialCapital;
+  const weeklyDrawdownPoints = weeklyDays.map((d) => {
+    if (d.equityAtEndOfDay > runningPeak) {
+      runningPeak = d.equityAtEndOfDay;
+    }
+    const ddAmt = Math.max(0, runningPeak - d.equityAtEndOfDay);
+    const ddPct = runningPeak > 0 ? (ddAmt / runningPeak) * 100 : 0;
+    const parts = d.date.split('-');
+    const dateLabel = parts.length === 3 ? `${parts[2]}/${parts[1]}` : d.date;
+    return {
+      date: d.date,
+      label: dateLabel,
+      pnl: d.pnl,
+      ddPct: Number(ddPct.toFixed(2)),
+      ddAmt,
+    };
+  });
+
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 sm:gap-4">
-      {/* CARD 1: CAPITAL & LUCRO LÍQUIDO */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 p-3.5 sm:p-4 shadow-lg backdrop-blur-sm">
+    <div className="space-y-4">
+      {/* SEÇÃO DE MONITORAMENTO DE META DIÁRIA & LIMITE DE PERDA COM ALERTAS DE 80% */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+        {/* CARD: META DIÁRIA DE GANHO */}
+        <div className={`relative overflow-hidden rounded-2xl border p-4 shadow-xl backdrop-blur-md transition-all ${
+          isTargetAchieved
+            ? 'border-emerald-500/60 bg-emerald-950/40 ring-1 ring-emerald-500/30'
+            : isNearTarget80
+            ? 'border-amber-500/60 bg-amber-950/30 ring-1 ring-amber-500/30'
+            : 'border-slate-800 bg-slate-900/80'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <Trophy className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  Meta Diária de Ganho
+                </span>
+                <p className="text-[10px] text-slate-400">Meta configurada: {formatCurrency(targetVal)}</p>
+              </div>
+            </div>
+
+            {/* Push Notification Button */}
+            {isNotificationSupported() && (
+              <button
+                type="button"
+                onClick={handleTogglePushPermission}
+                title={
+                  pushPermission === 'granted'
+                    ? 'Notificações Push ativas no navegador (Avisará a 80% da Meta/Stop)'
+                    : 'Clique para ativar notificações locais (Push) via navegador'
+                }
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold border transition ${
+                  pushPermission === 'granted'
+                    ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300'
+                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                {pushPermission === 'granted' ? (
+                  <>
+                    <BellRing className="h-3 w-3 text-emerald-400" />
+                    <span>Push Ativo</span>
+                  </>
+                ) : (
+                  <>
+                    <Bell className="h-3 w-3" />
+                    <span>Ativar Lembrete Push</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-3">
+            <div className="flex items-baseline justify-between">
+              <span className={`text-xl font-black font-mono ${todayPnl >= 0 ? 'text-emerald-400' : 'text-slate-200'}`}>
+                {todayPnl > 0 ? '+' : ''}{formatCurrency(todayPnl)}
+              </span>
+              <span className="text-xs font-mono font-bold text-slate-300">
+                {targetProgressPct.toFixed(0)}% da meta
+              </span>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-800 p-0.5">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  isTargetAchieved
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-md shadow-emerald-500/50'
+                    : isNearTarget80
+                    ? 'bg-gradient-to-r from-amber-500 to-emerald-400'
+                    : 'bg-emerald-500'
+                }`}
+                style={{ width: `${targetProgressPct}%` }}
+              />
+            </div>
+          </div>
+
+          {/* 80% Alert Reminder Banner */}
+          {isNearTarget80 && (
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-200">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-amber-400 shrink-0" />
+                <span>
+                  <strong>🎯 Lembrete de Autodisciplina:</strong> Você atingiu 80% da sua meta diária ({formatCurrency(todayPnl)}). Proteja seus ganhos!
+                </span>
+              </div>
+            </div>
+          )}
+
+          {isTargetAchieved && (
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-200">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span>
+                  <strong>🎉 Meta Batida!</strong> Excelente disciplina. Considere encerrar as operações por hoje.
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* CARD: LIMITE DIÁRIO DE PERDA */}
+        <div className={`relative overflow-hidden rounded-2xl border p-4 shadow-xl backdrop-blur-md transition-all ${
+          isStopLossReached
+            ? 'border-rose-500/80 bg-rose-950/50 ring-1 ring-rose-500/40'
+            : isNearStop80
+            ? 'border-rose-500/50 bg-rose-950/30 ring-1 ring-rose-500/30'
+            : 'border-slate-800 bg-slate-900/80'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                <ShieldAlert className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  Limite Diário de Perda (Stop)
+                </span>
+                <p className="text-[10px] text-slate-400">Limite configurado: {formatCurrency(lossVal)}</p>
+              </div>
+            </div>
+
+            {/* Push Notification Status */}
+            {isNotificationSupported() && (
+              <button
+                type="button"
+                onClick={handleTogglePushPermission}
+                title={
+                  pushPermission === 'granted'
+                    ? 'Notificações Push ativas no navegador'
+                    : 'Clique para ativar notificações locais (Push) via navegador'
+                }
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold border transition ${
+                  pushPermission === 'granted'
+                    ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300'
+                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                {pushPermission === 'granted' ? (
+                  <>
+                    <BellRing className="h-3 w-3 text-emerald-400" />
+                    <span>Push Ativo</span>
+                  </>
+                ) : (
+                  <>
+                    <Bell className="h-3 w-3" />
+                    <span>Ativar Lembrete Push</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-3">
+            <div className="flex items-baseline justify-between">
+              <span className={`text-xl font-black font-mono ${todayPnl < 0 ? 'text-rose-400' : 'text-slate-200'}`}>
+                {todayPnl < 0 ? '-' : ''}{formatCurrency(currentLossAbs)}
+              </span>
+              <span className="text-xs font-mono font-bold text-slate-300">
+                {lossProgressPct.toFixed(0)}% do limite consumido
+              </span>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-800 p-0.5">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  isStopLossReached
+                    ? 'bg-rose-600 shadow-md shadow-rose-600/50'
+                    : isNearStop80
+                    ? 'bg-gradient-to-r from-amber-500 to-rose-500'
+                    : 'bg-rose-500/80'
+                }`}
+                style={{ width: `${lossProgressPct}%` }}
+              />
+            </div>
+          </div>
+
+          {/* 80% Alert Reminder Banner */}
+          {isNearStop80 && (
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs text-rose-200">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+                <span>
+                  <strong>⚠️ Lembrete de Autodisciplina:</strong> Você atingiu 80% do seu Limite de Perda ({formatCurrency(todayPnl)}). Evite o &quot;dia de fúria&quot;!
+                </span>
+              </div>
+            </div>
+          )}
+
+          {isStopLossReached && (
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-rose-600 bg-rose-600 text-white p-2.5 text-xs">
+              <div className="flex items-center gap-2 font-bold">
+                <ShieldAlert className="h-4 w-4 shrink-0 text-white" />
+                <span>
+                  🛑 STOP LOSS ATINGIDO: Feche a plataforma de operações imediatamente!
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* PAINEL DE METRICAS GERAIS (5 KPI CARDS) */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 sm:gap-4">
+      {/* CARD 1: CAPITAL & LUCRO LÍQUIDO (One-Click para Depósitos e Saques) */}
+      <div
+        onClick={onOpenCapitalModal}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpenCapitalModal?.();
+          }
+        }}
+        className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 p-3.5 sm:p-4 shadow-lg backdrop-blur-sm cursor-pointer hover:border-emerald-500/60 hover:bg-slate-900 hover:shadow-emerald-950/30 transition-all duration-200"
+        title="Clique para abrir a tela de Depósitos, Saques e Histórico de Capital"
+      >
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider group-hover:text-emerald-300 transition-colors">
             Capital Atual
           </span>
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <Wallet className="h-4 w-4" />
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 group-hover:bg-emerald-500/25 transition font-bold">
+              Saques / Depósitos
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-500/20 transition">
+              <Wallet className="h-4 w-4" />
+            </div>
           </div>
         </div>
 
         <div className="mt-2.5">
-          <div className="text-2xl font-black font-mono tracking-tight text-white">
+          <div className="text-2xl font-black font-mono tracking-tight text-white group-hover:text-emerald-300 transition-colors">
             {formatCurrency(metrics.currentCapital)}
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-xs">
@@ -74,8 +365,10 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
         </div>
 
         <div className="mt-3.5 border-t border-slate-800/80 pt-2 flex items-center justify-between text-[11px] text-slate-400">
-          <span>Capital Inicial:</span>
-          <span className="font-mono text-slate-200">{formatCurrency(metrics.initialCapital)}</span>
+          <span>Gerenciar Banca:</span>
+          <span className="font-bold text-emerald-400 group-hover:underline flex items-center gap-0.5">
+            Ver Extrato &amp; Sacar &rarr;
+          </span>
         </div>
       </div>
 
@@ -245,6 +538,60 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
               : '0,00% (No Topo)'}
           </span>
         </div>
+
+        {/* Mini Gráfico de Linha do Drawdown Semanal */}
+        {weeklyDrawdownPoints.length > 1 && (
+          <div className="mt-2.5 pt-2 border-t border-slate-800/80">
+            <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+              <span>Evolução Semanal do Drawdown:</span>
+              <span className="font-mono text-rose-400 font-bold">
+                Max: -{Math.max(...weeklyDrawdownPoints.map((p) => p.ddPct)).toFixed(1)}%
+              </span>
+            </div>
+
+            <div className="h-10 w-full relative">
+              <svg className="w-full h-full overflow-visible" viewBox="0 0 200 40" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="ddSparkGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.4" />
+                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+                {(() => {
+                  const maxDd = Math.max(5, ...weeklyDrawdownPoints.map((p) => p.ddPct));
+                  const count = weeklyDrawdownPoints.length;
+                  const stepX = 200 / Math.max(1, count - 1);
+                  const coords = weeklyDrawdownPoints.map((p, i) => ({
+                    x: i * stepX,
+                    y: 36 - (p.ddPct / maxDd) * 32,
+                    ...p,
+                  }));
+                  const pathD = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
+                  const areaD = `${pathD} L ${coords[coords.length - 1].x} 40 L ${coords[0].x} 40 Z`;
+                  return (
+                    <>
+                      <path d={areaD} fill="url(#ddSparkGrad)" />
+                      <path d={pathD} fill="none" stroke="#f43f5e" strokeWidth="2" strokeLinecap="round" />
+                      {coords.map((c) => (
+                        <circle
+                          key={c.date}
+                          cx={c.x}
+                          cy={c.y}
+                          r="2.5"
+                          fill="#f43f5e"
+                          stroke="#0f172a"
+                          strokeWidth="1"
+                        >
+                          <title>{`${c.label}: -${c.ddPct}% (${formatCurrency(-c.ddAmt)})`}</title>
+                        </circle>
+                      ))}
+                    </>
+                  );
+                })()}
+              </svg>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* CARD 5: FATOR DE LUCRO & PAYOFF (Clickable for Binary Options Guide & Reference Modal) */}
@@ -310,6 +657,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
         onClose={() => setShowPfModal(false)}
         metrics={metrics}
       />
+    </div>
     </div>
   );
 };

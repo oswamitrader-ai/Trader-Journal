@@ -12,7 +12,7 @@ import {
   Activity,
   Award,
 } from 'lucide-react';
-import { Trade, RiskSettings, DayPerformance, NotificationAlert } from './types';
+import { Trade, RiskSettings, DayPerformance, NotificationAlert, CapitalTransaction } from './types';
 import { INITIAL_TRADES, DEFAULT_RISK_SETTINGS } from './data/initialTrades';
 import {
   calculateMetrics,
@@ -34,6 +34,7 @@ import { DayDetailModal } from './components/DayDetailModal';
 import { AiTraderMentorModal } from './components/AiTraderMentorModal';
 import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { AntiFuriaExtensionModal } from './components/AntiFuriaExtensionModal';
+import { CapitalHistoryModal } from './components/CapitalHistoryModal';
 import {
   supabase,
   checkSupabaseConnection,
@@ -94,9 +95,32 @@ export default function App() {
     return DEFAULT_RISK_SETTINGS;
   });
 
-  // Notifications and Alerts Management
   const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>([]);
   const [dismissedAlerts, setDismissedAlerts] = useState<Record<string, boolean>>({});
+
+  // 3. Persistent Capital Transactions (Depósitos e Saques)
+  const [capitalTransactions, setCapitalTransactions] = useState<CapitalTransaction[]>(() => {
+    try {
+      const saved = localStorage.getItem('trader_journal_capital_txs_v1');
+      if (saved && saved !== 'undefined' && saved !== 'null') {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to load capital transactions from storage', e);
+    }
+    return [];
+  });
+  const [isCapitalModalOpen, setIsCapitalModalOpen] = useState(false);
+
+  // Save capital transactions to LocalStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('trader_journal_capital_txs_v1', JSON.stringify(capitalTransactions));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [capitalTransactions]);
 
   // Save to LocalStorage whenever trades or settings change
   useEffect(() => {
@@ -190,10 +214,20 @@ export default function App() {
   }, []);
 
   // 4. Computed Analytics Engine
-  const metrics = useMemo(
-    () => calculateMetrics(trades, settings),
-    [trades, settings]
-  );
+  const netCapitalTransactions = useMemo(() => {
+    return capitalTransactions.reduce((acc, tx) => {
+      const amt = Number(tx.amount) || 0;
+      return tx.type === 'DEPOSIT' ? acc + amt : acc - amt;
+    }, 0);
+  }, [capitalTransactions]);
+
+  const metrics = useMemo(() => {
+    const rawMetrics = calculateMetrics(trades, settings);
+    return {
+      ...rawMetrics,
+      currentCapital: rawMetrics.currentCapital + netCapitalTransactions,
+    };
+  }, [trades, settings, netCapitalTransactions]);
 
   const dailyPerformance = useMemo(
     () => getDailyPerformances(trades, settings.initialCapital),
@@ -396,6 +430,16 @@ export default function App() {
         date: todayPerformance?.date || '',
         severity: 'success',
       });
+    } else if (todayPnl >= dailyTarget * 0.8) {
+      list.push({
+        id: 'notif-target-80',
+        type: 'INFO',
+        title: '🎯 80% da Meta Atingida!',
+        message: `Você alcançou ${formatCurrency(todayPnl)} (${Math.round((todayPnl / dailyTarget) * 100)}% da meta de ${formatCurrency(dailyTarget)}). Mantenha a autodisciplina!`,
+        timestamp: 'Hoje',
+        date: todayPerformance?.date || '',
+        severity: 'info',
+      });
     }
 
     if (todayPnl <= -dailyLoss) {
@@ -407,6 +451,16 @@ export default function App() {
         timestamp: 'Hoje',
         date: todayPerformance?.date || '',
         severity: 'error',
+      });
+    } else if (todayPnl <= -dailyLoss * 0.8) {
+      list.push({
+        id: 'notif-loss-80',
+        type: 'WARNING_NEAR_STOP',
+        title: '⚠️ 80% do Limite de Perda!',
+        message: `Atenção: Sua perda atingiu ${formatCurrency(Math.abs(todayPnl))} (${Math.round((Math.abs(todayPnl) / dailyLoss) * 100)}% do limite de ${formatCurrency(dailyLoss)}). Proteja seu capital!`,
+        timestamp: 'Hoje',
+        date: todayPerformance?.date || '',
+        severity: 'warning',
       });
     }
 
@@ -597,8 +651,11 @@ export default function App() {
         {/* Essential KPI Cards (Capital, Assertividade, Drawdown, Rentabilidade, Fator de Lucro) */}
         <KpiCards
           metrics={metrics}
+          settings={settings}
           todayPerformance={todayPerformance}
+          dailyPerformance={dailyPerformance}
           dailyProfitTarget={settings.dailyProfitTarget}
+          onOpenCapitalModal={() => setIsCapitalModalOpen(true)}
         />
 
         {/* Conditional View Sections */}
@@ -791,6 +848,16 @@ export default function App() {
         metrics={metrics}
         settings={settings}
         trades={trades}
+      />
+
+      <CapitalHistoryModal
+        isOpen={isCapitalModalOpen}
+        onClose={() => setIsCapitalModalOpen(false)}
+        transactions={capitalTransactions}
+        onAddTransaction={(tx) => setCapitalTransactions((prev) => [tx, ...prev])}
+        onDeleteTransaction={(id) => setCapitalTransactions((prev) => prev.filter((t) => t.id !== id))}
+        currentCapital={metrics.currentCapital}
+        initialCapital={settings.initialCapital}
       />
 
       <SupabaseSyncModal

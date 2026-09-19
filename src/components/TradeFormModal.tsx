@@ -34,6 +34,18 @@ const DEFAULT_STRATEGIES = [
 ];
 const STRATEGIES_STORAGE_KEY = 'trader_saved_strategies';
 
+const DEFAULT_EMOTIONS = [
+  'Calmo',
+  'Confiante',
+  'Neutro',
+  'Ansioso',
+  'Eufórico',
+  'Com Medo',
+  'Frustrado',
+  'Irritado',
+];
+const EMOTIONS_STORAGE_KEY = 'trader_saved_emotions';
+
 export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   isOpen,
   onClose,
@@ -51,6 +63,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [entryPrice, setEntryPrice] = useState<string>('');
   const [exitPrice, setExitPrice] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [emotionalState, setEmotionalState] = useState<string>('Neutro');
 
   // Asset Management State
   const [savedAssets, setSavedAssets] = useState<string[]>(() => {
@@ -93,6 +106,27 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [newStrategyInput, setNewStrategyInput] = useState('');
   const [editingStrategyIdx, setEditingStrategyIdx] = useState<number | null>(null);
   const [editingStrategyText, setEditingStrategyText] = useState('');
+
+  // Emotional State Management State
+  const [savedEmotions, setSavedEmotions] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(EMOTIONS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return DEFAULT_EMOTIONS;
+  });
+  const [isManagingEmotions, setIsManagingEmotions] = useState(false);
+  const [isAddingEmotionInline, setIsAddingEmotionInline] = useState(false);
+  const [newEmotionInput, setNewEmotionInput] = useState('');
+  const [editingEmotionIdx, setEditingEmotionIdx] = useState<number | null>(null);
+  const [editingEmotionText, setEditingEmotionText] = useState('');
 
   // Persist assets to localStorage
   const updateSavedAssets = (newAssets: string[]) => {
@@ -194,6 +228,56 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     updateSavedStrategies(DEFAULT_STRATEGIES);
   };
 
+  // Persist emotions to localStorage
+  const updateSavedEmotions = (newEmotions: string[]) => {
+    setSavedEmotions(newEmotions);
+    try {
+      localStorage.setItem(EMOTIONS_STORAGE_KEY, JSON.stringify(newEmotions));
+    } catch (e) {
+      console.warn('Erro ao salvar estados emocionais no localStorage:', e);
+    }
+  };
+
+  const handleAddEmotion = (emotionToAdd: string) => {
+    const trimmed = emotionToAdd.trim();
+    if (!trimmed) return;
+    if (!savedEmotions.includes(trimmed)) {
+      const updated = [...savedEmotions, trimmed];
+      updateSavedEmotions(updated);
+    }
+    setEmotionalState(trimmed);
+    setNewEmotionInput('');
+    setIsAddingEmotionInline(false);
+  };
+
+  const handleDeleteEmotion = (emotionToDelete: string) => {
+    const updated = savedEmotions.filter((e) => e !== emotionToDelete);
+    updateSavedEmotions(updated.length > 0 ? updated : ['Neutro']);
+    if (emotionalState === emotionToDelete) {
+      setEmotionalState(updated[0] || 'Neutro');
+    }
+  };
+
+  const handleSaveEditEmotion = (idx: number) => {
+    const trimmed = editingEmotionText.trim();
+    if (!trimmed) {
+      setEditingEmotionIdx(null);
+      return;
+    }
+    const oldVal = savedEmotions[idx];
+    const updated = [...savedEmotions];
+    updated[idx] = trimmed;
+    updateSavedEmotions(updated);
+    if (emotionalState === oldVal) {
+      setEmotionalState(trimmed);
+    }
+    setEditingEmotionIdx(null);
+  };
+
+  const handleResetEmotions = () => {
+    updateSavedEmotions(DEFAULT_EMOTIONS);
+  };
+
   useEffect(() => {
     if (editingTrade) {
       setDate(editingTrade.date);
@@ -207,6 +291,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setEntryPrice(editingTrade.entryPrice ? String(editingTrade.entryPrice) : '');
       setExitPrice(editingTrade.exitPrice ? String(editingTrade.exitPrice) : '');
       setNotes(editingTrade.notes || '');
+      setEmotionalState(editingTrade.emotionalState || 'Neutro');
     } else {
       // Default new trade: real today's date and clean values
       const now = new Date();
@@ -227,6 +312,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setEntryPrice('');
       setExitPrice('');
       setNotes('');
+      setEmotionalState('Neutro');
     }
   }, [editingTrade, isOpen]);
 
@@ -254,6 +340,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       updateSavedStrategies([...savedStrategies, normalizedStrategy]);
     }
 
+    const normalizedEmotion = emotionalState.trim() || 'Neutro';
+    if (!savedEmotions.includes(normalizedEmotion)) {
+      updateSavedEmotions([...savedEmotions, normalizedEmotion]);
+    }
+
     const currentDateStr = new Date().toISOString().split('T')[0];
     const now = new Date();
     const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -271,6 +362,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       entryPrice: entryPrice ? Number(entryPrice) : undefined,
       exitPrice: exitPrice ? Number(exitPrice) : undefined,
       notes: notes.trim(),
+      emotionalState,
     };
 
     onSave(tradeData);
@@ -919,7 +1011,241 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
             </p>
           </div>
 
-          {/* Row 5: Notes */}
+          {/* Row 5: Estado Emocional */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-semibold text-slate-300">
+                Estado Emocional
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsManagingEmotions(!isManagingEmotions)}
+                className="flex items-center gap-1 text-[11px] text-purple-400 hover:text-purple-300 transition font-medium"
+              >
+                <Settings2 className="h-3 w-3" />
+                {isManagingEmotions ? 'Fechar' : 'Gerenciar / Editar'}
+              </button>
+            </div>
+
+            {/* Selected / Custom Emotion text input */}
+            <input
+              type="text"
+              value={emotionalState}
+              onChange={(e) => setEmotionalState(e.target.value)}
+              placeholder="Ex: Calmo, Ansioso, Focado..."
+              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-purple-500 focus:outline-none font-medium mb-1.5"
+            />
+
+            {/* Quick Emotion Chips */}
+            {!isManagingEmotions && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Estados rápidos:</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingEmotionInline(true)}
+                    className="flex items-center gap-0.5 text-purple-400 hover:underline font-medium"
+                  >
+                    <Plus className="h-2.5 w-2.5" /> + Novo Estado
+                  </button>
+                </div>
+
+                {/* Inline Add Input */}
+                {isAddingEmotionInline && (
+                  <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-950 border border-purple-500/40">
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Nome do estado (ex: Focado)"
+                      value={newEmotionInput}
+                      onChange={(e) => setNewEmotionInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddEmotion(newEmotionInput);
+                        } else if (e.key === 'Escape') {
+                          setIsAddingEmotionInline(false);
+                        }
+                      }}
+                      className="flex-1 bg-transparent px-2 py-0.5 text-xs text-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddEmotion(newEmotionInput)}
+                      className="px-2 py-0.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-[10px] font-bold"
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingEmotionInline(false);
+                        setNewEmotionInput('');
+                      }}
+                      className="p-1 text-slate-400 hover:text-white"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Chips */}
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-0.5">
+                  {savedEmotions.map((state) => (
+                    <button
+                      key={state}
+                      type="button"
+                      onClick={() => setEmotionalState(state)}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                        emotionalState.trim().toLowerCase() === state.trim().toLowerCase()
+                          ? 'bg-purple-600 text-white shadow-md shadow-purple-900/30'
+                          : 'border border-slate-800 bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-900'
+                      }`}
+                    >
+                      {state}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Prompt to save typed emotion if not in list */}
+                {emotionalState.trim() &&
+                  !savedEmotions.some(
+                    (e) => e.trim().toLowerCase() === emotionalState.trim().toLowerCase()
+                  ) && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddEmotion(emotionalState.trim())}
+                      className="flex items-center gap-1 text-[10px] text-purple-400/90 hover:text-purple-300 pt-0.5"
+                    >
+                      <Plus className="h-2.5 w-2.5" /> Salvar "{emotionalState.trim()}" nos estados rápidos
+                    </button>
+                  )}
+              </div>
+            )}
+
+            {/* Management Drawer */}
+            {isManagingEmotions && (
+              <div className="mt-2 p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-slate-300 pb-1 border-b border-slate-800">
+                  <span className="font-semibold text-[11px]">Editar ou Adicionar Estados Emocionais</span>
+                  <button
+                    type="button"
+                    onClick={handleResetEmotions}
+                    title="Restaurar lista padrão"
+                    className="text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
+                  >
+                    <RotateCcw className="h-2.5 w-2.5" /> Padrão
+                  </button>
+                </div>
+
+                {/* Add Input inside manager */}
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Ex: Confiante, Vingativo..."
+                    value={newEmotionInput}
+                    onChange={(e) => setNewEmotionInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddEmotion(newEmotionInput);
+                      }
+                    }}
+                    className="flex-1 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddEmotion(newEmotionInput)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition"
+                  >
+                    <Plus className="h-3 w-3" /> Adicionar
+                  </button>
+                </div>
+
+                {/* List of items with Edit / Delete */}
+                <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                  {savedEmotions.map((e, idx) => (
+                    <div
+                      key={e}
+                      className="flex items-center justify-between py-1 px-2 rounded bg-slate-900/60 border border-slate-800/60"
+                    >
+                      {editingEmotionIdx === idx ? (
+                        <div className="flex items-center gap-1 flex-1 mr-1">
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editingEmotionText}
+                            onChange={(ev) => setEditingEmotionText(ev.target.value)}
+                            onKeyDown={(ev) => {
+                              if (ev.key === 'Enter') {
+                                ev.preventDefault();
+                                handleSaveEditEmotion(idx);
+                              } else if (ev.key === 'Escape') {
+                                setEditingEmotionIdx(null);
+                              }
+                            }}
+                            className="flex-1 rounded border border-purple-500 bg-slate-950 px-1.5 py-0.5 text-xs text-white focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEditEmotion(idx)}
+                            className="p-1 text-purple-400 hover:text-purple-300"
+                            title="Salvar"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingEmotionIdx(null)}
+                            className="p-1 text-slate-400 hover:text-white"
+                            title="Cancelar"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-medium text-slate-200">{e}</span>
+                      )}
+
+                      {editingEmotionIdx !== idx && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingEmotionIdx(idx);
+                              setEditingEmotionText(e);
+                            }}
+                            title={`Editar ${e}`}
+                            className="p-1 text-slate-400 hover:text-purple-400 transition"
+                          >
+                            <Edit2 className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEmotion(e)}
+                            title={`Excluir ${e}`}
+                            className="p-1 text-slate-400 hover:text-rose-400 transition"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsManagingEmotions(false)}
+                  className="w-full py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold rounded transition text-center"
+                >
+                  Concluir Edição
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Row 6: Notes */}
           <div>
             <label className="mb-1 block font-semibold text-slate-300">
               Observações / Checklist Psicológico & Técnico

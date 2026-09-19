@@ -445,20 +445,74 @@ export function getStatsByAsset(trades: Trade[]): Array<{ asset: string; tradesC
   })).sort((a, b) => b.pnl - a.pnl);
 }
 
-export function getStatsByStrategy(trades: Trade[]): Array<{ strategy: string; tradesCount: number; pnl: number; winRate: number }> {
-  const map = new Map<string, { count: number; wins: number; pnl: number }>();
+export interface StrategyStats {
+  strategy: string;
+  tradesCount: number;
+  pnl: number;
+  winRate: number;
+  winCount: number;
+  lossCount: number;
+  profitFactor: number;
+  payoff: number;
+  avgWin: number;
+  avgLoss: number;
+}
+
+export function getStatsByStrategy(trades: Trade[]): StrategyStats[] {
+  const map = new Map<string, { count: number; wins: number; losses: number; gains: number; lossAmt: number; pnl: number }>();
 
   for (const t of trades) {
     const strat = t.strategy || 'Geral';
-    const curr = map.get(strat) || { count: 0, wins: 0, pnl: 0 };
+    const curr = map.get(strat) || { count: 0, wins: 0, losses: 0, gains: 0, lossAmt: 0, pnl: 0 };
+    const val = Number(t.pnl) || 0;
     curr.count++;
-    curr.pnl += Number(t.pnl) || 0;
-    if (t.pnl > 0.001) curr.wins++;
+    curr.pnl += val;
+    if (val > 0.001) {
+      curr.wins++;
+      curr.gains += val;
+    } else if (val < -0.001) {
+      curr.losses++;
+      curr.lossAmt += Math.abs(val);
+    }
     map.set(strat, curr);
   }
 
-  return Array.from(map.entries()).map(([strategy, data]) => ({
-    strategy,
+  return Array.from(map.entries()).map(([strategy, data]) => {
+    const winRate = data.count > 0 ? (data.wins / data.count) * 100 : 0;
+    const profitFactor = data.lossAmt > 0 ? data.gains / data.lossAmt : (data.gains > 0 ? 10 : 0);
+    const avgWin = data.wins > 0 ? data.gains / data.wins : 0;
+    const avgLoss = data.losses > 0 ? data.lossAmt / data.losses : 0;
+    const payoff = avgLoss > 0 ? avgWin / avgLoss : (avgWin > 0 ? 5 : 0);
+
+    return {
+      strategy,
+      tradesCount: data.count,
+      pnl: data.pnl,
+      winRate,
+      winCount: data.wins,
+      lossCount: data.losses,
+      profitFactor,
+      payoff,
+      avgWin,
+      avgLoss,
+    };
+  }).sort((a, b) => b.pnl - a.pnl);
+}
+
+export function getStatsByEmotion(trades: Trade[]): Array<{ emotion: string; tradesCount: number; pnl: number; winRate: number }> {
+  const map = new Map<string, { count: number; wins: number; pnl: number }>();
+
+  for (const t of trades) {
+    const emotion = t.emotionalState || 'Não Informado';
+    const curr = map.get(emotion) || { count: 0, wins: 0, pnl: 0 };
+    curr.count++;
+    curr.pnl += Number(t.pnl) || 0;
+    if (t.pnl > 0.001) curr.wins++;
+    map.set(emotion, curr);
+  }
+
+  return Array.from(map.entries()).map(([emotion, data]) => ({
+    emotion,
     tradesCount: data.count,
     pnl: data.pnl,
     winRate: data.count > 0 ? (data.wins / data.count) * 100 : 0,
