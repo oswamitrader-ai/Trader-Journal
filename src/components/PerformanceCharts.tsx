@@ -62,8 +62,113 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
   const [hoveredDay, setHoveredDay] = useState<DayPerformance | null>(null);
   const [selectedRadarStrategies, setSelectedRadarStrategies] = useState<string[]>([]);
 
+  // States for Daily P&L Trade Candlestick chart
+  const [dailyViewMode, setDailyViewMode] = useState<'candles' | 'bars'>('candles');
+  const [selectedCandleDate, setSelectedCandleDate] = useState<string>('latest');
+  const [hoveredCandle, setHoveredCandle] = useState<any | null>(null);
+
   const dailyProfitTarget = settings?.dailyProfitTarget ?? 500;
   const dailyLossLimit = settings?.dailyLossLimit ?? 300;
+
+  // Available unique dates with trades sorted descending
+  const availableDates = useMemo(() => {
+    const datesSet = new Set<string>();
+    trades.forEach((t) => {
+      if (t.date) datesSet.add(t.date);
+    });
+    return Array.from(datesSet).sort((a, b) => b.localeCompare(a));
+  }, [trades]);
+
+  // Active date for Trade Candlestick view
+  const activeCandleDate = useMemo(() => {
+    if (selectedCandleDate === 'all') return 'all';
+    if (selectedCandleDate !== 'latest' && availableDates.includes(selectedCandleDate)) {
+      return selectedCandleDate;
+    }
+    if (availableDates.length > 0) return availableDates[0];
+    return new Date().toISOString().split('T')[0];
+  }, [selectedCandleDate, availableDates]);
+
+  // Filter and sort trades chronologically
+  const candleTrades = useMemo(() => {
+    let filtered = trades;
+    if (activeCandleDate !== 'all') {
+      filtered = trades.filter((t) => t.date === activeCandleDate);
+    }
+    return [...filtered].sort((a, b) => {
+      const timeA = a.time || '00:00';
+      const timeB = b.time || '00:00';
+      const dateTimeA = `${a.date || ''} ${timeA}`;
+      const dateTimeB = `${b.date || ''} ${timeB}`;
+      return dateTimeA.localeCompare(dateTimeB);
+    });
+  }, [trades, activeCandleDate]);
+
+  // Generate Trade Candlesticks (Open, Close, High, Low per trade)
+  const tradeCandles = useMemo(() => {
+    let runningBalance = 0;
+    return candleTrades.map((t, idx) => {
+      const open = runningBalance;
+      const close = open + t.pnl;
+      const high = Math.max(open, close);
+      const low = Math.min(open, close);
+      runningBalance = close;
+
+      return {
+        index: idx + 1,
+        trade: t,
+        open,
+        close,
+        high,
+        low,
+        pnl: t.pnl,
+        isWin: t.pnl >= 0,
+        time: t.time || '--:--',
+        date: t.date,
+        asset: t.asset || 'N/A',
+        strategy: t.strategy || 'N/A',
+        type: t.type || 'BUY',
+      };
+    });
+  }, [candleTrades]);
+
+  // Dynamic scale limits for Trade Candlesticks
+  const { candleMinVal, candleMaxVal } = useMemo(() => {
+    if (tradeCandles.length === 0) {
+      return { candleMinVal: -dailyLossLimit * 1.1, candleMaxVal: dailyProfitTarget * 1.1 };
+    }
+    let min = 0;
+    let max = 0;
+    tradeCandles.forEach((c) => {
+      if (c.low < min) min = c.low;
+      if (c.high > max) max = c.high;
+    });
+
+    if (activeCandleDate !== 'all') {
+      if (-dailyLossLimit < min) min = -dailyLossLimit;
+      if (dailyProfitTarget > max) max = dailyProfitTarget;
+    }
+
+    const absMax = Math.max(Math.abs(min), Math.abs(max), 10);
+    const padding = Math.max(10, absMax * 0.15);
+    return {
+      candleMinVal: min < 0 ? min - padding : -padding,
+      candleMaxVal: max > 0 ? max + padding : padding,
+    };
+  }, [tradeCandles, dailyLossLimit, dailyProfitTarget, activeCandleDate]);
+
+  const candleChartHeight = 320;
+  const candlePaddingX = 50;
+  const candlePaddingY = 35;
+  const candleRangeY = (candleMaxVal - candleMinVal) || 1;
+
+  const getCandleY = (val: number) => {
+    return (
+      candleChartHeight -
+      candlePaddingY -
+      ((val - candleMinVal) / candleRangeY) * (candleChartHeight - candlePaddingY * 2)
+    );
+  };
 
   // Asset and Strategy stats
   const assetStats = getStatsByAsset(trades);
@@ -130,30 +235,114 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
   );
   const maxVal = maxAbsDaily * 1.15; // 15% head room
 
-  // Equity points calculation
-  let runningPeak = metrics.initialCapital;
-  const equityPoints = dailyData.map((d) => {
-    if (d.equityAtEndOfDay > runningPeak) {
-      runningPeak = d.equityAtEndOfDay;
-    }
-    const ddAmount = runningPeak - d.equityAtEndOfDay;
-    const ddPercent = runningPeak > 0 ? (ddAmount / runningPeak) * 100 : 0;
-    return {
-      date: d.date,
-      equity: d.equityAtEndOfDay,
-      peak: runningPeak,
-      ddPercent,
-    };
-  });
+  // Equity & Drawdown View mode state
+  const [equityViewMode, setEquityViewMode] = useState<'trade' | 'daily'>('trade');
+  const [hoveredEquityPoint, setHoveredEquityPoint] = useState<any | null>(null);
+  const [hoveredDrawdownPoint, setHoveredDrawdownPoint] = useState<any | null>(null);
 
-  const minEquity = Math.min(
-    metrics.initialCapital * 0.95,
-    ...equityPoints.map((p) => p.equity)
-  );
-  const maxEquity = Math.max(
-    metrics.initialCapital * 1.05,
-    ...equityPoints.map((p) => p.equity)
-  );
+  // Calculate Equity Curve Points (starting from Initial Capital)
+  const equityCurvePoints = useMemo(() => {
+    const startCap = metrics.initialCapital || 0;
+    const points: Array<{
+      id: string;
+      label: string;
+      date: string;
+      time?: string;
+      equity: number;
+      peak: number;
+      ddPercent: number;
+      pnl?: number;
+      asset?: string;
+    }> = [];
+
+    // Base point: Initial Capital before trades
+    points.push({
+      id: 'start',
+      label: 'Capital Inicial',
+      date: 'Início',
+      equity: startCap,
+      peak: startCap,
+      ddPercent: 0,
+    });
+
+    if (!trades || trades.length === 0) return points;
+
+    if (equityViewMode === 'trade') {
+      const sorted = [...trades].sort((a, b) => {
+        const dtA = `${a.date || ''}T${a.time || '00:00'}`;
+        const dtB = `${b.date || ''}T${b.time || '00:00'}`;
+        return dtA.localeCompare(dtB);
+      });
+
+      let currentEq = startCap;
+      let peakEq = startCap;
+
+      sorted.forEach((t, idx) => {
+        const val = Number(t.pnl) || 0;
+        currentEq += val;
+        if (currentEq > peakEq) peakEq = currentEq;
+
+        const ddAmt = Math.max(0, peakEq - currentEq);
+        const ddPct = peakEq > 0 ? (ddAmt / peakEq) * 100 : 0;
+
+        points.push({
+          id: t.id || `t-${idx}`,
+          label: `#${idx + 1} (${t.time || t.date})`,
+          date: t.date,
+          time: t.time,
+          equity: currentEq,
+          peak: peakEq,
+          ddPercent: ddPct,
+          pnl: val,
+          asset: t.asset,
+        });
+      });
+    } else {
+      let currentEq = startCap;
+      let peakEq = startCap;
+
+      dailyData.forEach((d) => {
+        currentEq = d.equityAtEndOfDay;
+        if (currentEq > peakEq) peakEq = currentEq;
+
+        const ddAmt = Math.max(0, peakEq - currentEq);
+        const ddPct = peakEq > 0 ? (ddAmt / peakEq) * 100 : 0;
+
+        points.push({
+          id: d.date,
+          label: formatShortDate(d.date),
+          date: d.date,
+          equity: currentEq,
+          peak: peakEq,
+          ddPercent: ddPct,
+          pnl: d.pnl,
+        });
+      });
+    }
+
+    return points;
+  }, [trades, dailyData, metrics.initialCapital, equityViewMode]);
+
+  // Equity Curve Y Range
+  const { minEquity, maxEquity } = useMemo(() => {
+    if (equityCurvePoints.length === 0) {
+      return { minEquity: 0, maxEquity: 100 };
+    }
+    const values = equityCurvePoints.map((p) => p.equity);
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+
+    if (min === max) {
+      min = min - 100;
+      max = max + 100;
+    } else {
+      const diff = max - min;
+      min = min - diff * 0.12;
+      max = max + diff * 0.12;
+    }
+
+    return { minEquity: min, maxEquity: max };
+  }, [equityCurvePoints]);
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl backdrop-blur-sm">
@@ -264,192 +453,470 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
 
       {/* Chart Canvas Area */}
       <div className="mt-4">
-        {/* 1. DAILY P&L CHART */}
+        {/* 1. DAILY P&L CHART / TRADE CANDLESTICKS */}
         {activeTab === 'daily' && (
           <div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400 mb-2">
-              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
-                  Dia Positivo (Gain)
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
-                  Dia Negativo (Loss)
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-500">
-                  <span className="h-0.5 w-3 border-t border-dashed border-emerald-500" />
-                  Meta (+{formatCurrency(dailyProfitTarget)})
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-500">
-                  <span className="h-0.5 w-3 border-t border-dashed border-rose-500" />
-                  Stop (-{formatCurrency(dailyLossLimit)})
-                </span>
+            {/* View Mode & Date Selection Toolbar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-between border-b border-slate-800/80 pb-3 mb-3">
+              {/* Toggle Buttons */}
+              <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+                <button
+                  onClick={() => setDailyViewMode('candles')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    dailyViewMode === 'candles'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Activity className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Candles por Operação (Corretora)</span>
+                </button>
+                <button
+                  onClick={() => setDailyViewMode('bars')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    dailyViewMode === 'bars'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <BarChart2 className="h-3.5 w-3.5" />
+                  <span>Resumo Diário</span>
+                </button>
               </div>
-              <span className="text-[11px] text-slate-500">
-                Toque ou passe o mouse para ver detalhes
-              </span>
+
+              {/* Controls for Candles Mode */}
+              {dailyViewMode === 'candles' && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-slate-400 font-medium">Data:</span>
+                  <select
+                    value={selectedCandleDate}
+                    onChange={(e) => setSelectedCandleDate(e.target.value)}
+                    className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="latest">
+                      {availableDates.length > 0
+                        ? `Mais Recente (${formatShortDate(availableDates[0])})`
+                        : 'Hoje'}
+                    </option>
+                    {availableDates.map((d) => (
+                      <option key={d} value={d}>
+                        {formatDate(d)}
+                      </option>
+                    ))}
+                    <option value="all">Todos os Trades (Histórico)</option>
+                  </select>
+                </div>
+              )}
             </div>
 
-            {dailyData.length === 0 ? (
-              <div className="py-16 text-center text-sm text-slate-400">
-                Nenhum dado diário registrado ainda.
+            {/* Content depending on dailyViewMode */}
+            {dailyViewMode === 'candles' ? (
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400 mb-2">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+                      Vela Gain (+Lucro)
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
+                      Vela Loss (-Prejuízo)
+                    </span>
+                    {activeCandleDate !== 'all' && (
+                      <>
+                        <span className="flex items-center gap-1.5 text-slate-500">
+                          <span className="h-0.5 w-3 border-t border-dashed border-emerald-500" />
+                          Meta (+{formatCurrency(dailyProfitTarget)})
+                        </span>
+                        <span className="flex items-center gap-1.5 text-slate-500">
+                          <span className="h-0.5 w-3 border-t border-dashed border-rose-500" />
+                          Stop (-{formatCurrency(dailyLossLimit)})
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    Cada candle mostra a abertura e o fechamento do saldo no trade
+                  </span>
+                </div>
+
+                {tradeCandles.length === 0 ? (
+                  <div className="py-16 text-center text-sm text-slate-400 bg-slate-950/40 rounded-xl border border-slate-800">
+                    <p className="font-semibold text-slate-300">Nenhuma operação encontrada para esta data.</p>
+                    <p className="text-xs text-slate-500 mt-1">Selecione outra data ou registre trades para visualizar os candles de P&L.</p>
+                  </div>
+                ) : (
+                  <div className="relative w-full overflow-x-auto">
+                    <svg
+                      className="w-full min-w-[650px]"
+                      viewBox={`0 0 800 ${candleChartHeight}`}
+                      preserveAspectRatio="none"
+                    >
+                      {/* Zero axis line */}
+                      <line
+                        x1={candlePaddingX}
+                        y1={getCandleY(0)}
+                        x2={800 - candlePaddingX}
+                        y2={getCandleY(0)}
+                        stroke="#475569"
+                        strokeWidth="1.5"
+                      />
+
+                      {/* Daily Profit Target Guide Line */}
+                      {activeCandleDate !== 'all' && dailyProfitTarget <= candleMaxVal && (
+                        <g>
+                          <line
+                            x1={candlePaddingX}
+                            y1={getCandleY(dailyProfitTarget)}
+                            x2={800 - candlePaddingX}
+                            y2={getCandleY(dailyProfitTarget)}
+                            stroke="#10b981"
+                            strokeDasharray="4 4"
+                            strokeOpacity="0.5"
+                            strokeWidth="1.2"
+                          />
+                          <text
+                            x={800 - candlePaddingX}
+                            y={getCandleY(dailyProfitTarget) - 4}
+                            textAnchor="end"
+                            fontSize="9"
+                            fill="#10b981"
+                            className="font-mono"
+                          >
+                            Meta: +{formatCurrency(dailyProfitTarget)}
+                          </text>
+                        </g>
+                      )}
+
+                      {/* Daily Stop Loss Limit Guide Line */}
+                      {activeCandleDate !== 'all' && -dailyLossLimit >= candleMinVal && (
+                        <g>
+                          <line
+                            x1={candlePaddingX}
+                            y1={getCandleY(-dailyLossLimit)}
+                            x2={800 - candlePaddingX}
+                            y2={getCandleY(-dailyLossLimit)}
+                            stroke="#f43f5e"
+                            strokeDasharray="4 4"
+                            strokeOpacity="0.5"
+                            strokeWidth="1.2"
+                          />
+                          <text
+                            x={800 - candlePaddingX}
+                            y={getCandleY(-dailyLossLimit) + 12}
+                            textAnchor="end"
+                            fontSize="9"
+                            fill="#f43f5e"
+                            className="font-mono"
+                          >
+                            Stop: -{formatCurrency(dailyLossLimit)}
+                          </text>
+                        </g>
+                      )}
+
+                      {/* Render Candlesticks per Trade */}
+                      {tradeCandles.map((c, idx) => {
+                        const totalCandles = tradeCandles.length;
+                        const availableWidth = 800 - candlePaddingX * 2;
+                        const stepX = availableWidth / totalCandles;
+                        const candleWidth = Math.max(10, Math.min(36, stepX * 0.65));
+                        const cx = candlePaddingX + idx * stepX + stepX / 2;
+                        const xLeft = cx - candleWidth / 2;
+
+                        const yOpen = getCandleY(c.open);
+                        const yClose = getCandleY(c.close);
+                        const yHigh = getCandleY(c.high);
+                        const yLow = getCandleY(c.low);
+
+                        const topBody = Math.min(yOpen, yClose);
+                        const bodyHeight = Math.max(3, Math.abs(yOpen - yClose));
+                        const isWin = c.close >= c.open;
+                        const color = isWin ? '#10b981' : '#f43f5e';
+                        const isHovered = hoveredCandle?.index === c.index;
+
+                        return (
+                          <g
+                            key={c.trade.id || idx}
+                            className="cursor-pointer transition-all duration-150"
+                            onMouseEnter={() => setHoveredCandle(c)}
+                            onMouseLeave={() => setHoveredCandle(null)}
+                            onTouchStart={() => setHoveredCandle(c)}
+                          >
+                            {/* Candle Wick (Pavio) */}
+                            <line
+                              x1={cx}
+                              y1={yHigh}
+                              x2={cx}
+                              y2={yLow}
+                              stroke={color}
+                              strokeWidth={isHovered ? '2.5' : '1.5'}
+                            />
+
+                            {/* Candle Body (Corpo) */}
+                            <rect
+                              x={xLeft}
+                              y={topBody}
+                              width={candleWidth}
+                              height={bodyHeight}
+                              rx={2}
+                              fill={color}
+                              fillOpacity={isHovered ? 1 : 0.85}
+                              stroke={isHovered ? '#ffffff' : color}
+                              strokeWidth={isHovered ? 2 : 1}
+                            />
+
+                            {/* Trade Value label on candle if space permits */}
+                            {(candleWidth >= 16 || isHovered) && (
+                              <text
+                                x={cx}
+                                y={isWin ? topBody - 5 : topBody + bodyHeight + 11}
+                                textAnchor="middle"
+                                fontSize="9"
+                                fontWeight="bold"
+                                fill={color}
+                                className="font-mono select-none"
+                              >
+                                {c.pnl >= 0 ? '+' : ''}
+                                {Math.round(c.pnl)}
+                              </text>
+                            )}
+
+                            {/* X Axis Trade Index & Time */}
+                            <text
+                              x={cx}
+                              y={candleChartHeight - 6}
+                              textAnchor="middle"
+                              fontSize="9"
+                              fill={isHovered ? '#ffffff' : '#94a3b8'}
+                              className="font-mono select-none"
+                            >
+                              #{c.index} ({c.time})
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+
+                    {/* Hovered Candle Tooltip Detail Card */}
+                    {hoveredCandle && (
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-950/95 p-3 shadow-xl text-xs backdrop-blur-md">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400">Ordem:</span>
+                            <strong className="text-white font-mono">#{hoveredCandle.index}</strong>
+                            <span className="text-slate-500 font-mono">({hoveredCandle.time})</span>
+                          </div>
+                          <div className="h-4 w-px bg-slate-800" />
+                          <div>
+                            <span className="text-slate-400">Ativo: </span>
+                            <strong className="text-emerald-400 font-mono">{hoveredCandle.asset}</strong>
+                          </div>
+                          <div className="h-4 w-px bg-slate-800" />
+                          <div>
+                            <span className="text-slate-400">Tipo: </span>
+                            <span className={`font-semibold ${hoveredCandle.type === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {hoveredCandle.type === 'BUY' ? 'COMPRA (CALL)' : 'VENDA (PUT)'}
+                            </span>
+                          </div>
+                          <div className="h-4 w-px bg-slate-800" />
+                          <div>
+                            <span className="text-slate-400">Resultado Trade: </span>
+                            <strong
+                              className={`font-mono font-bold ${
+                                hoveredCandle.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
+                            >
+                              {hoveredCandle.pnl >= 0 ? '+' : ''}
+                              {formatCurrency(hoveredCandle.pnl)}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1">
+                            <span className="text-slate-400">Saldo da Sessão: </span>
+                            <span className="font-mono text-slate-300">
+                              {formatCurrency(hoveredCandle.open)}
+                            </span>
+                            <span className="text-slate-500 mx-1">➔</span>
+                            <strong
+                              className={`font-mono ${
+                                hoveredCandle.close >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
+                            >
+                              {formatCurrency(hoveredCandle.close)}
+                            </strong>
+                          </div>
+
+                          {hoveredCandle.strategy && (
+                            <span className="rounded bg-slate-800 px-2 py-1 text-[11px] text-slate-300">
+                              Setup: <strong>{hoveredCandle.strategy}</strong>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="relative w-full overflow-x-auto">
-                <svg
-                  className="w-full min-w-[600px]"
-                  viewBox={`0 0 800 ${chartHeight}`}
-                  preserveAspectRatio="none"
-                >
-                  {/* Zero axis */}
-                  <line
-                    x1={paddingX}
-                    y1={chartHeight / 2}
-                    x2={800 - paddingX}
-                    y2={chartHeight / 2}
-                    stroke="#475569"
-                    strokeWidth="1.5"
-                  />
+              /* --- DAILY BARS MODE (Resumo Diário) --- */
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400 mb-2">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+                      Dia Positivo (Gain)
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
+                      Dia Negativo (Loss)
+                    </span>
+                    <span className="flex items-center gap-1.5 text-slate-500">
+                      <span className="h-0.5 w-3 border-t border-dashed border-emerald-500" />
+                      Meta (+{formatCurrency(dailyProfitTarget)})
+                    </span>
+                    <span className="flex items-center gap-1.5 text-slate-500">
+                      <span className="h-0.5 w-3 border-t border-dashed border-rose-500" />
+                      Stop (-{formatCurrency(dailyLossLimit)})
+                    </span>
+                  </div>
+                </div>
 
-                  {/* Daily Target guide line */}
-                  {dailyProfitTarget <= maxVal && (
-                    <line
-                      x1={paddingX}
-                      y1={chartHeight / 2 - (dailyProfitTarget / maxVal) * (chartHeight / 2 - paddingY)}
-                      x2={800 - paddingX}
-                      y2={chartHeight / 2 - (dailyProfitTarget / maxVal) * (chartHeight / 2 - paddingY)}
-                      stroke="#10b981"
-                      strokeDasharray="4 4"
-                      strokeOpacity="0.4"
-                      strokeWidth="1"
-                    />
-                  )}
+                {dailyData.length === 0 ? (
+                  <div className="py-16 text-center text-sm text-slate-400">
+                    Nenhum dado diário registrado ainda.
+                  </div>
+                ) : (
+                  <div className="relative w-full overflow-x-auto">
+                    <svg
+                      className="w-full min-w-[600px]"
+                      viewBox={`0 0 800 ${chartHeight}`}
+                      preserveAspectRatio="none"
+                    >
+                      {/* Zero axis */}
+                      <line
+                        x1={paddingX}
+                        y1={chartHeight / 2}
+                        x2={800 - paddingX}
+                        y2={chartHeight / 2}
+                        stroke="#475569"
+                        strokeWidth="1.5"
+                      />
 
-                  {/* Daily Stop guide line */}
-                  {dailyLossLimit <= maxVal && (
-                    <line
-                      x1={paddingX}
-                      y1={chartHeight / 2 + (dailyLossLimit / maxVal) * (chartHeight / 2 - paddingY)}
-                      x2={800 - paddingX}
-                      y2={chartHeight / 2 + (dailyLossLimit / maxVal) * (chartHeight / 2 - paddingY)}
-                      stroke="#f43f5e"
-                      strokeDasharray="4 4"
-                      strokeOpacity="0.4"
-                      strokeWidth="1"
-                    />
-                  )}
-
-                  {/* Render Daily Bars */}
-                  {dailyData.map((day, idx) => {
-                    const totalBars = dailyData.length;
-                    const availableWidth = 800 - paddingX * 2;
-                    const barSpacing = availableWidth / totalBars;
-                    const barWidth = Math.max(10, Math.min(32, barSpacing * 0.7));
-                    const x = paddingX + idx * barSpacing + (barSpacing - barWidth) / 2;
-
-                    const isPositive = day.pnl >= 0;
-                    const barH = (Math.abs(day.pnl) / maxVal) * (chartHeight / 2 - paddingY);
-                    const y = isPositive ? chartHeight / 2 - barH : chartHeight / 2;
-
-                    const isHovered = hoveredDay?.date === day.date;
-
-                    return (
-                      <g
-                        key={day.date}
-                        className="cursor-pointer transition-transform duration-200"
-                        onMouseEnter={() => setHoveredDay(day)}
-                        onMouseLeave={() => setHoveredDay(null)}
-                        onTouchStart={() => setHoveredDay(day)}
-                        onClick={() => onSelectDay(day.date)}
-                      >
-                        {/* Bar */}
-                        <rect
-                          x={x}
-                          y={y}
-                          width={barWidth}
-                          height={Math.max(3, barH)}
-                          rx={3}
-                          fill={isPositive ? '#10b981' : '#f43f5e'}
-                          fillOpacity={isHovered ? 1 : 0.85}
-                          stroke={isHovered ? '#ffffff' : 'none'}
-                          strokeWidth={isHovered ? 1.5 : 0}
+                      {/* Daily Target guide line */}
+                      {dailyProfitTarget <= maxVal && (
+                        <line
+                          x1={paddingX}
+                          y1={chartHeight / 2 - (dailyProfitTarget / maxVal) * (chartHeight / 2 - paddingY)}
+                          x2={800 - paddingX}
+                          y2={chartHeight / 2 - (dailyProfitTarget / maxVal) * (chartHeight / 2 - paddingY)}
+                          stroke="#10b981"
+                          strokeDasharray="4 4"
+                          strokeOpacity="0.4"
+                          strokeWidth="1"
                         />
-
-                        {/* Date label */}
-                        <text
-                          x={x + barWidth / 2}
-                          y={chartHeight - 6}
-                          textAnchor="middle"
-                          fontSize="10"
-                          fill="#94a3b8"
-                          className="font-mono select-none"
-                        >
-                          {formatShortDate(day.date)}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-
-                {/* Hovered Day Tooltip Card */}
-                {hoveredDay && (
-                  <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-700 bg-slate-950/90 p-3 shadow-lg text-xs">
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <span className="text-slate-400">Data: </span>
-                        <strong className="text-white font-mono">{formatDate(hoveredDay.date)}</strong>
-                      </div>
-                      <div className="h-4 w-px bg-slate-800" />
-                      <div>
-                        <span className="text-slate-400">Resultado: </span>
-                        <strong
-                          className={`font-mono font-bold ${
-                            hoveredDay.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                          }`}
-                        >
-                          {hoveredDay.pnl >= 0 ? '+' : ''}
-                          {formatCurrency(hoveredDay.pnl)}
-                        </strong>
-                      </div>
-                      <div className="h-4 w-px bg-slate-800" />
-                      <div>
-                        <span className="text-slate-400">Operações: </span>
-                        <strong className="text-slate-200">
-                          {hoveredDay.tradesCount} ({hoveredDay.wins}W / {hoveredDay.losses}L)
-                        </strong>
-                      </div>
-                      <div className="h-4 w-px bg-slate-800" />
-                      <div>
-                        <span className="text-slate-400">Assertividade: </span>
-                        <strong className="text-emerald-400 font-mono">
-                          {hoveredDay.winRate.toFixed(1)}%
-                        </strong>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      {hoveredDay.dayOverDayGrowthPercent !== undefined && (
-                        <div>
-                          <span className="text-slate-400">Comparado ao dia anterior: </span>
-                          <span
-                            className={`font-bold font-mono ${
-                              hoveredDay.dayOverDayGrowthPercent >= 0
-                                ? 'text-emerald-400'
-                                : 'text-rose-400'
-                            }`}
-                          >
-                            {formatPercent(hoveredDay.dayOverDayGrowthPercent, true)}
-                          </span>
-                        </div>
                       )}
-                      <button
-                        onClick={() => onSelectDay(hoveredDay.date)}
-                        className="flex items-center gap-1 rounded bg-slate-800 px-2.5 py-1 text-slate-200 hover:bg-slate-700"
-                      >
-                        Ver Trades <ChevronRight className="h-3 w-3" />
-                      </button>
-                    </div>
+
+                      {/* Daily Stop guide line */}
+                      {dailyLossLimit <= maxVal && (
+                        <line
+                          x1={paddingX}
+                          y1={chartHeight / 2 + (dailyLossLimit / maxVal) * (chartHeight / 2 - paddingY)}
+                          x2={800 - paddingX}
+                          y2={chartHeight / 2 + (dailyLossLimit / maxVal) * (chartHeight / 2 - paddingY)}
+                          stroke="#f43f5e"
+                          strokeDasharray="4 4"
+                          strokeOpacity="0.4"
+                          strokeWidth="1"
+                        />
+                      )}
+
+                      {/* Render Daily Bars */}
+                      {dailyData.map((day, idx) => {
+                        const totalBars = dailyData.length;
+                        const availableWidth = 800 - paddingX * 2;
+                        const barSpacing = availableWidth / totalBars;
+                        const barWidth = Math.max(10, Math.min(32, barSpacing * 0.7));
+                        const x = paddingX + idx * barSpacing + (barSpacing - barWidth) / 2;
+
+                        const isPositive = day.pnl >= 0;
+                        const barH = (Math.abs(day.pnl) / maxVal) * (chartHeight / 2 - paddingY);
+                        const y = isPositive ? chartHeight / 2 - barH : chartHeight / 2;
+
+                        const isHovered = hoveredDay?.date === day.date;
+
+                        return (
+                          <g
+                            key={day.date}
+                            className="cursor-pointer transition-transform duration-200"
+                            onMouseEnter={() => setHoveredDay(day)}
+                            onMouseLeave={() => setHoveredDay(null)}
+                            onTouchStart={() => setHoveredDay(day)}
+                            onClick={() => onSelectDay(day.date)}
+                          >
+                            <rect
+                              x={x}
+                              y={y}
+                              width={barWidth}
+                              height={Math.max(3, barH)}
+                              rx={3}
+                              fill={isPositive ? '#10b981' : '#f43f5e'}
+                              fillOpacity={isHovered ? 1 : 0.85}
+                              stroke={isHovered ? '#ffffff' : 'none'}
+                              strokeWidth={isHovered ? 1.5 : 0}
+                            />
+                            <text
+                              x={x + barWidth / 2}
+                              y={chartHeight - 6}
+                              textAnchor="middle"
+                              fontSize="10"
+                              fill="#94a3b8"
+                              className="font-mono select-none"
+                            >
+                              {formatShortDate(day.date)}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+
+                    {hoveredDay && (
+                      <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-700 bg-slate-950/90 p-3 shadow-lg text-xs">
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <span className="text-slate-400">Data: </span>
+                            <strong className="text-white font-mono">{formatDate(hoveredDay.date)}</strong>
+                          </div>
+                          <div className="h-4 w-px bg-slate-800" />
+                          <div>
+                            <span className="text-slate-400">Resultado: </span>
+                            <strong
+                              className={`font-mono font-bold ${
+                                hoveredDay.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
+                            >
+                              {hoveredDay.pnl >= 0 ? '+' : ''}
+                              {formatCurrency(hoveredDay.pnl)}
+                            </strong>
+                          </div>
+                          <div className="h-4 w-px bg-slate-800" />
+                          <div>
+                            <span className="text-slate-400">Operações: </span>
+                            <strong className="text-slate-200">
+                              {hoveredDay.tradesCount} ({hoveredDay.wins}W / {hoveredDay.losses}L)
+                            </strong>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => onSelectDay(hoveredDay.date)}
+                          className="flex items-center gap-1 rounded bg-slate-800 px-2.5 py-1 text-slate-200 hover:bg-slate-700"
+                        >
+                          Ver Trades <ChevronRight className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -460,8 +927,43 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
         {/* 2. EQUITY CURVE (CURVA DE CAPITAL) */}
         {activeTab === 'equity' && (
           <div>
+            {/* Toolbar for Equity View Mode */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400 mb-3 border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+                <button
+                  onClick={() => setEquityViewMode('trade')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    equityViewMode === 'trade'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Por Operação (Trade a Trade)</span>
+                </button>
+                <button
+                  onClick={() => setEquityViewMode('daily')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    equityViewMode === 'daily'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <BarChart2 className="h-3.5 w-3.5" />
+                  <span>Por Dia</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 font-mono">
+                <span className="text-slate-400">Capital Inicial: <strong>{formatCurrency(metrics.initialCapital)}</strong></span>
+                <span className="text-slate-600">|</span>
+                <span className="text-emerald-400 font-bold">Saldo Atual: {formatCurrency(metrics.currentCapital)}</span>
+              </div>
+            </div>
+
+            {/* Legend */}
             <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <span className="flex items-center gap-1.5">
                   <span className="h-2 w-4 bg-emerald-500 rounded" />
                   Evolução do Saldo (R$)
@@ -475,14 +977,12 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                   Capital Inicial ({formatCurrency(metrics.initialCapital)})
                 </span>
               </div>
-              <span className="font-mono text-emerald-400 font-bold">
-                Saldo Atual: {formatCurrency(metrics.currentCapital)}
-              </span>
             </div>
 
-            {equityPoints.length === 0 ? (
-              <div className="py-16 text-center text-sm text-slate-400">
-                Nenhuma operação registrada para traçar a curva de capital.
+            {equityCurvePoints.length <= 1 ? (
+              <div className="py-16 text-center text-sm text-slate-400 bg-slate-950/40 rounded-xl border border-slate-800">
+                <p className="font-semibold text-slate-300">Nenhuma operação registrada para traçar a curva de capital.</p>
+                <p className="text-xs text-slate-500 mt-1">Insira trades ou sincronize sua corretora para visualizar a evolução do capital.</p>
               </div>
             ) : (
               <div className="relative w-full">
@@ -519,25 +1019,36 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                       ((metrics.initialCapital - minEquity) / (maxEquity - minEquity || 1)) *
                         (chartHeight - paddingY * 2);
                     return (
-                      <line
-                        x1={paddingX}
-                        y1={yInit}
-                        x2={800 - paddingX}
-                        y2={yInit}
-                        stroke="#64748b"
-                        strokeDasharray="4 4"
-                        strokeWidth="1.2"
-                      />
+                      <g>
+                        <line
+                          x1={paddingX}
+                          y1={yInit}
+                          x2={800 - paddingX}
+                          y2={yInit}
+                          stroke="#64748b"
+                          strokeDasharray="4 4"
+                          strokeWidth="1.2"
+                        />
+                        <text
+                          x={paddingX + 4}
+                          y={yInit - 4}
+                          fill="#64748b"
+                          fontSize="9"
+                          fontFamily="monospace"
+                        >
+                          Base: {formatCurrency(metrics.initialCapital)}
+                        </text>
+                      </g>
                     );
                   })()}
 
                   {/* Generate path for Equity Curve */}
                   {(() => {
-                    const count = equityPoints.length;
+                    const count = equityCurvePoints.length;
                     const stepX = (800 - paddingX * 2) / Math.max(1, count - 1);
                     const rangeY = maxEquity - minEquity || 1;
 
-                    const coords = equityPoints.map((p, i) => {
+                    const coords = equityCurvePoints.map((p, i) => {
                       const x = paddingX + i * stepX;
                       const y =
                         chartHeight -
@@ -571,22 +1082,68 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                           strokeLinecap="round"
                           strokeLinejoin="round"
                         />
-                        {coords.map((c) => (
-                          <circle
-                            key={c.date}
-                            cx={c.x}
-                            cy={c.y}
-                            r="3.5"
-                            fill="#10b981"
-                            stroke="#0f172a"
-                            strokeWidth="1.5"
-                            className="hover:r-5 cursor-pointer"
-                          />
-                        ))}
+                        {coords.map((c) => {
+                          const isHovered = hoveredEquityPoint?.id === c.id;
+                          return (
+                            <circle
+                              key={c.id}
+                              cx={c.x}
+                              cy={c.y}
+                              r={isHovered ? 6 : 3.5}
+                              fill={isHovered ? '#ffffff' : '#10b981'}
+                              stroke="#0f172a"
+                              strokeWidth={isHovered ? 2.5 : 1.5}
+                              className="cursor-pointer transition-all"
+                              onMouseEnter={() => setHoveredEquityPoint(c)}
+                              onMouseLeave={() => setHoveredEquityPoint(null)}
+                            />
+                          );
+                        })}
                       </>
                     );
                   })()}
                 </svg>
+
+                {/* Hovered Equity Point Tooltip Card */}
+                {hoveredEquityPoint && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-950/95 p-3 shadow-xl text-xs backdrop-blur-md">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <span className="text-slate-400">Ponto: </span>
+                        <strong className="text-white font-mono">{hoveredEquityPoint.label}</strong>
+                      </div>
+                      <div className="h-4 w-px bg-slate-800" />
+                      <div>
+                        <span className="text-slate-400">Saldo no Momento: </span>
+                        <strong className="text-emerald-400 font-mono font-bold">
+                          {formatCurrency(hoveredEquityPoint.equity)}
+                        </strong>
+                      </div>
+                      {hoveredEquityPoint.pnl !== undefined && (
+                        <>
+                          <div className="h-4 w-px bg-slate-800" />
+                          <div>
+                            <span className="text-slate-400">P&L: </span>
+                            <strong
+                              className={`font-mono font-bold ${
+                                hoveredEquityPoint.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
+                            >
+                              {hoveredEquityPoint.pnl >= 0 ? '+' : ''}
+                              {formatCurrency(hoveredEquityPoint.pnl)}
+                            </strong>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 text-slate-400 font-mono">
+                      <span>Pico Histórico: <strong className="text-amber-400">{formatCurrency(hoveredEquityPoint.peak)}</strong></span>
+                      <span className="text-slate-600">|</span>
+                      <span>Drawdown: <strong className="text-rose-400">-{hoveredEquityPoint.ddPercent.toFixed(2)}%</strong></span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -594,34 +1151,146 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
 
         {/* 3. DRAWDOWN CHART (UNDER-WATER CHART) */}
         {activeTab === 'drawdown' && (
-          <div>
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+          <div className="space-y-4">
+            {/* Drawdown Summary Cards Grid */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Card 1: Drawdown Máximo (%) */}
+              <div className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-3.5 backdrop-blur-sm">
+                <div className="flex items-center justify-between text-xs text-rose-300">
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
+                    Drawdown Máximo (%)
+                  </span>
+                  <span className="rounded bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-mono text-rose-300 border border-rose-500/30">
+                    Pico Histórico
+                  </span>
+                </div>
+                <div className="mt-2 text-xl font-bold font-mono text-rose-400">
+                  -{metrics.maxDrawdownPercent.toFixed(2)}%
+                </div>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Maior queda percentual sofrida pela conta
+                </p>
+              </div>
+
+              {/* Card 2: Drawdown Máximo (R$) */}
+              <div className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-3.5 backdrop-blur-sm">
+                <div className="flex items-center justify-between text-xs text-rose-300">
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
+                    Drawdown Máximo (R$)
+                  </span>
+                  <span className="rounded bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-mono text-rose-300 border border-rose-500/30">
+                    Perda Máx.
+                  </span>
+                </div>
+                <div className="mt-2 text-xl font-bold font-mono text-rose-400">
+                  -{formatCurrency(metrics.maxDrawdownAmount)}
+                </div>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Maior valor financeiro acumulado em perda do topo
+                </p>
+              </div>
+
+              {/* Card 3: Drawdown Atual (%) */}
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5 backdrop-blur-sm">
+                <div className="flex items-center justify-between text-xs text-slate-300">
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <Activity className="h-3.5 w-3.5 text-emerald-400" />
+                    Drawdown Atual (%)
+                  </span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold ${
+                      metrics.currentDrawdownPercent === 0
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}
+                  >
+                    {metrics.currentDrawdownPercent === 0 ? 'No Topo (0%)' : 'Submerso'}
+                  </span>
+                </div>
+                <div
+                  className={`mt-2 text-xl font-bold font-mono ${
+                    metrics.currentDrawdownPercent === 0 ? 'text-emerald-400' : 'text-amber-400'
+                  }`}
+                >
+                  {metrics.currentDrawdownPercent === 0
+                    ? '0.00%'
+                    : `-${metrics.currentDrawdownPercent.toFixed(2)}%`}
+                </div>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  {metrics.currentDrawdownPercent === 0
+                    ? 'Você está no pico histórico de saldo!'
+                    : 'Rebaixamento atual da conta no momento'}
+                </p>
+              </div>
+
+              {/* Card 4: Distância do Topo (R$) */}
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5 backdrop-blur-sm">
+                <div className="flex items-center justify-between text-xs text-slate-300">
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <Shield className="h-3.5 w-3.5 text-blue-400" />
+                    Recuperação de Capital
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">Topo vs Atual</span>
+                </div>
+                {(() => {
+                  const peakVal = Math.max(
+                    metrics.initialCapital,
+                    ...equityCurvePoints.map((p) => p.peak)
+                  );
+                  const dist = Math.max(0, peakVal - metrics.currentCapital);
+                  return (
+                    <>
+                      <div
+                        className={`mt-2 text-xl font-bold font-mono ${
+                          dist === 0 ? 'text-emerald-400' : 'text-slate-200'
+                        }`}
+                      >
+                        {dist === 0 ? '0,00 (Recorde)' : `-${formatCurrency(dist)}`}
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        {dist === 0
+                          ? 'Sua conta está na melhor marca!'
+                          : `Falta ${formatCurrency(dist)} para renovar topo histórico`}
+                      </p>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Header Toolbar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400 pt-2 border-t border-slate-800/80">
               <div className="flex items-center gap-4">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-4 bg-rose-500 rounded" />
-                  Drawdown Submerso (% abaixo do pico)
+                <span className="flex items-center gap-1.5 font-semibold text-slate-200">
+                  <span className="h-2.5 w-4 bg-rose-500/80 rounded-sm" />
+                  Curva Submersa de Drawdown (%)
                 </span>
-                <span className="flex items-center gap-1.5 text-rose-400">
-                  Drawdown Máx: -{metrics.maxDrawdownPercent.toFixed(2)}% (-{formatCurrency(metrics.maxDrawdownAmount)})
+                <span className="flex items-center gap-1.5 text-emerald-400 font-mono">
+                  <span className="h-0.5 w-4 border-t border-emerald-500" />
+                  0% = Novo Topo Histórico
                 </span>
               </div>
               <span className="text-[11px] text-slate-400">
-                0% = Novo Topo Histórico de Capital
+                Passe o mouse nos pontos para inspecionar cada rebaixamento
               </span>
             </div>
 
-            {equityPoints.length === 0 ? (
-              <div className="py-16 text-center text-sm text-slate-400">
-                Nenhum dado registrado para calcular drawdown.
+            {/* Underwater Chart SVG */}
+            {equityCurvePoints.length <= 1 ? (
+              <div className="py-16 text-center text-sm text-slate-400 bg-slate-950/40 rounded-xl border border-slate-800">
+                <p className="font-semibold text-slate-300">Nenhum dado registrado para calcular drawdown.</p>
+                <p className="text-xs text-slate-500 mt-1">Registre trades para acompanhar a curva de risco submerso.</p>
               </div>
             ) : (
-              <div className="relative w-full">
+              <div className="relative w-full overflow-x-auto">
                 <svg
-                  className="w-full"
+                  className="w-full min-w-[650px]"
                   viewBox={`0 0 800 ${chartHeight}`}
                   preserveAspectRatio="none"
                 >
-                  {/* Zero line at top */}
+                  {/* Grid Lines */}
                   <line
                     x1={paddingX}
                     y1={paddingY}
@@ -636,20 +1305,21 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                     fill="#10b981"
                     fontSize="10"
                     fontFamily="monospace"
+                    className="font-bold"
                   >
-                    0% (Pico / High Watermark)
+                    0% (Topo Histórico de Capital)
                   </text>
 
-                  {/* Drawdown Area */}
+                  {/* Drawdown Area & Nodes */}
                   {(() => {
-                    const count = equityPoints.length;
+                    const count = equityCurvePoints.length;
                     const stepX = (800 - paddingX * 2) / Math.max(1, count - 1);
                     const maxDdVal = Math.max(10, metrics.maxDrawdownPercent * 1.3);
 
-                    const coords = equityPoints.map((p, i) => {
+                    const coords = equityCurvePoints.map((p, i) => {
                       const x = paddingX + i * stepX;
                       const y = paddingY + (p.ddPercent / maxDdVal) * (chartHeight - paddingY * 2);
-                      return { x, y, ddPercent: p.ddPercent, date: p.date };
+                      return { x, y, ...p };
                     });
 
                     const pathD = coords
@@ -664,7 +1334,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                         <defs>
                           <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.4" />
-                            <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.1" />
+                            <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.05" />
                           </linearGradient>
                         </defs>
                         <path d={areaD} fill="url(#ddGrad)" />
@@ -672,27 +1342,103 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                           d={pathD}
                           fill="none"
                           stroke="#f43f5e"
-                          strokeWidth="2"
+                          strokeWidth="2.2"
                           strokeLinecap="round"
                           strokeLinejoin="round"
                         />
-                        {coords.map((c) => (
-                          <circle
-                            key={c.date}
-                            cx={c.x}
-                            cy={c.y}
-                            r="3"
-                            fill="#f43f5e"
-                            stroke="#0f172a"
-                            strokeWidth="1.5"
-                          />
-                        ))}
+                        {coords.map((c) => {
+                          const isHovered = hoveredDrawdownPoint?.id === c.id;
+                          return (
+                            <circle
+                              key={c.id}
+                              cx={c.x}
+                              cy={c.y}
+                              r={isHovered ? 6 : 3.5}
+                              fill={isHovered ? '#ffffff' : '#f43f5e'}
+                              stroke="#0f172a"
+                              strokeWidth={isHovered ? 2.5 : 1.5}
+                              className="cursor-pointer transition-all"
+                              onMouseEnter={() => setHoveredDrawdownPoint(c)}
+                              onMouseLeave={() => setHoveredDrawdownPoint(null)}
+                            />
+                          );
+                        })}
                       </>
                     );
                   })()}
                 </svg>
+
+                {/* Hovered Drawdown Tooltip Inspection Card */}
+                {hoveredDrawdownPoint && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-900/50 bg-slate-950/95 p-3 shadow-xl text-xs backdrop-blur-md">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <span className="text-slate-400">Ponto: </span>
+                        <strong className="text-white font-mono">{hoveredDrawdownPoint.label}</strong>
+                      </div>
+                      <div className="h-4 w-px bg-slate-800" />
+                      <div>
+                        <span className="text-slate-400">Rebaixamento: </span>
+                        <strong
+                          className={`font-mono font-bold ${
+                            hoveredDrawdownPoint.ddPercent === 0
+                              ? 'text-emerald-400'
+                              : 'text-rose-400'
+                          }`}
+                        >
+                          {hoveredDrawdownPoint.ddPercent === 0
+                            ? '0.00% (No Topo)'
+                            : `-${hoveredDrawdownPoint.ddPercent.toFixed(2)}%`}
+                        </strong>
+                      </div>
+                      {hoveredDrawdownPoint.pnl !== undefined && (
+                        <>
+                          <div className="h-4 w-px bg-slate-800" />
+                          <div>
+                            <span className="text-slate-400">P&L no Ponto: </span>
+                            <strong
+                              className={`font-mono font-bold ${
+                                hoveredDrawdownPoint.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
+                            >
+                              {hoveredDrawdownPoint.pnl >= 0 ? '+' : ''}
+                              {formatCurrency(hoveredDrawdownPoint.pnl)}
+                            </strong>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 text-slate-400 font-mono">
+                      <span>
+                        Saldo no Ponto:{' '}
+                        <strong className="text-slate-200">
+                          {formatCurrency(hoveredDrawdownPoint.equity)}
+                        </strong>
+                      </span>
+                      <span className="text-slate-600">|</span>
+                      <span>
+                        Pico de Referência:{' '}
+                        <strong className="text-amber-400">
+                          {formatCurrency(hoveredDrawdownPoint.peak)}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Educational Info Box */}
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-xs text-slate-300">
+              <h5 className="font-bold text-white flex items-center gap-2 mb-1.5">
+                <Info className="h-4 w-4 text-blue-400" />
+                Como interpretar o Gráfico Submerso de Drawdown (Underwater Chart)
+              </h5>
+              <p className="text-slate-400 leading-relaxed">
+                O gráfico submerso visualiza o <strong className="text-rose-300">risco de rebaixamento de capital</strong> ao longo do tempo. Quando a linha toca a barra verde de <strong className="text-emerald-400">0%</strong>, significa que o seu capital atingiu um <strong className="text-emerald-400 font-semibold">novo pico histórico de saldo</strong>. Qualquer vale vermelho abaixo mostra o percentual que sua conta recuou em relação a esse maior topo alcançado antes de se recuperar.
+              </p>
+            </div>
           </div>
         )}
 
