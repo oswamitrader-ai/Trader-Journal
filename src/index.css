@@ -8,14 +8,28 @@
   }
 
   body {
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Arial Black', 'Arial', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 700;
     min-height: 100vh;
     min-height: -webkit-fill-available;
     overflow-x: hidden;
+    background-color: #000000;
   }
 
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  /* Tipografia global: forçar Arial Black em todo o painel */
+  h1, h2, h3, h4, h5, h6,
+  span, p, label, button, a, div, td, th, li, dt, dd, summary, select, option, textarea {
+    font-family: 'Arial Black', 'Arial', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* Manter JetBrains Mono para monospace */
+  .font-mono,
+  code, pre {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   }
 }
 
@@ -26,7 +40,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(0, 0, 0, 0.8);
 }
 
 ::-webkit-scrollbar-thumb {
@@ -46,4 +60,3 @@
 .pt-safe {
   padding-top: env(safe-area-inset-top, 0rem);
 }
-

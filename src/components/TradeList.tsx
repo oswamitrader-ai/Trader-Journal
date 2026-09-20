@@ -185,7 +185,7 @@ export const TradeList: React.FC<TradeListProps> = ({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl backdrop-blur-sm">
+    <div className="rounded-2xl border border-slate-800 bg-black/80 p-5 shadow-xl backdrop-blur-sm">
       {/* Header & Main Actions */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-slate-800 pb-4">
         <div>
@@ -236,7 +236,7 @@ export const TradeList: React.FC<TradeListProps> = ({
             <button
               onClick={onResetData}
               title="Limpar histórico de operações"
-              className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-rose-300 hover:border-rose-900/50 hover:bg-rose-950/20 transition"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-black px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-rose-300 hover:border-rose-900/50 hover:bg-rose-950/20 transition"
             >
               <Trash2 className="h-3.5 w-3.5" />
               <span>Limpar Diário</span>
@@ -263,7 +263,7 @@ export const TradeList: React.FC<TradeListProps> = ({
             placeholder="Buscar ativo, setup, nota..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-slate-800 bg-slate-950 pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+            className="w-full rounded-xl border border-slate-800 bg-black pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
           />
         </div>
 
@@ -272,7 +272,7 @@ export const TradeList: React.FC<TradeListProps> = ({
           <select
             value={filterPeriod}
             onChange={(e) => setFilterPeriod(e.target.value as any)}
-            className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
+            className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
           >
             <option value="ALL">Todos os Períodos</option>
             <option value="TODAY">Apenas Hoje ({todayDate})</option>
@@ -285,7 +285,7 @@ export const TradeList: React.FC<TradeListProps> = ({
           <select
             value={filterResult}
             onChange={(e) => setFilterResult(e.target.value as any)}
-            className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
+            className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
           >
             <option value="ALL">Todos os Resultados</option>
             <option value="GAIN">Apenas Gains (Vitórias)</option>
@@ -299,7 +299,7 @@ export const TradeList: React.FC<TradeListProps> = ({
           <select
             value={filterAsset}
             onChange={(e) => setFilterAsset(e.target.value)}
-            className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
+            className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
           >
             <option value="ALL">Todos os Ativos</option>
             {assets.map((asset) => (
@@ -315,7 +315,7 @@ export const TradeList: React.FC<TradeListProps> = ({
           <select
             value={filterStrategy}
             onChange={(e) => setFilterStrategy(e.target.value)}
-            className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
+            className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
           >
             <option value="ALL">Todas as Estratégias</option>
             {strategies.map((strat) => (
@@ -328,14 +328,14 @@ export const TradeList: React.FC<TradeListProps> = ({
       </div>
 
       {/* Filter Stats & Multi-Select Controller Bar */}
-      <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-xl bg-slate-950/60 p-3 text-xs text-slate-400 border border-slate-800/80">
+      <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-xl bg-black/60 p-3 text-xs text-slate-400 border border-slate-800/80">
         <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={isAllFilteredSelected}
               onChange={toggleSelectAllFiltered}
-              className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+              className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer"
             />
             <span>Selecionar todos visíveis</span>
           </label>
@@ -394,7 +394,7 @@ export const TradeList: React.FC<TradeListProps> = ({
                 className={`rounded-2xl border p-3.5 shadow-sm space-y-2.5 transition active:scale-[0.99] ${
                   isSelected
                     ? 'border-rose-500/50 bg-rose-950/20 ring-1 ring-rose-500/30'
-                    : 'border-slate-800/90 bg-slate-950/70'
+                    : 'border-slate-800/90 bg-black/70'
                 }`}
               >
                 {/* Top Row: Select Checkbox, Date, Time & PnL */}
@@ -404,7 +404,7 @@ export const TradeList: React.FC<TradeListProps> = ({
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleSelectTrade(trade.id)}
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer shrink-0"
+                      className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer shrink-0"
                     />
                     <span className="font-mono text-xs font-bold text-white">
                       {formatDate(trade.date)}
@@ -461,7 +461,7 @@ export const TradeList: React.FC<TradeListProps> = ({
 
                 {/* Notes (if any) */}
                 {trade.notes && (
-                  <div className="ml-6 rounded-xl bg-slate-900/90 p-2.5 text-xs text-slate-300 border border-slate-800/80 leading-relaxed">
+                  <div className="ml-6 rounded-xl bg-black/90 p-2.5 text-xs text-slate-300 border border-slate-800/80 leading-relaxed">
                     {trade.notes}
                   </div>
                 )}
@@ -506,7 +506,7 @@ export const TradeList: React.FC<TradeListProps> = ({
       {/* Desktop Trades Table (Visible on md and larger) */}
       <div className="mt-4 hidden md:block overflow-x-auto rounded-xl border border-slate-800">
         <table className="w-full text-left text-xs">
-          <thead className="border-b border-slate-800 bg-slate-950/80 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <thead className="border-b border-slate-800 bg-black/80 text-[11px] font-bold uppercase tracking-wider text-slate-400">
             <tr>
               <th className="px-3 py-3 w-10 text-center">
                 <input
@@ -514,7 +514,7 @@ export const TradeList: React.FC<TradeListProps> = ({
                   checked={isAllFilteredSelected}
                   onChange={toggleSelectAllFiltered}
                   title="Selecionar / Desmarcar todas as operações visíveis"
-                  className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                  className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer"
                 />
               </th>
               <th className="px-4 py-3">Data / Hora</th>
@@ -527,7 +527,7 @@ export const TradeList: React.FC<TradeListProps> = ({
               <th className="px-3 py-3 text-center">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
+          <tbody className="divide-y divide-slate-800/60 bg-black/40">
             {filteredTrades.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-12 text-center text-slate-500">
@@ -555,7 +555,7 @@ export const TradeList: React.FC<TradeListProps> = ({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleSelectTrade(trade.id)}
-                        className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                        className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer"
                       />
                     </td>
 

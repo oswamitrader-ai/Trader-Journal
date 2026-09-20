@@ -16,7 +16,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { OverallMetrics, RiskSettings, NotificationAlert } from '../types';
-import { formatCurrency, formatPercent } from '../utils/calculations';
+import { formatCurrency, formatPercent, CurrencyCode, CURRENCIES, getGlobalCurrency } from '../utils/calculations';
 import { SupabaseConnectionStatus } from '../lib/supabase';
 
 interface NavbarProps {
@@ -27,6 +27,8 @@ interface NavbarProps {
   todayTradesCount?: number;
   currentCapital?: number;
   supabaseStatus?: SupabaseConnectionStatus;
+  currentCurrency?: CurrencyCode;
+  onCurrencyChange?: (currency: CurrencyCode) => void;
   onOpenNewTrade: () => void;
   onOpenImportModal?: () => void;
   onOpenSettings: () => void;
@@ -46,6 +48,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   todayTradesCount = 0,
   currentCapital,
   supabaseStatus = 'connecting',
+  currentCurrency = getGlobalCurrency(),
+  onCurrencyChange = (_curr: CurrencyCode) => {},
   onOpenNewTrade,
   onOpenImportModal,
   onOpenSettings,
@@ -57,6 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetData = () => {},
 }) => {
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
 
   // Safe defaults for risk settings
   const dailyProfitTarget = settings?.dailyProfitTarget ?? 500;
@@ -71,17 +76,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   const displayWinRate = metrics?.winRate ?? 0;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/90 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-slate-800 bg-black/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 gap-2">
-        {/* Brand & Logo */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+        {/* Brand & Logo (Apenas Ícone) */}
+        <div className="flex items-center shrink-0">
           <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 shadow-lg shadow-emerald-900/30 shrink-0">
             <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-sm font-bold text-white tracking-tight sm:text-base md:text-lg truncate">
-              Trader<span className="text-emerald-400">Journal</span>
-            </h1>
           </div>
         </div>
 
@@ -93,7 +93,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ? 'border-emerald-500/50 bg-emerald-950/70 text-emerald-300 ring-1 ring-emerald-500/30 shadow-emerald-950/40'
                 : todayPnl < 0
                 ? 'border-rose-500/60 bg-rose-950/80 text-rose-300 ring-1 ring-rose-500/40 shadow-rose-950/50'
-                : 'border-slate-800 bg-slate-900/90 text-slate-200'
+                : 'border-slate-800 bg-black/90 text-slate-200'
             }`}
           >
             <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">
@@ -124,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ? 'border-emerald-500/50 bg-emerald-950/50 text-emerald-300 ring-1 ring-emerald-500/20 shadow-emerald-950/30'
                 : todayPnl < 0
                 ? 'border-rose-500/60 bg-rose-950/60 text-rose-300 ring-1 ring-rose-500/30 shadow-rose-950/40'
-                : 'border-slate-800 bg-slate-900/80 text-slate-200'
+                : 'border-slate-800 bg-black/80 text-slate-200'
             }`}
           >
             <div className="flex flex-col">
@@ -191,27 +191,26 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* New Trade Button (Desktop & Tablet; on Mobile, the bottom navigation bar features the primary central FAB) */}
+        {/* Action Buttons (Scrollable horizontally on very small screens to ensure all fit) */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 overflow-x-auto scrollbar-none pb-1 sm:pb-0 max-w-full">
+          {/* New Trade Button */}
           <button
             id="btn-nova-operacao"
             onClick={onOpenNewTrade}
-            className="hidden sm:flex items-center gap-1.5 sm:gap-2 rounded-xl bg-emerald-600 px-2.5 sm:px-3.5 py-2 text-xs sm:text-sm font-bold text-white shadow-md shadow-emerald-900/30 transition-all hover:bg-emerald-500 active:scale-95 shrink-0"
+            title="Nova Operação"
+            className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-900/30 transition-all hover:bg-emerald-500 active:scale-95 shrink-0"
           >
             <PlusCircle className="h-4 w-4" />
-            <span className="hidden md:inline">Nova Operação</span>
           </button>
 
-          {/* AI Mentor Button (Desktop; on Mobile, Mentor IA is featured in the bottom bar) */}
+          {/* AI Mentor Button */}
           <button
             id="btn-mentor-ia"
             onClick={onOpenAiMentor}
             title="Mentor Trader Inteligente (Gemini IA)"
-            className="hidden md:flex items-center gap-1.5 rounded-xl border border-teal-600 bg-teal-900 px-3 py-2 text-xs sm:text-sm font-bold text-teal-100 shadow-md transition-all hover:bg-teal-800 active:scale-95 shrink-0"
+            className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-teal-600 bg-teal-900 text-teal-100 shadow-md transition-all hover:bg-teal-800 active:scale-95 shrink-0"
           >
             <Brain className="h-4 w-4 text-teal-300" />
-            <span>Mentor IA</span>
           </button>
 
           {/* Import CSV Button */}
@@ -220,10 +219,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="btn-importar-csv"
               onClick={onOpenImportModal}
               title="Importar Relatório de Performance (ProfitChart, MT4/MT5, Exnova)"
-              className="hidden xl:flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-blue-950/40 px-3 py-2 text-xs font-bold text-blue-300 shadow-md transition-all hover:bg-blue-900/50 hover:text-white active:scale-95 shrink-0"
+              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-blue-500/40 bg-blue-950/40 text-blue-300 shadow-md transition-all hover:bg-blue-900/50 hover:text-white active:scale-95 shrink-0"
             >
               <Upload className="h-4 w-4 text-blue-400" />
-              <span>Importar CSV</span>
             </button>
           )}
 
@@ -233,14 +231,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="btn-calculadora-kelly"
               onClick={onOpenKellyCalculator}
               title="Calculadora do Critério de Kelly (Dimensionamento de Lote & Contratos)"
-              className="hidden md:flex items-center gap-1.5 rounded-xl border border-teal-500/40 bg-slate-800/90 px-3 py-2 text-xs font-bold text-teal-300 shadow-md transition-all hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
+              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-teal-500/40 bg-slate-800/90 text-teal-300 shadow-md transition-all hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
             >
               <Calculator className="h-4 w-4 text-teal-400" />
-              <span>Calc. Kelly</span>
             </button>
           )}
 
-          {/* 1. Anti-Fúria Extension Button (Always visible on mobile) */}
+          {/* 1. Anti-Fúria Extension Button */}
           {onOpenAntiFuria && (
             <button
               id="btn-anti-furia-extensao"
@@ -250,26 +247,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ? 'Trava Ativa: Corretoras Bloqueadas! Clique para ver o status da extensão'
                   : 'Extensão Trava Anti-Fúria (Bloquear Exnova no Stop)'
               }
-              className={`flex items-center justify-center gap-1 sm:gap-1.5 rounded-xl h-8.5 w-8.5 sm:h-auto sm:w-auto px-2.5 py-2 text-xs font-bold border transition-all active:scale-95 shrink-0 ${
+              className={`flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border transition-all active:scale-95 shrink-0 ${
                 isStopHit
                   ? 'border-red-600 bg-red-800 text-white hover:bg-red-700 animate-pulse shadow-md shadow-red-950'
                   : 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white'
               }`}
             >
               <ShieldAlert className={`h-4 w-4 shrink-0 ${isStopHit ? 'text-white' : 'text-red-400'}`} />
-              <span className="hidden lg:inline text-[11px] font-mono">
-                {isStopHit ? 'Trava Ativa!' : 'Trava Exnova'}
-              </span>
             </button>
           )}
 
-          {/* 2. Notifications Trigger (Always visible on mobile next to Supabase) */}
+          {/* 2. Notifications Trigger */}
           <div className="relative shrink-0">
             <button
               id="btn-notificacoes"
               onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
               title="Notificações e Alertas"
-              className="relative flex h-8.5 w-8.5 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
+              className="relative flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
             >
               <Bell className="h-4 w-4" />
               {safeNotifList.length > 0 && (
@@ -286,7 +280,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="fixed inset-0 z-40 bg-black/40 sm:hidden"
                   onClick={() => setShowNotificationsDropdown(false)}
                 />
-                <div className="fixed sm:absolute right-2 sm:right-0 top-14 sm:top-auto mt-0 sm:mt-2 w-[calc(100vw-1rem)] max-w-sm sm:w-96 rounded-2xl border border-slate-800 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-xl z-50">
+                <div className="fixed sm:absolute right-2 sm:right-0 top-14 sm:top-auto mt-0 sm:mt-2 w-[calc(100vw-1rem)] max-w-sm sm:w-96 rounded-2xl border border-slate-800 bg-black/95 p-4 shadow-2xl backdrop-blur-xl z-50">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                     <div className="flex items-center gap-2">
                       <Bell className="h-4 w-4 text-emerald-400" />
@@ -335,12 +329,65 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* 3. Risk Settings Button (Always visible on mobile next to Supabase) */}
+          {/* 3. Currency Selector Dropdown */}
+          <div className="relative shrink-0">
+            <button
+              id="btn-moeda-painel"
+              onClick={() => setShowCurrencyDropdown(!showCurrencyDropdown)}
+              title="Alterar Moeda Exibida no Painel"
+              className="flex h-8 sm:h-9 items-center gap-1.5 px-2.5 rounded-xl border border-slate-700 bg-slate-800 text-xs font-bold text-white transition hover:bg-slate-700 active:scale-95 shrink-0 font-mono"
+            >
+              <span className="text-sm">
+                {(CURRENCIES.find((c) => c.code === currentCurrency) || CURRENCIES[0]).flag}
+              </span>
+              <span className="text-emerald-400 font-bold hidden sm:inline">
+                {(CURRENCIES.find((c) => c.code === currentCurrency) || CURRENCIES[0]).symbol}
+              </span>
+            </button>
+
+            {showCurrencyDropdown && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/40 sm:hidden"
+                  onClick={() => setShowCurrencyDropdown(false)}
+                />
+                <div className="fixed sm:absolute right-2 sm:right-0 top-14 sm:top-auto mt-2 w-56 rounded-2xl border border-slate-800 bg-black p-2 shadow-2xl backdrop-blur-xl z-50">
+                  <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 mb-1">
+                    Moeda do Painel
+                  </div>
+                  <div className="space-y-0.5">
+                    {CURRENCIES.map((c) => (
+                      <button
+                        key={c.code}
+                        onClick={() => {
+                          onCurrencyChange(c.code);
+                          setShowCurrencyDropdown(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition ${
+                          currentCurrency === c.code
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold'
+                            : 'text-slate-300 hover:bg-black hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{c.flag}</span>
+                          <span>{c.name}</span>
+                        </div>
+                        <span className="font-mono font-bold text-emerald-400">{c.symbol}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* 4. Risk Settings Button */}
           <button
             id="btn-config-risco"
             onClick={onOpenSettings}
             title="Configurar Metas & Limites de Risco"
-            className="flex h-8.5 w-8.5 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
+            className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
           >
             <Settings className="h-4 w-4" />
           </button>

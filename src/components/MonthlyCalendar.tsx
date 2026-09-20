@@ -156,7 +156,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
   const weekDays = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl backdrop-blur-sm">
+    <div className="rounded-2xl border border-slate-800 bg-black/80 p-5 shadow-xl backdrop-blur-sm">
       {/* Top Bar: Title & Filters */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-slate-800 pb-4">
         <div className="flex items-center gap-3">
@@ -176,7 +176,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
         {/* Filters: Ativo & Estratégia */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Asset filter */}
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-300">
+          <div className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-black px-3 py-1.5 text-xs text-slate-300">
             <Filter className="h-3.5 w-3.5 text-emerald-400" />
             <span className="text-[11px] text-slate-400">Ativo:</span>
             <select
@@ -184,9 +184,9 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
               onChange={(e) => setSelectedAsset(e.target.value)}
               className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-white">Todos os Ativos</option>
+              <option value="ALL" className="bg-black text-white">Todos os Ativos</option>
               {availableAssets.map((asset) => (
-                <option key={asset} value={asset} className="bg-slate-900 text-white">
+                <option key={asset} value={asset} className="bg-black text-white">
                   {asset}
                 </option>
               ))}
@@ -194,16 +194,16 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
           </div>
 
           {/* Strategy filter */}
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-300">
+          <div className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-black px-3 py-1.5 text-xs text-slate-300">
             <span className="text-[11px] text-slate-400">Estratégia:</span>
             <select
               value={selectedStrategy}
               onChange={(e) => setSelectedStrategy(e.target.value)}
               className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-white">Todas as Estratégias</option>
+              <option value="ALL" className="bg-black text-white">Todas as Estratégias</option>
               {availableStrategies.map((strat) => (
-                <option key={strat} value={strat} className="bg-slate-900 text-white">
+                <option key={strat} value={strat} className="bg-black text-white">
                   {strat}
                 </option>
               ))}
@@ -231,7 +231,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
           <div className="flex items-center gap-1.5">
             <button
               onClick={prevMonth}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800 hover:text-white transition"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-black text-slate-300 hover:bg-slate-800 hover:text-white transition"
               title="Mês anterior"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -241,7 +241,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
             </span>
             <button
               onClick={nextMonth}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800 hover:text-white transition"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-black text-slate-300 hover:bg-slate-800 hover:text-white transition"
               title="Próximo mês"
             >
               <ChevronRight className="h-4 w-4" />
@@ -250,13 +250,13 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
 
           <button
             onClick={goToToday}
-            className="rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition"
+            className="rounded-lg border border-slate-800 bg-black px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition"
           >
             Mês Atual
           </button>
 
           {/* View Mode Toggle: Grid vs List (Crucial for mobile smartphones) */}
-          <div className="flex items-center rounded-lg bg-slate-950 p-0.5 border border-slate-800">
+          <div className="flex items-center rounded-lg bg-black p-0.5 border border-slate-800">
             <button
               onClick={() => setCalendarMode('grid')}
               className={`flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded ${
@@ -286,7 +286,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
 
         {/* Month KPI Badges */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
-          <div className="flex items-center gap-1.5 rounded-lg bg-slate-950/80 px-2.5 py-1 border border-slate-800">
+          <div className="flex items-center gap-1.5 rounded-lg bg-black/80 px-2.5 py-1 border border-slate-800">
             <span className="text-slate-400">Total no Mês:</span>
             <span
               className={`font-mono font-bold ${
@@ -298,14 +298,14 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-lg bg-slate-950/80 px-2.5 py-1 border border-slate-800">
+          <div className="flex items-center gap-1.5 rounded-lg bg-black/80 px-2.5 py-1 border border-slate-800">
             <span className="text-slate-400">Assertividade:</span>
             <span className="font-mono font-bold text-emerald-400">
               {monthSummary.winRate.toFixed(1)}%
             </span>
           </div>
 
-          <div className="flex items-center gap-2 rounded-lg bg-slate-950/80 px-2.5 py-1 border border-slate-800">
+          <div className="flex items-center gap-2 rounded-lg bg-black/80 px-2.5 py-1 border border-slate-800">
             <span className="flex items-center gap-1 text-emerald-400 font-bold">
               <CheckCircle2 className="h-3 w-3" /> {monthSummary.positiveDays}
             </span>
@@ -326,7 +326,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
               <div
                 key={wd}
                 className={`py-1 sm:py-1.5 rounded-lg ${
-                  i >= 5 ? 'text-slate-500 bg-slate-950/30' : 'text-slate-300 bg-slate-950/60'
+                  i >= 5 ? 'text-slate-500 bg-black/30' : 'text-slate-300 bg-black/60'
                 }`}
               >
                 {wd}
@@ -341,7 +341,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
                 return (
                   <div
                     key={`empty-${idx}`}
-                    className="min-h-[58px] sm:min-h-[78px] rounded-xl border border-transparent bg-slate-950/20"
+                    className="min-h-[58px] sm:min-h-[78px] rounded-xl border border-transparent bg-black/20"
                   />
                 );
               }
@@ -363,7 +363,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
                         : isNegative
                         ? 'border-rose-500/40 bg-rose-950/25 hover:bg-rose-950/40 hover:border-rose-400 cursor-pointer shadow-sm hover:shadow-rose-900/30 active:scale-95'
                         : 'border-slate-700 bg-slate-800/30 hover:bg-slate-800/50 cursor-pointer active:scale-95'
-                      : 'border-slate-800/60 bg-slate-950/40 opacity-50'
+                      : 'border-slate-800/60 bg-black/40 opacity-50'
                   }`}
                 >
                   {/* Day Number Header */}
@@ -382,7 +382,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
                       {day}
                     </span>
                     {hasTrades && (
-                      <span className="rounded-full bg-slate-900/90 px-1 sm:px-1.5 py-0.2 text-[8px] sm:text-[9px] font-mono text-slate-300 border border-slate-700/50">
+                      <span className="rounded-full bg-black/90 px-1 sm:px-1.5 py-0.2 text-[8px] sm:text-[9px] font-mono text-slate-300 border border-slate-700/50">
                         {data.tradesCount}
                       </span>
                     )}
@@ -420,7 +420,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
 
                   {/* Hover indicator for trading days */}
                   {hasTrades && (
-                    <div className="absolute inset-0 hidden sm:flex items-center justify-center rounded-xl bg-slate-950/80 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="absolute inset-0 hidden sm:flex items-center justify-center rounded-xl bg-black/80 opacity-0 transition-opacity group-hover:opacity-100">
                       <span className="flex items-center gap-1 text-[11px] font-bold text-white">
                         <Eye className="h-3 w-3 text-emerald-400" /> Ver Trades
                       </span>
@@ -456,7 +456,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({ trades, onSele
                         ? 'border-emerald-500/30 bg-emerald-950/20 hover:bg-emerald-950/30'
                         : isNegative
                         ? 'border-rose-500/30 bg-rose-950/20 hover:bg-rose-950/30'
-                        : 'border-slate-800 bg-slate-900/60 hover:bg-slate-800/60'
+                        : 'border-slate-800 bg-black/60 hover:bg-slate-800/60'
                     }`}
                   >
                     <div className="flex items-center gap-3">

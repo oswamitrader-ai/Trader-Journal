@@ -97,11 +97,11 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-3xl max-h-[94vh] sm:max-h-[90vh] overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl flex flex-col my-auto"
+        className="relative w-full max-w-3xl max-h-[94vh] sm:max-h-[90vh] overflow-hidden rounded-2xl border border-slate-800 bg-black shadow-2xl flex flex-col my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-4 sm:px-5 py-3 sm:py-3.5 bg-slate-900/95 shrink-0">
+        <div className="flex items-center justify-between border-b border-slate-800 px-4 sm:px-5 py-3 sm:py-3.5 bg-black/95 shrink-0">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0">
               <Scale className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -125,10 +125,10 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
         </div>
 
         {/* Live Metrics Diagnosis Banner (Compact and Responsive) */}
-        <div className="bg-slate-950/70 border-b border-slate-800/80 px-3 sm:px-5 py-2 sm:py-3 shrink-0">
+        <div className="bg-black/70 border-b border-slate-800/80 px-3 sm:px-5 py-2 sm:py-3 shrink-0">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-center">
             {/* Profit Factor */}
-            <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-2 sm:p-2.5">
+            <div className="rounded-xl bg-black/90 border border-slate-800 p-2 sm:p-2.5">
               <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-slate-400 block truncate">
                 Fator de Lucro
               </span>
@@ -143,7 +143,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
             </div>
 
             {/* Payoff */}
-            <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-2 sm:p-2.5">
+            <div className="rounded-xl bg-black/90 border border-slate-800 p-2 sm:p-2.5">
               <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-slate-400 block truncate">
                 Payoff Médio
               </span>
@@ -158,7 +158,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
             </div>
 
             {/* Win Rate */}
-            <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-2 sm:p-2.5">
+            <div className="rounded-xl bg-black/90 border border-slate-800 p-2 sm:p-2.5">
               <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-slate-400 block truncate">
                 Assertividade
               </span>
@@ -173,7 +173,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
             </div>
 
             {/* Gain vs Loss Average */}
-            <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-2 sm:p-2.5">
+            <div className="rounded-xl bg-black/90 border border-slate-800 p-2 sm:p-2.5">
               <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-slate-400 block truncate">
                 Méd. Gain / Loss
               </span>
@@ -190,7 +190,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
         </div>
 
         {/* Navigation Tabs - Explicit shrink-0, sticky and fully visible on mobile */}
-        <div className="border-b border-slate-800 bg-slate-950 px-3 sm:px-5 py-2 shrink-0 z-20">
+        <div className="border-b border-slate-800 bg-black px-3 sm:px-5 py-2 shrink-0 z-20">
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5 max-w-full">
             <button
               type="button"
@@ -198,7 +198,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold whitespace-nowrap shrink-0 transition active:scale-95 ${
                 activeTab === 'overview'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-950/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-slate-900/60 border border-slate-800/80'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-black/60 border border-slate-800/80'
               }`}
             >
               <Lightbulb className="w-3.5 h-3.5 shrink-0" />
@@ -211,7 +211,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold whitespace-nowrap shrink-0 transition active:scale-95 ${
                 activeTab === 'profitFactor'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-950/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-slate-900/60 border border-slate-800/80'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-black/60 border border-slate-800/80'
               }`}
             >
               <Scale className="w-3.5 h-3.5 shrink-0" />
@@ -224,7 +224,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold whitespace-nowrap shrink-0 transition active:scale-95 ${
                 activeTab === 'payoff'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-950/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-slate-900/60 border border-slate-800/80'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-black/60 border border-slate-800/80'
               }`}
             >
               <TrendingUp className="w-3.5 h-3.5 shrink-0" />
@@ -237,7 +237,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold whitespace-nowrap shrink-0 transition active:scale-95 ${
                 activeTab === 'breakeven'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-950/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-slate-900/60 border border-slate-800/80'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-black/60 border border-slate-800/80'
               }`}
             >
               <Calculator className="w-3.5 h-3.5 shrink-0" />
@@ -268,7 +268,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               {/* Two Column summary */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Summary Profit Factor */}
-                <div className="rounded-xl bg-slate-950/50 border border-slate-800 p-4">
+                <div className="rounded-xl bg-black/50 border border-slate-800 p-4">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                     <span className="font-bold text-white text-sm flex items-center gap-1.5">
                       <Scale className="w-4 h-4 text-purple-400" />
@@ -279,7 +279,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
                   <p className="text-xs text-slate-300 mt-2 leading-relaxed">
                     Mostra quantos reais você coloca no bolso para cada R$ 1,00 que perde no somatório total de todas as operações.
                   </p>
-                  <div className="mt-3 p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-slate-300">
+                  <div className="mt-3 p-2.5 rounded-lg bg-black border border-slate-800 text-xs font-mono text-slate-300">
                     <span className="text-slate-400">Fórmula:</span> Total Ganho ÷ Total Perdido
                   </div>
                   <div className="mt-2.5 text-xs text-slate-400 flex items-center gap-1.5">
@@ -289,7 +289,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
                 </div>
 
                 {/* Summary Payoff */}
-                <div className="rounded-xl bg-slate-950/50 border border-slate-800 p-4">
+                <div className="rounded-xl bg-black/50 border border-slate-800 p-4">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                     <span className="font-bold text-white text-sm flex items-center gap-1.5">
                       <TrendingUp className="w-4 h-4 text-teal-400" />
@@ -300,7 +300,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
                   <p className="text-xs text-slate-300 mt-2 leading-relaxed">
                     Relação entre o ganho médio nas operações vitoriosas e a perda média nas derrotas. Em OB de mão fixa, reflete o payout médio.
                   </p>
-                  <div className="mt-3 p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-slate-300">
+                  <div className="mt-3 p-2.5 rounded-lg bg-black border border-slate-800 text-xs font-mono text-slate-300">
                     <span className="text-slate-400">Fórmula:</span> Ganho Médio ÷ Perda Média
                   </div>
                   <div className="mt-2.5 text-xs text-slate-400 flex items-center gap-1.5">
@@ -323,14 +323,14 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
 
               <div className="overflow-x-auto rounded-xl border border-slate-800">
                 <table className="w-full text-left text-xs min-w-[340px]">
-                  <thead className="bg-slate-950 text-slate-400 font-semibold uppercase tracking-wider">
+                  <thead className="bg-black text-slate-400 font-semibold uppercase tracking-wider">
                     <tr>
                       <th className="px-3.5 py-2.5">Faixa de Valor</th>
                       <th className="px-3.5 py-2.5">Classificação</th>
                       <th className="px-3.5 py-2.5">O que significa na prática para OB</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800 bg-slate-900/60 font-sans">
+                  <tbody className="divide-y divide-slate-800 bg-black/60 font-sans">
                     <tr className="hover:bg-slate-800/40">
                       <td className="px-3.5 py-2.5 font-mono font-bold text-rose-400">&lt; 1,00</td>
                       <td className="px-3.5 py-2.5 font-medium text-rose-400">Prejuízo</td>
@@ -363,7 +363,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
                 </table>
               </div>
 
-              <div className="rounded-xl bg-slate-950 border border-slate-800 p-3.5 flex items-start gap-3">
+              <div className="rounded-xl bg-black border border-slate-800 p-3.5 flex items-start gap-3">
                 <Zap className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-slate-300 leading-relaxed">
                   <strong>Dica de ouro em OB:</strong> O Fator de Lucro é destruído principalmente pela quebra de gerenciamento no Stop Loss. Se você perde R$ 30 por dia quando toma stop (ex: 0x1 ou 0x2), mas ganha R$ 50 nos dias de meta (2x0), seu Fator de Lucro se mantém naturalmente acima de 1,60!
@@ -382,7 +382,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                <div className="rounded-xl bg-slate-950/70 border border-slate-800 p-3.5">
+                <div className="rounded-xl bg-black/70 border border-slate-800 p-3.5">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">
                     Day Trade Tradicional (B3 / Forex)
                   </span>
@@ -409,10 +409,10 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
 
               {/* Payoff reference table for binary options */}
               <div className="overflow-hidden rounded-xl border border-slate-800">
-                <div className="bg-slate-950 px-3.5 py-2 font-semibold text-xs text-slate-400 uppercase">
+                <div className="bg-black px-3.5 py-2 font-semibold text-xs text-slate-400 uppercase">
                   Referências de Payoff em Opções Binárias
                 </div>
-                <div className="divide-y divide-slate-800 bg-slate-900/60 text-xs">
+                <div className="divide-y divide-slate-800 bg-black/60 text-xs">
                   <div className="p-3 flex items-start gap-3">
                     <span className="font-mono font-bold text-rose-400 shrink-0 w-24">&lt; 1 : 0,75</span>
                     <div>
@@ -447,7 +447,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
 
           {activeTab === 'breakeven' && (
             <div className="space-y-4">
-              <div className="rounded-xl bg-slate-950/70 border border-slate-800 p-4">
+              <div className="rounded-xl bg-black/70 border border-slate-800 p-4">
                 <h4 className="text-white font-bold text-sm flex items-center gap-2">
                   <Calculator className="w-4 h-4 text-emerald-400" />
                   Ponto de Equilíbrio (Breakeven) em Opções Binárias
@@ -457,17 +457,17 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
                 </p>
 
                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
-                  <div className="rounded-lg bg-slate-900 border border-slate-800 p-2 sm:p-2.5">
+                  <div className="rounded-lg bg-black border border-slate-800 p-2 sm:p-2.5">
                     <span className="text-slate-400 block text-[11px]">Payout 80%</span>
                     <span className="text-amber-400 font-mono font-bold text-base mt-0.5 block">55,6%</span>
                     <span className="text-[10px] text-slate-500">Mínimo p/ não perder</span>
                   </div>
-                  <div className="rounded-lg bg-slate-900 border border-slate-800 p-2 sm:p-2.5">
+                  <div className="rounded-lg bg-black border border-slate-800 p-2 sm:p-2.5">
                     <span className="text-slate-400 block text-[11px]">Payout 85%</span>
                     <span className="text-teal-400 font-mono font-bold text-base mt-0.5 block">54,1%</span>
                     <span className="text-[10px] text-slate-500">Mínimo p/ não perder</span>
                   </div>
-                  <div className="rounded-lg bg-slate-900 border border-slate-800 p-2 sm:p-2.5">
+                  <div className="rounded-lg bg-black border border-slate-800 p-2 sm:p-2.5">
                     <span className="text-slate-400 block text-[11px]">Payout 90%</span>
                     <span className="text-emerald-400 font-mono font-bold text-base mt-0.5 block">52,6%</span>
                     <span className="text-[10px] text-slate-500">Mínimo p/ não perder</span>
@@ -476,7 +476,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               </div>
 
               {/* Rules of thumb */}
-              <div className="rounded-xl bg-slate-950 border border-slate-800 p-4 space-y-3">
+              <div className="rounded-xl bg-black border border-slate-800 p-4 space-y-3">
                 <h5 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-purple-400" />
                   3 Mandamentos para Vencer a Matemática de OB
@@ -507,7 +507,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
         </div>
 
         {/* Modal Footer */}
-        <div className="border-t border-slate-800 bg-slate-900/90 px-5 py-3 flex items-center justify-between">
+        <div className="border-t border-slate-800 bg-black/90 px-5 py-3 flex items-center justify-between">
           <span className="text-[11px] text-slate-500">
             Baseado no seu histórico de {metrics.totalTrades} operações
           </span>

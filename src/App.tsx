@@ -20,6 +20,9 @@ import {
   getWeeklyPerformances,
   getMonthlyPerformances,
   formatCurrency,
+  CurrencyCode,
+  getGlobalCurrency,
+  setGlobalCurrency,
 } from './utils/calculations';
 import { Navbar } from './components/Navbar';
 import { RiskAlertBanner } from './components/RiskAlertBanner';
@@ -101,6 +104,14 @@ export default function App() {
 
   const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>([]);
   const [dismissedAlerts, setDismissedAlerts] = useState<Record<string, boolean>>({});
+
+  // 2.5 Global Currency State
+  const [currency, setCurrency] = useState<CurrencyCode>(() => getGlobalCurrency());
+
+  const handleCurrencyChange = (newCurrency: CurrencyCode) => {
+    setGlobalCurrency(newCurrency);
+    setCurrency(newCurrency);
+  };
 
   // 3. Persistent Capital Transactions (Depósitos e Saques)
   const [capitalTransactions, setCapitalTransactions] = useState<CapitalTransaction[]>(() => {
@@ -550,7 +561,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500 selection:text-white pb-16">
+    <div className="min-h-screen bg-black text-slate-100 selection:bg-emerald-500 selection:text-white pb-16">
       {/* Top Navigation */}
       <Navbar
         metrics={metrics}
@@ -560,6 +571,8 @@ export default function App() {
         todayTradesCount={todayPerformance?.tradesCount || 0}
         currentCapital={metrics.currentCapital}
         supabaseStatus={supabaseHealth.status}
+        currentCurrency={currency}
+        onCurrencyChange={handleCurrencyChange}
         onOpenNewTrade={handleOpenNewTrade}
         onOpenImportModal={() => setIsImportModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
@@ -616,9 +629,9 @@ export default function App() {
         />
 
         {/* View Switcher Bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border border-slate-800/80 bg-slate-900/60 p-2 backdrop-blur-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border border-slate-800/80 bg-black/80 p-2.5 sm:p-3 backdrop-blur-sm">
           {/* Tabs (Horizontally scrollable on narrow mobile screens) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none w-full sm:w-auto max-w-full">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none w-full sm:w-auto max-w-full">
             <button
               onClick={() => setActiveView('all')}
               className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold whitespace-nowrap shrink-0 transition ${
@@ -800,7 +813,7 @@ export default function App() {
       </main>
 
       {/* Mobile Bottom Navigation Bar (Optimized for Android & iOS Touch Ergonomics) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden border-t border-slate-800 bg-slate-950/95 backdrop-blur-lg pb-safe">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden border-t border-slate-800 bg-black/95 backdrop-blur-lg pb-safe">
         <div className="grid grid-cols-5 items-center h-16 px-1 max-w-md mx-auto">
           {/* 1. Painel */}
           <button

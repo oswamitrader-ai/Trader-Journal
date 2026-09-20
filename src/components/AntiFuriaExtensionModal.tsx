@@ -156,11 +156,11 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-3xl max-h-[94vh] sm:max-h-[92vh] overflow-hidden rounded-2xl border border-red-900/60 bg-slate-900 shadow-2xl flex flex-col my-auto"
+        className="relative w-full max-w-3xl max-h-[94vh] sm:max-h-[92vh] overflow-hidden rounded-2xl border border-red-900/60 bg-black shadow-2xl flex flex-col my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-3.5 sm:px-5 py-3 sm:py-4 bg-slate-950 shrink-0">
+        <div className="flex items-center justify-between border-b border-slate-800 px-3.5 sm:px-5 py-3 sm:py-4 bg-black shrink-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-900/40 shrink-0">
               <ShieldAlert className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -188,7 +188,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
         </div>
 
         {/* Live Status Bar */}
-        <div className="border-b border-slate-800/80 bg-slate-950/80 px-3.5 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between gap-2 shrink-0">
+        <div className="border-b border-slate-800/80 bg-black/80 px-3.5 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-1.5 min-w-0">
             <div
               className={`flex h-2.5 w-2.5 rounded-full shrink-0 ${
@@ -217,7 +217,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
         </div>
 
         {/* Tab Selector (Always 100% visible on mobile with 3-column responsive segmented control) */}
-        <div className="border-b border-slate-800 bg-slate-950/95 p-1.5 sm:p-2.5 shrink-0 z-10">
+        <div className="border-b border-slate-800 bg-black/95 p-1.5 sm:p-2.5 shrink-0 z-10">
           <div className="grid grid-cols-3 gap-1 sm:gap-2">
             <button
               id="tab-btn-install"
@@ -225,7 +225,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
               className={`flex items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center ${
                 activeTab === 'install'
                   ? 'bg-red-600/25 border border-red-500/60 text-red-300 shadow-sm shadow-red-950/50'
-                  : 'bg-slate-900/60 border border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  : 'bg-black/60 border border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
               <Download className="w-3.5 h-3.5 shrink-0 text-red-400" />
@@ -238,7 +238,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
               className={`flex items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center ${
                 activeTab === 'domains'
                   ? 'bg-red-600/25 border border-red-500/60 text-red-300 shadow-sm shadow-red-950/50'
-                  : 'bg-slate-900/60 border border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  : 'bg-black/60 border border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
               <Globe className="w-3.5 h-3.5 shrink-0 text-red-400" />
@@ -251,7 +251,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
               className={`flex items-center justify-center gap-1 sm:gap-2 py-2 px-1 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center ${
                 activeTab === 'preview'
                   ? 'bg-red-600/25 border border-red-500/60 text-red-300 shadow-sm shadow-red-950/50'
-                  : 'bg-slate-900/60 border border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  : 'bg-black/60 border border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
               <Eye className="w-3.5 h-3.5 shrink-0 text-red-400" />
@@ -308,7 +308,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
                 </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  <div className="rounded-xl bg-slate-950 border border-slate-800 p-3.5 flex gap-3">
+                  <div className="rounded-xl bg-black border border-slate-800 p-3.5 flex gap-3">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white font-black text-xs">
                       1
                     </div>
@@ -320,7 +320,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
                     </div>
                   </div>
 
-                  <div className="rounded-xl bg-slate-950 border border-slate-800 p-3.5 flex gap-3">
+                  <div className="rounded-xl bg-black border border-slate-800 p-3.5 flex gap-3">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white font-black text-xs">
                       2
                     </div>
@@ -332,7 +332,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
                     </div>
                   </div>
 
-                  <div className="rounded-xl bg-slate-950 border border-slate-800 p-3.5 flex gap-3">
+                  <div className="rounded-xl bg-black border border-slate-800 p-3.5 flex gap-3">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white font-black text-xs">
                       3
                     </div>
@@ -344,7 +344,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
                     </div>
                   </div>
 
-                  <div className="rounded-xl bg-slate-950 border border-slate-800 p-3.5 flex gap-3">
+                  <div className="rounded-xl bg-black border border-slate-800 p-3.5 flex gap-3">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white font-black text-xs">
                       4
                     </div>
@@ -359,7 +359,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
               </div>
 
               {/* How it works */}
-              <div className="rounded-xl bg-slate-950/60 border border-slate-800/80 p-4">
+              <div className="rounded-xl bg-black/60 border border-slate-800/80 p-4">
                 <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                   <Lock className="w-4 h-4 text-red-400" />
                   Como a extensão bloqueia a Exnova na prática:
@@ -405,7 +405,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
                   onChange={(e) => setNewDomain(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddDomain()}
                   placeholder="ex: exnova.com, quotex.com"
-                  className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-red-500 focus:outline-none"
+                  className="flex-1 rounded-xl border border-slate-700 bg-black px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-red-500 focus:outline-none"
                 />
                 <button
                   onClick={handleAddDomain}
@@ -421,7 +421,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
                 {domains.map((dom) => (
                   <div
                     key={dom}
-                    className="flex items-center justify-between rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs"
+                    className="flex items-center justify-between rounded-xl bg-black border border-slate-800 px-3.5 py-2.5 text-xs"
                   >
                     <span className="font-mono text-slate-200 font-medium">{dom}</span>
                     <button
@@ -482,25 +482,25 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
                 <div className="p-5 space-y-4">
                   {/* 4-Card Rich Metrics Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center">
+                    <div className="bg-black border border-slate-800 rounded-xl p-2.5 text-center">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assertividade</div>
                       <div className="text-sm font-mono font-extrabold text-emerald-400 mt-0.5">
                         {winRate > 0 ? `${winRate.toFixed(1)}%` : '--%'}
                       </div>
                     </div>
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center">
+                    <div className="bg-black border border-slate-800 rounded-xl p-2.5 text-center">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fator Lucro</div>
                       <div className="text-sm font-mono font-extrabold text-sky-400 mt-0.5">
                         {profitFactor > 0 ? profitFactor.toFixed(2) : '--'}
                       </div>
                     </div>
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center">
+                    <div className="bg-black border border-slate-800 rounded-xl p-2.5 text-center">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Trades Hoje</div>
                       <div className="text-sm font-mono font-extrabold text-slate-200 mt-0.5">
                         {todayTradesCount > 0 ? `${todayTradesCount} trades` : '1 trade'}
                       </div>
                     </div>
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center">
+                    <div className="bg-black border border-slate-800 rounded-xl p-2.5 text-center">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Saldo Atual</div>
                       <div className="text-sm font-mono font-extrabold text-slate-200 mt-0.5">
                         {currentCapital > 0 ? formatCurrency(currentCapital) : 'R$ --'}
@@ -508,7 +508,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 bg-slate-900/90 border border-slate-800 rounded-xl p-3 text-center">
+                  <div className="grid grid-cols-2 gap-3 bg-black/90 border border-slate-800 rounded-xl p-3 text-center">
                     <div>
                       <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                         Limite de Stop
@@ -549,7 +549,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
                     </p>
                   </div>
 
-                  <div className="rounded-xl bg-slate-950 border border-slate-800 p-3 text-center">
+                  <div className="rounded-xl bg-black border border-slate-800 p-3 text-center">
                     <div className="text-[10px] text-slate-500 uppercase font-bold">
                       Acesso liberado novamente à meia-noite (00:00:00)
                     </div>
@@ -564,7 +564,7 @@ export const AntiFuriaExtensionModal: React.FC<AntiFuriaExtensionModalProps> = (
         </div>
 
         {/* Modal Footer */}
-        <div className="border-t border-slate-800 bg-slate-950 px-4 sm:px-5 py-3 flex items-center justify-between shrink-0">
+        <div className="border-t border-slate-800 bg-black px-4 sm:px-5 py-3 flex items-center justify-between shrink-0">
           <span className="text-[11px] text-slate-500 flex items-center gap-1.5">
             <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span className="truncate">Chrome, Brave, Opera e Edge</span>

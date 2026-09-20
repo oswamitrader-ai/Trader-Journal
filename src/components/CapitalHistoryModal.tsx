@@ -95,9 +95,9 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-sm pt-safe pb-safe overflow-y-auto">
-      <div className="relative w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl my-auto overflow-hidden">
+      <div className="relative w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl border border-slate-800 bg-black shadow-2xl my-auto overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 p-4 sm:p-5 shrink-0 bg-slate-950/80">
+        <div className="flex items-center justify-between border-b border-slate-800 p-4 sm:p-5 shrink-0 bg-black/80">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 shadow-md">
               <Wallet className="h-5 w-5 text-white" />
@@ -124,7 +124,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
           {/* Summary Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             {/* Capital Atual */}
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-1">
+            <div className="rounded-xl border border-slate-800 bg-black/60 p-3 space-y-1">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                 Capital Atual Total
               </span>
@@ -203,7 +203,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
           {showAddForm && (
             <form
               onSubmit={handleSubmit}
-              className="p-4 rounded-xl border border-slate-700 bg-slate-950 space-y-3 animate-fadeIn"
+              className="p-4 rounded-xl border border-slate-700 bg-black space-y-3 animate-fadeIn"
             >
               <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                 <span className="font-bold text-white text-xs flex items-center gap-1.5">
@@ -237,7 +237,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                       placeholder="0,00"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
-                      className="w-full rounded-xl border border-slate-800 bg-slate-900 pl-10 pr-3 py-2 text-white font-mono font-bold focus:border-emerald-500 focus:outline-none"
+                      className="w-full rounded-xl border border-slate-800 bg-black pl-10 pr-3 py-2 text-white font-mono font-bold focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -248,7 +248,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                   <select
                     value={broker}
                     onChange={(e) => setBroker(e.target.value)}
-                    className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-medium"
+                    className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-medium"
                   >
                     {DEFAULT_BROKERS.map((b) => (
                       <option key={b} value={b}>
@@ -266,7 +266,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                     required
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-medium"
+                    className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-medium"
                   />
                 </div>
               </div>
@@ -298,7 +298,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                       placeholder="0,00 (Ex: taxa PIX, TED ou corretagem)"
                       value={fee}
                       onChange={(e) => setFee(e.target.value)}
-                      className="w-full rounded-xl border border-amber-500/40 bg-slate-900 pl-10 pr-3 py-1.5 text-white font-mono text-xs font-bold focus:border-amber-400 focus:outline-none"
+                      className="w-full rounded-xl border border-amber-500/40 bg-black pl-10 pr-3 py-1.5 text-white font-mono text-xs font-bold focus:border-amber-400 focus:outline-none"
                     />
                   </div>
                   <p className="text-[10px] text-amber-400/80">
@@ -316,7 +316,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                     placeholder="Ex: Pocket Option, Deriv..."
                     value={customBroker}
                     onChange={(e) => setCustomBroker(e.target.value)}
-                    className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-medium"
+                    className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-medium"
                   />
                 </div>
               )}
@@ -329,7 +329,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                   placeholder="Ex: Saque de lucros da semana PIX / Transferência"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
 
@@ -357,7 +357,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
 
           {/* Transactions List */}
           {transactions.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 space-y-2 border border-slate-800/80 rounded-xl bg-slate-950/40">
+            <div className="py-12 text-center text-slate-400 space-y-2 border border-slate-800/80 rounded-xl bg-black/40">
               <Building2 className="mx-auto h-8 w-8 text-slate-600" />
               <p className="font-semibold text-slate-300">Nenhum depósito ou saque registrado ainda.</p>
               <p className="text-xs text-slate-500">
@@ -375,7 +375,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                   return (
                     <div
                       key={t.id}
-                      className="flex items-center justify-between p-3 rounded-xl border border-slate-800/80 bg-slate-950/50 hover:bg-slate-800/40 transition"
+                      className="flex items-center justify-between p-3 rounded-xl border border-slate-800/80 bg-black/50 hover:bg-slate-800/40 transition"
                     >
                       <div className="flex items-center gap-3">
                         <div

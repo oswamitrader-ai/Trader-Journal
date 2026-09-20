@@ -154,10 +154,10 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
   const selectedBreakevens = parsedItems.filter((t) => t.selected && t.result === 'BREAKEVEN').length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-2 sm:p-4 backdrop-blur-md pt-safe pb-safe overflow-y-auto">
-      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl border border-slate-800 bg-slate-900/95 shadow-2xl backdrop-blur-xl my-auto overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-md pt-safe pb-safe overflow-y-auto">
+      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl border border-slate-800 bg-black/95 shadow-2xl backdrop-blur-xl my-auto overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800/80 p-5 sm:p-6 shrink-0 bg-slate-950/80">
+        <div className="flex items-center justify-between border-b border-slate-800/80 p-5 sm:p-6 shrink-0 bg-black/80">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-700 shadow-lg shadow-blue-900/40 text-white">
               <FileSpreadsheet className="h-6 w-6" />
@@ -206,7 +206,7 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
                   className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center transition-all ${
                     selectedPreset === p.key
                       ? 'border-blue-500/60 bg-blue-950/40 text-blue-300 ring-2 ring-blue-500/30 shadow-lg font-bold'
-                      : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                      : 'border-slate-800 bg-black/60 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                   }`}
                 >
                   <span className="text-xs font-bold">{p.label}</span>
@@ -229,8 +229,8 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
               dragOver
                 ? 'border-blue-500 bg-blue-950/30 scale-[1.01]'
                 : fileContent
-                ? 'border-emerald-500/40 bg-slate-950/80'
-                : 'border-slate-800 bg-slate-950/50 hover:border-slate-700 hover:bg-slate-950/80'
+                ? 'border-emerald-500/40 bg-black/80'
+                : 'border-slate-800 bg-black/50 hover:border-slate-700 hover:bg-black/80'
             }`}
           >
             <input
@@ -298,7 +298,7 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
           {parseResult && !isProcessing && (
             <div className="space-y-4">
               {/* Summary Stats Banner */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-800 bg-slate-950/70">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-800 bg-black/70">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                     <FileText className="h-5 w-5" />
@@ -379,9 +379,9 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
               )}
 
               {/* Interactive Trades Table */}
-              <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950/50">
+              <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-800 bg-black/50">
                 <table className="w-full text-left text-xs">
-                  <thead className="sticky top-0 bg-slate-950 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 z-10">
+                  <thead className="sticky top-0 bg-black border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 z-10">
                     <tr>
                       <th className="p-3 w-10 text-center">Importar</th>
                       <th className="p-3">Data / Hora</th>
@@ -403,7 +403,7 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
                           className={`cursor-pointer transition-colors ${
                             trade.selected
                               ? 'bg-blue-950/20 hover:bg-blue-950/30'
-                              : 'opacity-40 hover:opacity-60 bg-slate-900/30'
+                              : 'opacity-40 hover:opacity-60 bg-black/30'
                           }`}
                         >
                           <td className="p-3 text-center">
@@ -411,7 +411,7 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
                               type="checkbox"
                               checked={trade.selected}
                               onChange={() => toggleItemSelect(trade.id)}
-                              className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+                              className="h-4 w-4 rounded border-slate-700 bg-black text-blue-500 focus:ring-blue-500"
                             />
                           </td>
                           <td className="p-3 whitespace-nowrap text-white font-sans">
@@ -462,7 +462,7 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-800/80 p-4 sm:p-5 shrink-0 bg-slate-950/80">
+        <div className="flex items-center justify-between border-t border-slate-800/80 p-4 sm:p-5 shrink-0 bg-black/80">
           <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500">
             <HelpCircle className="h-3.5 w-3.5" />
             <span>Trades importados são salvos localmente e sincronizados no Supabase.</span>

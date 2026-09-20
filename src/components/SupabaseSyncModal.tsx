@@ -223,10 +223,10 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-2xl bg-black border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/80">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-black/80">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
               <Database className="w-5 h-5" />
@@ -251,7 +251,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
         {/* Content */}
         <div className="p-6 space-y-5 overflow-y-auto">
           {/* Status Box */}
-          <div className="p-4 rounded-xl border bg-slate-950/60 border-slate-800 space-y-3">
+          <div className="p-4 rounded-xl border bg-black/60 border-slate-800 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Status da Conexão
@@ -337,7 +337,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
                 </button>
 
                 {showSqlViewer && (
-                  <pre className="mt-2 p-3 bg-slate-950 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-300 max-h-48 overflow-y-auto whitespace-pre-wrap">
+                  <pre className="mt-2 p-3 bg-black rounded-lg border border-slate-800 text-[11px] font-mono text-slate-300 max-h-48 overflow-y-auto whitespace-pre-wrap">
                     {SQL_SCHEMA_SCRIPT}
                   </pre>
                 )}
@@ -382,7 +382,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
             <button
               onClick={handlePullFromCloud}
               disabled={isSyncingDown || health.status === 'error'}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-700 text-slate-200 font-semibold rounded-xl text-sm border border-slate-700 transition"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 disabled:bg-black disabled:text-slate-700 text-slate-200 font-semibold rounded-xl text-sm border border-slate-700 transition"
             >
               {isSyncingDown ? (
                 <RefreshCw className="w-4 h-4 animate-spin" />
@@ -407,7 +407,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-slate-800 bg-slate-900/50 flex items-center justify-between text-xs text-slate-400">
+        <div className="px-6 py-3 border-t border-slate-800 bg-black/50 flex items-center justify-between text-xs text-slate-400">
           <span>Tabela: <strong className="text-slate-200">public.trades</strong></span>
           <button
             onClick={onClose}

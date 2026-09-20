@@ -87,9 +87,9 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-sm overflow-y-auto pt-safe pb-safe">
-      <div className="relative w-full max-w-2xl max-h-[94vh] flex flex-col rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl my-auto overflow-hidden">
+      <div className="relative w-full max-w-2xl max-h-[94vh] flex flex-col rounded-2xl border border-slate-800 bg-black shadow-2xl my-auto overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 p-4 sm:p-5 shrink-0 bg-slate-950/80">
+        <div className="flex items-center justify-between border-b border-slate-800 p-4 sm:p-5 shrink-0 bg-black/80">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
               <Calendar className="h-4 w-4" />
@@ -137,7 +137,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
             </div>
 
             {/* Win Rate Card */}
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+            <div className="rounded-xl border border-slate-800 bg-black/60 p-3">
               <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
                 Assertividade do Dia
               </span>
@@ -152,7 +152,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
             </div>
 
             {/* Day-over-Day Growth Comparison */}
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+            <div className="rounded-xl border border-slate-800 bg-black/60 p-3">
               <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
                 Variação vs Dia Anterior
               </span>
@@ -196,7 +196,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       type="checkbox"
                       checked={isAllSelected}
                       onChange={toggleSelectAll}
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                      className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer"
                     />
                     <span>Selecionar todas</span>
                   </label>
@@ -242,7 +242,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border p-3 text-xs transition ${
                         isSelected
                           ? 'border-rose-500/50 bg-rose-950/20 ring-1 ring-rose-500/30'
-                          : 'border-slate-800/80 bg-slate-950/60 hover:bg-slate-900/80'
+                          : 'border-slate-800/80 bg-black/60 hover:bg-black/80'
                       }`}
                     >
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -250,7 +250,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleSelectTrade(t.id)}
-                          className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer shrink-0"
+                          className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer shrink-0"
                         />
                         <span className="font-mono text-slate-400 text-[11px]">{t.time || '--:--'}</span>
                         <span className="font-mono font-bold text-white text-sm">{t.asset}</span>
@@ -307,7 +307,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
         </div>
 
         {/* Close Button */}
-        <div className="flex justify-end p-4 border-t border-slate-800 bg-slate-950/80 shrink-0">
+        <div className="flex justify-end p-4 border-t border-slate-800 bg-black/80 shrink-0">
           <button
             type="button"
             onClick={onClose}

@@ -1,11 +1,67 @@
 import { Trade, DayPerformance, WeeklyPerformance, MonthlyPerformance, OverallMetrics, RiskSettings } from '../types';
 
-export function formatCurrency(value: number): string {
+export type CurrencyCode = 'BRL' | 'USD' | 'EUR' | 'USDT' | 'BTC';
+
+export interface CurrencyOption {
+  code: CurrencyCode;
+  name: string;
+  symbol: string;
+  flag: string;
+}
+
+export const CURRENCIES: CurrencyOption[] = [
+  { code: 'BRL', name: 'Real (R$)', symbol: 'R$', flag: '🇧🇷' },
+  { code: 'USD', name: 'Dólar ($)', symbol: '$', flag: '🇺🇸' },
+  { code: 'EUR', name: 'Euro (€)', symbol: '€', flag: '🇪🇺' },
+  { code: 'USDT', name: 'Tether (₮)', symbol: '₮', flag: '🪙' },
+  { code: 'BTC', name: 'Bitcoin (₿)', symbol: '₿', flag: '₿' },
+];
+
+let globalCurrency: CurrencyCode =
+  (typeof window !== 'undefined' && (localStorage.getItem('trader_journal_currency') as CurrencyCode)) || 'BRL';
+
+export function getGlobalCurrency(): CurrencyCode {
+  return globalCurrency;
+}
+
+export function setGlobalCurrency(code: CurrencyCode): void {
+  globalCurrency = code;
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('trader_journal_currency', code);
+  }
+}
+
+export function formatCurrency(value: number, overrideCurrency?: CurrencyCode): string {
+  const code = overrideCurrency || globalCurrency;
+  const num = Number(value) || 0;
+
+  if (code === 'BTC') {
+    return `₿ ${num.toFixed(6)}`;
+  }
+  if (code === 'USDT') {
+    return `₮ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  if (code === 'USD') {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    }).format(num);
+  }
+  if (code === 'EUR') {
+    return new Intl.NumberFormat('de-DE', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2,
+    }).format(num);
+  }
+
+  // Default BRL
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,
-  }).format(value);
+  }).format(num);
 }
 
 export function formatPercent(value: number, includeSign = false): string {

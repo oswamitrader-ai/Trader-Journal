@@ -24,7 +24,7 @@ export const WeeklyPerformancePanel: React.FC<WeeklyPerformancePanelProps> = ({
   const dailyProfitTarget = settings?.dailyProfitTarget ?? 500;
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl backdrop-blur-sm">
+    <div className="rounded-2xl border border-slate-800 bg-black/80 p-5 shadow-xl backdrop-blur-sm">
       {/* Header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-4">
         <div className="flex items-center gap-3">

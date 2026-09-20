@@ -228,9 +228,9 @@ export const AiTraderMentorModal: React.FC<AiTraderMentorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-sm pt-safe pb-safe">
-      <div className="flex h-[92vh] sm:h-[85vh] w-full max-w-3xl flex-col rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden">
+      <div className="flex h-[92vh] sm:h-[85vh] w-full max-w-3xl flex-col rounded-2xl border border-slate-800 bg-black shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 px-4 sm:px-6 py-3 sm:py-4 bg-slate-950/70">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 px-4 sm:px-6 py-3 sm:py-4 bg-black/70">
           <div className="flex items-center justify-between w-full sm:w-auto">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-md shrink-0">
@@ -256,7 +256,7 @@ export const AiTraderMentorModal: React.FC<AiTraderMentorModalProps> = ({
 
           {/* Tab Switcher & Close */}
           <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
-            <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800 w-full sm:w-auto justify-center">
+            <div className="flex rounded-xl bg-black p-1 border border-slate-800 w-full sm:w-auto justify-center">
               <button
                 onClick={() => setActiveTab('audit')}
                 className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition flex-1 sm:flex-initial ${
@@ -299,7 +299,7 @@ export const AiTraderMentorModal: React.FC<AiTraderMentorModalProps> = ({
               <div className={`rounded-2xl border ${lotAdvice.borderColor} p-4 space-y-2.5 backdrop-blur-sm`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
                   <div className="flex items-center gap-2">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 ${lotAdvice.iconColor} border border-slate-800`}>
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-xl bg-black ${lotAdvice.iconColor} border border-slate-800`}>
                       <Sliders className="h-4 w-4" />
                     </div>
                     <div>
@@ -324,7 +324,7 @@ export const AiTraderMentorModal: React.FC<AiTraderMentorModalProps> = ({
                   <p className="text-slate-300 text-xs leading-relaxed">
                     {lotAdvice.description}
                   </p>
-                  <div className="mt-2 flex items-center gap-2 p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px]">
+                  <div className="mt-2 flex items-center gap-2 p-2 rounded-xl bg-black/80 border border-slate-800 text-[11px]">
                     <strong className="text-slate-400">Orientação Tática:</strong>
                     <span className="font-bold text-teal-300 font-mono">{lotAdvice.action}</span>
                   </div>
@@ -332,7 +332,7 @@ export const AiTraderMentorModal: React.FC<AiTraderMentorModalProps> = ({
               </div>
               {/* Trigger Card */}
               {!analysisResult && !isAnalyzing && (
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 text-center space-y-3">
+                <div className="rounded-2xl border border-slate-800 bg-black/60 p-6 text-center space-y-3">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">
                     <Sparkles className="h-6 w-6" />
                   </div>
@@ -410,14 +410,14 @@ export const AiTraderMentorModal: React.FC<AiTraderMentorModalProps> = ({
 
                     <button
                       onClick={handleRunAnalysis}
-                      className="flex items-center gap-1.5 self-end sm:self-center rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:text-white transition"
+                      className="flex items-center gap-1.5 self-end sm:self-center rounded-xl border border-slate-800 bg-black px-3 py-1.5 text-xs text-slate-300 hover:text-white transition"
                     >
                       <RefreshCw className="h-3.5 w-3.5" /> Atualizar Análise
                     </button>
                   </div>
 
                   {/* Highlights Bullets */}
-                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <div className="rounded-xl border border-slate-800 bg-black/40 p-4">
                     <h5 className="font-bold uppercase tracking-wider text-slate-300 mb-2.5 flex items-center gap-1.5">
                       <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                       Pontos Observados pelo Mentor
@@ -433,7 +433,7 @@ export const AiTraderMentorModal: React.FC<AiTraderMentorModalProps> = ({
                   </div>
 
                   {/* Risk Diagnosis */}
-                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <div className="rounded-xl border border-slate-800 bg-black/40 p-4">
                     <h5 className="font-bold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1.5">
                       <ShieldCheck className="h-4 w-4 text-blue-400" />
                       Diagnóstico de Risco & Drawdown
@@ -509,7 +509,7 @@ export const AiTraderMentorModal: React.FC<AiTraderMentorModalProps> = ({
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     placeholder="Pergunte sobre gestão, disciplina, estratégias ou desabafe sobre um trade..."
-                    className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-white placeholder-slate-500 focus:border-teal-500 focus:outline-none"
+                    className="flex-1 rounded-xl border border-slate-800 bg-black px-4 py-2.5 text-white placeholder-slate-500 focus:border-teal-500 focus:outline-none"
                   />
                   <button
                     type="submit"

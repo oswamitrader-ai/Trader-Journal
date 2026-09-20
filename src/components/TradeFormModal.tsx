@@ -371,7 +371,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-sm overflow-y-auto pt-safe pb-safe">
-      <div className="relative w-full max-w-xl max-h-[94vh] flex flex-col rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl my-auto">
+      <div className="relative w-full max-w-xl max-h-[94vh] flex flex-col rounded-2xl border border-slate-800 bg-black shadow-2xl my-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 p-4 sm:p-5 shrink-0">
           <div className="flex items-center gap-2">
@@ -399,7 +399,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
               />
             </div>
             <div>
@@ -408,7 +408,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
               />
             </div>
           </div>
@@ -436,7 +436,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 placeholder="Ex: WIN, WDO, PETR4, BTC..."
                 value={asset}
                 onChange={(e) => setAsset(e.target.value.toUpperCase())}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white uppercase focus:border-emerald-500 focus:outline-none font-mono font-bold tracking-wider"
+                className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white uppercase focus:border-emerald-500 focus:outline-none font-mono font-bold tracking-wider"
               />
 
               {/* Quick Asset Chips */}
@@ -455,7 +455,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
                   {/* Inline Add Input */}
                   {isAddingInline && (
-                    <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-950 border border-emerald-500/40">
+                    <div className="flex items-center gap-1.5 p-1 rounded-lg bg-black border border-emerald-500/40">
                       <input
                         type="text"
                         autoFocus
@@ -528,7 +528,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
               {/* Management Drawer/Panel */}
               {isManagingAssets && (
-                <div className="mt-2 p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                <div className="mt-2 p-3 rounded-xl bg-black border border-slate-800 space-y-2 text-xs">
                   <div className="flex items-center justify-between text-slate-300 pb-1 border-b border-slate-800">
                     <span className="font-semibold text-[11px]">Editar ou Adicionar Ativos</span>
                     <button
@@ -554,7 +554,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                           handleAddAsset(newAssetInput);
                         }
                       }}
-                      className="flex-1 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1 text-xs text-white font-mono uppercase focus:border-emerald-500 focus:outline-none"
+                      className="flex-1 rounded-lg border border-slate-800 bg-black px-2 py-1 text-xs text-white font-mono uppercase focus:border-emerald-500 focus:outline-none"
                     />
                     <button
                       type="button"
@@ -570,7 +570,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     {savedAssets.map((a, idx) => (
                       <div
                         key={a}
-                        className="flex items-center justify-between py-1 px-2 rounded bg-slate-900/60 border border-slate-800/60"
+                        className="flex items-center justify-between py-1 px-2 rounded bg-black/60 border border-slate-800/60"
                       >
                         {editingAssetIdx === idx ? (
                           <div className="flex items-center gap-1 flex-1 mr-1">
@@ -587,7 +587,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                                   setEditingAssetIdx(null);
                                 }
                               }}
-                              className="flex-1 rounded border border-emerald-500 bg-slate-950 px-1.5 py-0.5 text-xs text-white font-mono uppercase focus:outline-none"
+                              className="flex-1 rounded border border-emerald-500 bg-black px-1.5 py-0.5 text-xs text-white font-mono uppercase focus:outline-none"
                             />
                             <button
                               type="button"
@@ -659,7 +659,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   className={`flex items-center justify-center gap-1 rounded-xl py-2 font-bold transition ${
                     type === 'BUY'
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'border border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
+                      : 'border border-slate-800 bg-black text-slate-400 hover:text-white'
                   }`}
                 >
                   <ArrowUp className="h-4 w-4" /> Compra
@@ -670,7 +670,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   className={`flex items-center justify-center gap-1 rounded-xl py-2 font-bold transition ${
                     type === 'SELL'
                       ? 'bg-amber-600 text-white shadow-md shadow-amber-900/30'
-                      : 'border border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
+                      : 'border border-slate-800 bg-black text-slate-400 hover:text-white'
                   }`}
                 >
                   <ArrowDown className="h-4 w-4" /> Venda
@@ -702,7 +702,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 value={strategy}
                 onChange={(e) => setStrategy(e.target.value)}
                 placeholder="Ex: Price Action, Rompimento..."
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-medium"
+                className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-medium"
               />
 
               {/* Quick Strategy Chips */}
@@ -721,7 +721,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
                   {/* Inline Add Input */}
                   {isAddingStrategyInline && (
-                    <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-950 border border-emerald-500/40">
+                    <div className="flex items-center gap-1.5 p-1 rounded-lg bg-black border border-emerald-500/40">
                       <input
                         type="text"
                         autoFocus
@@ -797,7 +797,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
               {/* Management Drawer/Panel */}
               {isManagingStrategies && (
-                <div className="mt-2 p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                <div className="mt-2 p-3 rounded-xl bg-black border border-slate-800 space-y-2 text-xs">
                   <div className="flex items-center justify-between text-slate-300 pb-1 border-b border-slate-800">
                     <span className="font-semibold text-[11px]">Editar ou Adicionar Estratégias</span>
                     <button
@@ -823,7 +823,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                           handleAddStrategy(newStrategyInput);
                         }
                       }}
-                      className="flex-1 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                      className="flex-1 rounded-lg border border-slate-800 bg-black px-2 py-1 text-xs text-white focus:border-emerald-500 focus:outline-none"
                     />
                     <button
                       type="button"
@@ -839,7 +839,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     {savedStrategies.map((s, idx) => (
                       <div
                         key={s}
-                        className="flex items-center justify-between py-1 px-2 rounded bg-slate-900/60 border border-slate-800/60"
+                        className="flex items-center justify-between py-1 px-2 rounded bg-black/60 border border-slate-800/60"
                       >
                         {editingStrategyIdx === idx ? (
                           <div className="flex items-center gap-1 flex-1 mr-1">
@@ -856,7 +856,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                                   setEditingStrategyIdx(null);
                                 }
                               }}
-                              className="flex-1 rounded border border-emerald-500 bg-slate-950 px-1.5 py-0.5 text-xs text-white focus:outline-none"
+                              className="flex-1 rounded border border-emerald-500 bg-black px-1.5 py-0.5 text-xs text-white focus:outline-none"
                             />
                             <button
                               type="button"
@@ -932,7 +932,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   value={contractsOrQuantity}
                   onChange={(e) => setContractsOrQuantity(Number(e.target.value))}
                   placeholder="Ex: 100,00 ou 500,00"
-                  className="w-full rounded-xl border border-slate-800 bg-slate-950 pl-10 pr-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-mono font-bold"
+                  className="w-full rounded-xl border border-slate-800 bg-black pl-10 pr-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-mono font-bold"
                 />
               </div>
               <p className="mt-1 text-[10px] text-slate-400">
@@ -942,7 +942,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
           </div>
 
           {/* Row 4: Financial Result (P&L em R$) */}
-          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
+          <div className="rounded-xl border border-slate-800 bg-black/60 p-3.5">
             <div className="flex items-center justify-between mb-2">
               <label className="font-bold text-white text-xs">
                 Resultado Líquido da Operação (R$)
@@ -1001,7 +1001,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   else if (val < -0.001) setResult('LOSS');
                   else setResult('BREAKEVEN');
                 }}
-                className={`w-full rounded-xl border border-slate-800 bg-slate-900 pl-10 pr-3 py-2 text-base font-extrabold font-mono focus:outline-none ${
+                className={`w-full rounded-xl border border-slate-800 bg-black pl-10 pr-3 py-2 text-base font-extrabold font-mono focus:outline-none ${
                   pnl > 0 ? 'text-emerald-400' : pnl < 0 ? 'text-rose-400' : 'text-white'
                 }`}
               />
@@ -1033,7 +1033,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
               value={emotionalState}
               onChange={(e) => setEmotionalState(e.target.value)}
               placeholder="Ex: Calmo, Ansioso, Focado..."
-              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-purple-500 focus:outline-none font-medium mb-1.5"
+              className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white focus:border-purple-500 focus:outline-none font-medium mb-1.5"
             />
 
             {/* Quick Emotion Chips */}
@@ -1052,7 +1052,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
                 {/* Inline Add Input */}
                 {isAddingEmotionInline && (
-                  <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-950 border border-purple-500/40">
+                  <div className="flex items-center gap-1.5 p-1 rounded-lg bg-black border border-purple-500/40">
                     <input
                       type="text"
                       autoFocus
@@ -1099,7 +1099,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                       className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
                         emotionalState.trim().toLowerCase() === state.trim().toLowerCase()
                           ? 'bg-purple-600 text-white shadow-md shadow-purple-900/30'
-                          : 'border border-slate-800 bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-900'
+                          : 'border border-slate-800 bg-black text-slate-400 hover:text-white hover:bg-black'
                       }`}
                     >
                       {state}
@@ -1125,7 +1125,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
             {/* Management Drawer */}
             {isManagingEmotions && (
-              <div className="mt-2 p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+              <div className="mt-2 p-3 rounded-xl bg-black border border-slate-800 space-y-2 text-xs">
                 <div className="flex items-center justify-between text-slate-300 pb-1 border-b border-slate-800">
                   <span className="font-semibold text-[11px]">Editar ou Adicionar Estados Emocionais</span>
                   <button
@@ -1151,7 +1151,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                         handleAddEmotion(newEmotionInput);
                       }
                     }}
-                    className="flex-1 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                    className="flex-1 rounded-lg border border-slate-800 bg-black px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
                   />
                   <button
                     type="button"
@@ -1167,7 +1167,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   {savedEmotions.map((e, idx) => (
                     <div
                       key={e}
-                      className="flex items-center justify-between py-1 px-2 rounded bg-slate-900/60 border border-slate-800/60"
+                      className="flex items-center justify-between py-1 px-2 rounded bg-black/60 border border-slate-800/60"
                     >
                       {editingEmotionIdx === idx ? (
                         <div className="flex items-center gap-1 flex-1 mr-1">
@@ -1184,7 +1184,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                                 setEditingEmotionIdx(null);
                               }
                             }}
-                            className="flex-1 rounded border border-purple-500 bg-slate-950 px-1.5 py-0.5 text-xs text-white focus:outline-none"
+                            className="flex-1 rounded border border-purple-500 bg-black px-1.5 py-0.5 text-xs text-white focus:outline-none"
                           />
                           <button
                             type="button"
@@ -1255,7 +1255,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ex: Rompimento limpo com volume; esperei o pullback na média de 20; segui o plano sem hesitação."
-              className="w-full rounded-xl border border-slate-800 bg-slate-950 p-3 text-white focus:border-emerald-500 focus:outline-none resize-none"
+              className="w-full rounded-xl border border-slate-800 bg-black p-3 text-white focus:border-emerald-500 focus:outline-none resize-none"
             />
           </div>
 

@@ -119,7 +119,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
             ? 'border-emerald-500/60 bg-emerald-950/40 ring-1 ring-emerald-500/30'
             : isNearTarget80
             ? 'border-amber-500/60 bg-amber-950/30 ring-1 ring-amber-500/30'
-            : 'border-slate-800 bg-slate-900/80'
+            : 'border-slate-800 bg-black/80'
         }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -144,15 +144,15 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
                     ? 'Notificações Push ativas no navegador (Avisará a 80% da Meta/Stop)'
                     : 'Clique para ativar notificações locais (Push) via navegador'
                 }
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold border transition ${
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition ${
                   pushPermission === 'granted'
-                    ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300'
-                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-white'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-slate-700 text-white hover:bg-slate-600'
                 }`}
               >
                 {pushPermission === 'granted' ? (
                   <>
-                    <BellRing className="h-3 w-3 text-emerald-400" />
+                    <BellRing className="h-3 w-3 text-white" />
                     <span>Push Ativo</span>
                   </>
                 ) : (
@@ -220,7 +220,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
             ? 'border-rose-500/80 bg-rose-950/50 ring-1 ring-rose-500/40'
             : isNearStop80
             ? 'border-rose-500/50 bg-rose-950/30 ring-1 ring-rose-500/30'
-            : 'border-slate-800 bg-slate-900/80'
+            : 'border-slate-800 bg-black/80'
         }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -245,15 +245,15 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
                     ? 'Notificações Push ativas no navegador'
                     : 'Clique para ativar notificações locais (Push) via navegador'
                 }
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold border transition ${
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold transition ${
                   pushPermission === 'granted'
-                    ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300'
-                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-white'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-slate-700 text-white hover:bg-slate-600'
                 }`}
               >
                 {pushPermission === 'granted' ? (
                   <>
-                    <BellRing className="h-3 w-3 text-emerald-400" />
+                    <BellRing className="h-3 w-3 text-white" />
                     <span>Push Ativo</span>
                   </>
                 ) : (
@@ -329,7 +329,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
             onOpenCapitalModal?.();
           }
         }}
-        className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 p-3.5 sm:p-4 shadow-lg backdrop-blur-sm cursor-pointer hover:border-emerald-500/60 hover:bg-slate-900 hover:shadow-emerald-950/30 transition-all duration-200"
+        className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-black/80 p-3.5 sm:p-4 shadow-lg backdrop-blur-sm cursor-pointer hover:border-emerald-500/60 hover:bg-black hover:shadow-emerald-950/30 transition-all duration-200"
         title="Clique para abrir a tela de Depósitos, Saques e Histórico de Capital"
       >
         <div className="flex items-center justify-between">
@@ -337,12 +337,9 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
             Capital Atual
           </span>
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 group-hover:bg-emerald-500/25 transition font-bold">
+            <span className="text-[10px] text-white bg-emerald-600 px-2 py-1 rounded transition font-bold shadow-md shadow-emerald-900/30 whitespace-nowrap">
               Saques / Depósitos
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:bg-emerald-500/20 transition">
-              <Wallet className="h-4 w-4" />
-            </div>
           </div>
         </div>
 
@@ -376,7 +373,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
       </div>
 
       {/* CARD 2: ASSERTIVIDADE (WIN RATE) */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg backdrop-blur-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black/80 p-4 shadow-lg backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Assertividade
@@ -390,9 +387,9 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
                   onOpenKellyCalculator();
                 }}
                 title="Abrir Calculadora do Critério de Kelly (Dimensionar Lotes)"
-                className="flex items-center gap-1 rounded-lg bg-teal-500/15 px-2 py-0.5 text-[10px] font-bold text-teal-300 border border-teal-500/30 hover:bg-teal-500/25 transition active:scale-95"
+                className="flex items-center gap-1 rounded-lg bg-teal-600 px-2 py-1 text-[10px] font-bold text-white transition hover:bg-teal-500 active:scale-95 shadow-md shadow-teal-900/30 whitespace-nowrap"
               >
-                <Calculator className="h-3 w-3" />
+                <Calculator className="h-3 w-3 shrink-0" />
                 <span>Calc. Kelly</span>
               </button>
             )}
@@ -449,7 +446,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
       </div>
 
       {/* CARD 3: VARIAÇÃO DIÁRIA COMPARADA */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg backdrop-blur-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black/80 p-4 shadow-lg backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Variação Dia vs Dia Anterior
@@ -498,7 +495,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
       </div>
 
       {/* CARD 4: DRAWDOWN ACUMULADO */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg backdrop-blur-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black/80 p-4 shadow-lg backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Drawdown Máximo
@@ -625,7 +622,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
             setShowPfModal(true);
           }
         }}
-        className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg backdrop-blur-sm cursor-pointer transition-all duration-200 hover:border-purple-500/50 hover:bg-slate-900 hover:shadow-purple-950/20 hover:scale-[1.01] text-left"
+        className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-black/80 p-4 shadow-lg backdrop-blur-sm cursor-pointer transition-all duration-200 hover:border-purple-500/50 hover:bg-black hover:shadow-purple-950/20 hover:scale-[1.01] text-left"
         title="Clique para ver o guia detalhado e referências de Fator de Lucro e Payoff para Opções Binárias"
       >
         <div className="flex items-center justify-between">
@@ -633,10 +630,10 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
             Fator de Lucro &amp; Payoff
           </span>
           <div className="flex items-center gap-1.5">
-            <span className="hidden sm:inline-flex text-[10px] font-medium text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20 group-hover:bg-purple-500/25 transition">
+            <span className="hidden sm:inline-flex text-[10px] font-bold text-white bg-purple-600 px-2 py-1 rounded transition shadow-md shadow-purple-900/30 whitespace-nowrap">
               Guia OB
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:bg-purple-500/20 transition">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:bg-purple-500/20 transition shrink-0">
               <Scale className="h-4 w-4" />
             </div>
           </div>

@@ -74,10 +74,10 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-2 sm:p-4 backdrop-blur-md pt-safe pb-safe overflow-y-auto">
-      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl border border-slate-800 bg-slate-900/95 shadow-2xl backdrop-blur-xl my-auto overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-md pt-safe pb-safe overflow-y-auto">
+      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl border border-slate-800 bg-black/95 shadow-2xl backdrop-blur-xl my-auto overflow-hidden">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-800/80 p-5 sm:p-7 pb-4 shrink-0 bg-slate-950/80">
+        <div className="flex items-start justify-between border-b border-slate-800/80 p-5 sm:p-7 pb-4 shrink-0 bg-black/80">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-700 shadow-lg shadow-teal-900/40 text-white">
               <Calculator className="h-6 w-6" />
@@ -85,14 +85,14 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                  Calculadora do Critério de Kelly
+                  Calculadora do Critério de Kelly (Opções Binárias)
                 </h2>
                 <span className="rounded-full bg-teal-500/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-teal-300 border border-teal-500/30">
-                  Dimensionamento
+                  Stake / Entrada
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Calcule o tamanho exato de lote/contratos com base na sua vantagem probabilística real.
+                Calcule o valor ideal da sua entrada (Stake) com base na sua vantagem estatística real nas corretoras.
               </p>
             </div>
           </div>
@@ -108,7 +108,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
         {/* Modal Body */}
         <div className="overflow-y-auto p-5 sm:p-7 space-y-6 flex-1 min-h-0">
           {/* Top Info Banner & Reset */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-slate-950/50 p-3 px-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-black/50 p-3 px-4">
             <div className="flex items-center gap-2 text-xs text-slate-300">
               <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
               <span>Valores pré-preenchidos automaticamente com suas métricas históricas de trading.</span>
@@ -126,25 +126,24 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
           {/* Form Inputs Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Capital Total */}
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3.5">
+            <div className="rounded-2xl border border-slate-800 bg-black/70 p-3.5">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                Capital da Banca (R$)
+                Capital da Banca
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-500">R$</span>
                 <input
                   type="number"
                   min="1"
                   step="100"
                   value={capital}
                   onChange={(e) => setCapital(Math.max(0, Number(e.target.value)))}
-                  className="w-full rounded-xl border border-slate-800 bg-slate-900 py-2 pl-9 pr-3 text-sm font-bold font-mono text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full rounded-xl border border-slate-800 bg-black py-2 px-3 text-sm font-bold font-mono text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 />
               </div>
             </div>
 
             {/* Taxa de Acerto */}
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3.5">
+            <div className="rounded-2xl border border-slate-800 bg-black/70 p-3.5">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                 Taxa de Acerto (%)
               </label>
@@ -156,69 +155,66 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
                   step="0.5"
                   value={winRate}
                   onChange={(e) => setWinRate(Math.min(99, Math.max(1, Number(e.target.value))))}
-                  className="w-full rounded-xl border border-slate-800 bg-slate-900 py-2 pl-3 pr-8 text-sm font-bold font-mono text-emerald-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full rounded-xl border border-slate-800 bg-black py-2 pl-3 pr-8 text-sm font-bold font-mono text-emerald-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 />
                 <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-500">%</span>
               </div>
             </div>
 
-            {/* Stop Loss por Lote */}
+            {/* Stake Base do Trade */}
             <div className="rounded-2xl border border-teal-500/30 bg-teal-950/20 p-3.5 ring-1 ring-teal-500/20">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-teal-300 mb-1.5">
-                Stop Loss do Trade (R$)
+                Stake Base / Entrada
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2.5 text-xs font-bold text-teal-500">R$</span>
                 <input
                   type="number"
                   min="1"
-                  step="10"
+                  step="5"
                   value={stopLossAmount}
                   onChange={(e) => setStopLossAmount(Math.max(1, Number(e.target.value)))}
-                  className="w-full rounded-xl border border-teal-500/40 bg-slate-900 py-2 pl-9 pr-3 text-sm font-bold font-mono text-teal-200 focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
+                  className="w-full rounded-xl border border-teal-500/40 bg-black py-2 px-3 text-sm font-bold font-mono text-teal-200 focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-400"
                 />
               </div>
-              <span className="text-[10px] text-slate-400 mt-1 block">Risco em R$ por 1 mini-contrato/lote</span>
+              <span className="text-[10px] text-slate-400 mt-1 block">Valor planejado por entrada na corretora</span>
             </div>
 
             {/* Lucro Médio */}
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3.5">
+            <div className="rounded-2xl border border-slate-800 bg-black/70 p-3.5">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                Lucro Médio Gain (R$)
+                Lucro Médio Gain
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-500">R$</span>
                 <input
                   type="number"
                   min="1"
-                  step="10"
+                  step="5"
                   value={avgWin}
                   onChange={(e) => setAvgWin(Math.max(1, Number(e.target.value)))}
-                  className="w-full rounded-xl border border-slate-800 bg-slate-900 py-2 pl-9 pr-3 text-sm font-bold font-mono text-emerald-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full rounded-xl border border-slate-800 bg-black py-2 px-3 text-sm font-bold font-mono text-emerald-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 />
               </div>
             </div>
 
             {/* Prejuízo Médio */}
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3.5">
+            <div className="rounded-2xl border border-slate-800 bg-black/70 p-3.5">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                Prejuízo Médio Loss (R$)
+                Prejuízo Médio Loss
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-500">R$</span>
                 <input
                   type="number"
                   min="1"
-                  step="10"
+                  step="5"
                   value={avgLoss}
                   onChange={(e) => setAvgLoss(Math.max(1, Number(e.target.value)))}
-                  className="w-full rounded-xl border border-slate-800 bg-slate-900 py-2 pl-9 pr-3 text-sm font-bold font-mono text-rose-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full rounded-xl border border-slate-800 bg-black py-2 px-3 text-sm font-bold font-mono text-rose-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 />
               </div>
             </div>
 
             {/* Payoff resultante */}
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3.5 flex flex-col justify-between">
+            <div className="rounded-2xl border border-slate-800 bg-black/70 p-3.5 flex flex-col justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Payoff Ratio (Média W/L)
               </span>
@@ -232,7 +228,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
           </div>
 
           {/* Kelly Fractional Selector */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
+          <div className="rounded-2xl border border-slate-800 bg-black/80 p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Sliders className="h-4 w-4 text-teal-400" />
@@ -259,7 +255,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
                   className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${
                     fractionMultiplier === item.val
                       ? `${item.color} ring-2 ring-teal-500/40 shadow-lg font-bold`
-                      : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                      : 'border-slate-800 bg-black/60 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                   }`}
                 >
                   <span className="text-xs font-bold font-mono">{item.label}</span>
@@ -271,29 +267,26 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
 
           {/* MAIN RESULTS DISPLAY CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Lote Recomendado Card */}
+            {/* Stake Sugerida Card */}
             <div className="md:col-span-1 rounded-2xl border border-teal-500/50 bg-gradient-to-b from-teal-950/40 to-slate-900 p-5 shadow-xl ring-1 ring-teal-500/30 flex flex-col justify-between">
               <div>
                 <span className="text-xs font-extrabold uppercase tracking-wider text-teal-300">
-                  Lote / Contratos Sugeridos
+                  Stake Sugerida (Entrada)
                 </span>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="text-4xl font-black font-mono tracking-tight text-white">
-                    {result.recommendedLots}
-                  </span>
-                  <span className="text-sm font-bold text-teal-400">
-                    {result.recommendedLots === 1 ? 'contrato' : 'contratos'}
+                <div className="mt-3 flex items-baseline gap-1.5">
+                  <span className="text-3xl font-black font-mono tracking-tight text-emerald-400">
+                    {formatCurrency(result.recommendedRiskAmount)}
                   </span>
                 </div>
                 <span className="text-[11px] text-slate-400 mt-1 block font-mono">
-                  (Valor exato: {result.exactLots} lotes)
+                  ({result.fractionalKellyPercent.toFixed(2)}% da sua banca total)
                 </span>
               </div>
 
               <div className="mt-4 pt-3 border-t border-teal-500/20 flex items-center justify-between text-xs text-slate-300">
-                <span>Risco em R$:</span>
-                <span className="font-bold font-mono text-emerald-400">
-                  {formatCurrency(result.recommendedRiskAmount)}
+                <span>Risco Sugerido:</span>
+                <span className="font-bold font-mono text-teal-300">
+                  {result.fractionalKellyPercent.toFixed(2)}% por trade
                 </span>
               </div>
             </div>
@@ -301,7 +294,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
             {/* Metrics Breakdown Cards */}
             <div className="md:col-span-2 grid grid-cols-2 gap-3">
               {/* Risco em % da Banca */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 flex flex-col justify-between">
+              <div className="rounded-2xl border border-slate-800 bg-black/80 p-4 flex flex-col justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   Risco por Operação (% Banca)
                 </span>
@@ -316,7 +309,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
               </div>
 
               {/* Expectativa Matemática EV */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 flex flex-col justify-between">
+              <div className="rounded-2xl border border-slate-800 bg-black/80 p-4 flex flex-col justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   Expectativa Matemática (EV)
                 </span>
@@ -331,7 +324,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
               </div>
 
               {/* Kelly Conservador (25%) */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 flex flex-col justify-between">
+              <div className="rounded-2xl border border-slate-800 bg-black/80 p-4 flex flex-col justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   25% Kelly (Recomendado)
                 </span>
@@ -346,7 +339,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
               </div>
 
               {/* Kelly Puro (100%) */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 flex flex-col justify-between">
+              <div className="rounded-2xl border border-slate-800 bg-black/80 p-4 flex flex-col justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   100% Kelly (Teórico Máximo)
                 </span>
@@ -397,7 +390,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-800/80 p-4 sm:p-5 shrink-0 bg-slate-950/80">
+        <div className="flex items-center justify-between border-t border-slate-800/80 p-4 sm:p-5 shrink-0 bg-black/80">
           <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500">
             <HelpCircle className="h-3.5 w-3.5" />
             <span>Kelly Fracionário (25%) é a norma da indústria para mitigar a volatilidade da curva.</span>

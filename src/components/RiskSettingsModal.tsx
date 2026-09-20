@@ -69,7 +69,7 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-sm overflow-y-auto pt-safe pb-safe">
-      <div className="relative w-full max-w-lg max-h-[94vh] flex flex-col rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl my-auto">
+      <div className="relative w-full max-w-lg max-h-[94vh] flex flex-col rounded-2xl border border-slate-800 bg-black shadow-2xl my-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 p-4 sm:p-5 shrink-0">
           <div className="flex items-center gap-2">
@@ -100,12 +100,12 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
               required
               value={initialCapital}
               onChange={(e) => setInitialCapital(Number(e.target.value))}
-              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2 font-mono text-sm font-bold text-white focus:border-emerald-500 focus:outline-none"
+              className="w-full rounded-xl border border-slate-800 bg-black px-3.5 py-2 font-mono text-sm font-bold text-white focus:border-emerald-500 focus:outline-none"
             />
           </div>
 
           {/* Metas Diárias: Ganho & Perda */}
-          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5 space-y-3">
+          <div className="rounded-xl border border-slate-800 bg-black/60 p-3.5 space-y-3">
             <span className="block font-bold text-white uppercase text-[11px] tracking-wider text-emerald-400">
               Parâmetros Diários
             </span>
@@ -122,7 +122,7 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
                   required
                   value={dailyProfitTarget}
                   onChange={(e) => setDailyProfitTarget(Number(e.target.value))}
-                  className="w-full rounded-xl border border-emerald-500/30 bg-slate-900 px-3 py-2 font-mono font-bold text-emerald-400 focus:border-emerald-500 focus:outline-none"
+                  className="w-full rounded-xl border border-emerald-500/30 bg-black px-3 py-2 font-mono font-bold text-emerald-400 focus:border-emerald-500 focus:outline-none"
                 />
               </div>
 
@@ -137,7 +137,7 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
                   required
                   value={dailyLossLimit}
                   onChange={(e) => setDailyLossLimit(Number(e.target.value))}
-                  className="w-full rounded-xl border border-rose-500/30 bg-slate-900 px-3 py-2 font-mono font-bold text-rose-400 focus:border-rose-500 focus:outline-none"
+                  className="w-full rounded-xl border border-rose-500/30 bg-black px-3 py-2 font-mono font-bold text-rose-400 focus:border-rose-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -185,7 +185,7 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
                       type="time"
                       value={antiFuriaStartTime}
                       onChange={(e) => setAntiFuriaStartTime(e.target.value)}
-                      className="w-full rounded-xl border border-red-500/40 bg-slate-950 px-3 py-2 font-mono text-sm font-bold text-white focus:border-red-500 focus:outline-none"
+                      className="w-full rounded-xl border border-red-500/40 bg-black px-3 py-2 font-mono text-sm font-bold text-white focus:border-red-500 focus:outline-none"
                     />
                   </div>
 
@@ -197,12 +197,12 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
                       type="time"
                       value={antiFuriaEndTime}
                       onChange={(e) => setAntiFuriaEndTime(e.target.value)}
-                      className="w-full rounded-xl border border-red-500/40 bg-slate-950 px-3 py-2 font-mono text-sm font-bold text-white focus:border-red-500 focus:outline-none"
+                      className="w-full rounded-xl border border-red-500/40 bg-black px-3 py-2 font-mono text-sm font-bold text-white focus:border-red-500 focus:outline-none"
                     />
                   </div>
                 </div>
 
-                <div className="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5 text-[10px] text-slate-400 space-y-1">
+                <div className="rounded-xl bg-black/80 border border-slate-800 p-2.5 text-[10px] text-slate-400 space-y-1">
                   <p className="flex items-center gap-1.5 text-red-300 font-bold">
                     <Clock className="h-3.5 w-3.5 text-red-400 shrink-0" />
                     Regra Rigorosa da Trava:
@@ -228,7 +228,7 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
                 required
                 value={monthlyProfitTarget}
                 onChange={(e) => setMonthlyProfitTarget(Number(e.target.value))}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-white focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 font-mono text-white focus:border-emerald-500 focus:outline-none"
               />
             </div>
 
@@ -243,7 +243,7 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
                 required
                 value={monthlyLossLimit}
                 onChange={(e) => setMonthlyLossLimit(Number(e.target.value))}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-white focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 font-mono text-white focus:border-emerald-500 focus:outline-none"
               />
             </div>
           </div>
@@ -260,7 +260,7 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
               required
               value={maxTradesPerDay}
               onChange={(e) => setMaxTradesPerDay(Number(e.target.value))}
-              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-white focus:border-emerald-500 focus:outline-none"
+              className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 font-mono text-white focus:border-emerald-500 focus:outline-none"
             />
             <p className="mt-1 text-[11px] text-slate-400">
               Ajuda a combater o overtrading emitindo alertas quando o limite for excedido.
