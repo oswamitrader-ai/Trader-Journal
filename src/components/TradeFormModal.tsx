@@ -10,8 +10,10 @@ import {
   Edit2,
   Plus,
   RotateCcw,
+  ShieldCheck,
 } from 'lucide-react';
 import { Trade, TradeType, TradeResult } from '../types';
+import { isTradeProtected } from '../utils/calculations';
 
 interface TradeFormModalProps {
   isOpen: boolean;
@@ -64,6 +66,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [exitPrice, setExitPrice] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [emotionalState, setEmotionalState] = useState<string>('Neutro');
+  const [accountType, setAccountType] = useState<'REAL' | 'DEMO'>('REAL');
 
   // Asset Management State
   const [savedAssets, setSavedAssets] = useState<string[]>(() => {
@@ -292,6 +295,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setExitPrice(editingTrade.exitPrice ? String(editingTrade.exitPrice) : '');
       setNotes(editingTrade.notes || '');
       setEmotionalState(editingTrade.emotionalState || 'Neutro');
+      setAccountType(editingTrade.accountType || (editingTrade.isReal === false ? 'DEMO' : 'REAL'));
     } else {
       // Default new trade: real today's date and clean values
       const now = new Date();
@@ -313,10 +317,13 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setExitPrice('');
       setNotes('');
       setEmotionalState('Neutro');
+      setAccountType('REAL');
     }
   }, [editingTrade, isOpen]);
 
   if (!isOpen) return null;
+
+  const isEditingProtected = Boolean(editingTrade && isTradeProtected(editingTrade));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -349,20 +356,24 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     const now = new Date();
     const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+    // If editing a protected trade, keep original financial values unchanged!
     const tradeData: Trade = {
       id: editingTrade?.id || `trade-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      date: date || currentDateStr,
-      time: time || currentTimeStr,
+      date: isEditingProtected && editingTrade ? editingTrade.date : (date || currentDateStr),
+      time: isEditingProtected && editingTrade ? editingTrade.time : (time || currentTimeStr),
       asset: normalizedAsset,
-      type,
+      type: isEditingProtected && editingTrade ? editingTrade.type : type,
       strategy: normalizedStrategy,
-      result: finalResult,
-      pnl: Number(pnl) || 0,
-      contractsOrQuantity: Number(contractsOrQuantity) || 0,
-      entryPrice: entryPrice ? Number(entryPrice) : undefined,
-      exitPrice: exitPrice ? Number(exitPrice) : undefined,
+      result: isEditingProtected && editingTrade ? editingTrade.result : finalResult,
+      pnl: isEditingProtected && editingTrade ? editingTrade.pnl : (Number(pnl) || 0),
+      contractsOrQuantity: isEditingProtected && editingTrade ? editingTrade.contractsOrQuantity : (Number(contractsOrQuantity) || 0),
+      entryPrice: isEditingProtected && editingTrade ? editingTrade.entryPrice : (entryPrice ? Number(entryPrice) : undefined),
+      exitPrice: isEditingProtected && editingTrade ? editingTrade.exitPrice : (exitPrice ? Number(exitPrice) : undefined),
       notes: notes.trim(),
       emotionalState,
+      accountType: isEditingProtected && editingTrade ? editingTrade.accountType : accountType,
+      isReal: isEditingProtected && editingTrade ? (editingTrade.isReal !== false) : (accountType === 'REAL'),
+      isAutoCaptured: editingTrade?.isAutoCaptured,
     };
 
     onSave(tradeData);
@@ -390,8 +401,20 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4 text-xs">
-          {/* Row 1: Date & Time */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Protected Trade Warning Banner */}
+          {isEditingProtected && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-3.5 text-amber-200 text-xs flex items-start gap-2.5">
+              <ShieldCheck className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block text-amber-300 font-bold">Operação de Conta Real Protegida 🔒</strong>
+                <span className="leading-relaxed">
+                  Os valores de entrada, resultado líquido (P&L em R$) e dados financeiros desta operação foram capturados/importados da corretora e são **estritamente imutáveis** para garantir que o controle de risco e a Trava Anti-Fúria não sejam burlados. Você pode atualizar apenas a estratégia, anotações e estado emocional.
+                </span>
+              </div>
+            </div>
+          )}
+          {/* Row 1: Date & Time & Account Type */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="mb-1 block font-semibold text-slate-300">Data do Trade</label>
               <input
@@ -410,6 +433,34 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 onChange={(e) => setTime(e.target.value)}
                 className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
               />
+            </div>
+            <div>
+              <label className="mb-1 block font-semibold text-slate-300">Tipo de Conta</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAccountType('REAL')}
+                  className={`flex items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-bold transition ${
+                    accountType === 'REAL'
+                      ? 'bg-rose-950/80 border border-rose-500/60 text-rose-200 shadow-sm'
+                      : 'border border-slate-800 bg-black text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <ShieldCheck className="h-3 w-3 text-rose-400" />
+                  <span>Real 🔒</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAccountType('DEMO')}
+                  className={`flex items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-bold transition ${
+                    accountType === 'DEMO'
+                      ? 'bg-slate-800 border border-slate-700 text-white shadow-sm'
+                      : 'border border-slate-800 bg-black text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>Demo</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -920,7 +971,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
             {/* Valor de Entrada Section */}
             <div>
               <label className="mb-1 block font-semibold text-slate-300">
-                Valor de Entrada (R$)
+                Valor de Entrada (R$) {isEditingProtected && '🔒'}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 font-mono font-bold text-slate-400">R$</span>
@@ -929,14 +980,17 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   min="0"
                   step="any"
                   required
+                  disabled={isEditingProtected}
                   value={contractsOrQuantity}
                   onChange={(e) => setContractsOrQuantity(Number(e.target.value))}
                   placeholder="Ex: 100,00 ou 500,00"
-                  className="w-full rounded-xl border border-slate-800 bg-black pl-10 pr-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-mono font-bold"
+                  className="w-full rounded-xl border border-slate-800 bg-black pl-10 pr-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-mono font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
               <p className="mt-1 text-[10px] text-slate-400">
-                Valor financeiro ou margem alocada na entrada deste trade.
+                {isEditingProtected
+                  ? '🔒 Protegido pelo Anti-Fúria (Capturado/Importado).'
+                  : 'Valor financeiro ou margem alocada na entrada deste trade.'}
               </p>
             </div>
           </div>
@@ -945,46 +999,48 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
           <div className="rounded-xl border border-slate-800 bg-black/60 p-3.5">
             <div className="flex items-center justify-between mb-2">
               <label className="font-bold text-white text-xs">
-                Resultado Líquido da Operação (R$)
+                Resultado Líquido da Operação (R$) {isEditingProtected && '🔒'}
               </label>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPnl(Math.abs(pnl) || 200);
-                    setResult('GAIN');
-                  }}
-                  className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                    pnl > 0 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  + Gain
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPnl(-Math.abs(pnl || 150));
-                    setResult('LOSS');
-                  }}
-                  className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                    pnl < 0 ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  - Loss
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPnl(0);
-                    setResult('BREAKEVEN');
-                  }}
-                  className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                    pnl === 0 ? 'bg-slate-600 text-white' : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  0x0 (Empate)
-                </button>
-              </div>
+              {!isEditingProtected && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPnl(Math.abs(pnl) || 200);
+                      setResult('GAIN');
+                    }}
+                    className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                      pnl > 0 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    + Gain
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPnl(-Math.abs(pnl || 150));
+                      setResult('LOSS');
+                    }}
+                    className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                      pnl < 0 ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    - Loss
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPnl(0);
+                      setResult('BREAKEVEN');
+                    }}
+                    className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                      pnl === 0 ? 'bg-slate-600 text-white' : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    0x0 (Empate)
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="relative">
@@ -993,6 +1049,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 type="number"
                 step="any"
                 required
+                disabled={isEditingProtected}
                 value={pnl}
                 onChange={(e) => {
                   const val = Number(e.target.value);
@@ -1001,13 +1058,15 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   else if (val < -0.001) setResult('LOSS');
                   else setResult('BREAKEVEN');
                 }}
-                className={`w-full rounded-xl border border-slate-800 bg-black pl-10 pr-3 py-2 text-base font-extrabold font-mono focus:outline-none ${
+                className={`w-full rounded-xl border border-slate-800 bg-black pl-10 pr-3 py-2 text-base font-extrabold font-mono focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
                   pnl > 0 ? 'text-emerald-400' : pnl < 0 ? 'text-rose-400' : 'text-white'
                 }`}
               />
             </div>
             <p className="mt-1 text-[11px] text-slate-400">
-              Insira o valor financeiro direto em reais (positivo para ganho, negativo para perda).
+              {isEditingProtected
+                ? '🔒 O resultado líquido (lucro/perda) é imutável nesta operação de Conta Real.'
+                : 'Insira o valor financeiro direto em reais (positivo para ganho, negativo para perda).'}
             </p>
           </div>
 

@@ -33,17 +33,23 @@ export function setGlobalCurrency(code: CurrencyCode): void {
 
 /**
   Regra Anti-Burlar do Sistema Anti-Fúria:
-  Trades capturados de Conta Real nas corretoras (Exnova, IQ Option, MT4/5, Profit, etc.)
-  são estritamente protegidos e IMUTÁVEIS contra exclusão para preservar a trava de risco.
+  Todas as operações da Conta Real capturadas ou registradas nas corretoras
+  são estritamente protegidas e IMUTÁVEIS contra exclusão para preservar a trava de risco.
  */
 export function isTradeProtected(trade: Trade): boolean {
   if (!trade) return false;
-  return (
-    trade.isReal === true ||
-    trade.accountType === 'REAL' ||
-    trade.isAutoCaptured === true ||
-    (Array.isArray(trade.tags) && trade.tags.includes('REAL'))
-  );
+
+  // Se a operação for explicitamente da Conta DEMO / Simulador, PERMITE exclusão
+  if (
+    trade.accountType === 'DEMO' ||
+    trade.isReal === false ||
+    (Array.isArray(trade.tags) && trade.tags.includes('DEMO'))
+  ) {
+    return false;
+  }
+
+  // Por padrão, todas as operações da Conta Real são 100% protegidas e imutáveis!
+  return true;
 }
 
 export function formatCurrency(value: number, overrideCurrency?: CurrencyCode): string {
