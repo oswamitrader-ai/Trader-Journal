@@ -41,6 +41,7 @@ import { CapitalHistoryModal } from './components/CapitalHistoryModal';
 import { KellyCalculatorModal } from './components/KellyCalculatorModal';
 import { StakePlannerModal } from './components/StakePlannerModal';
 import { ImportTradesModal } from './components/ImportTradesModal';
+import { PDFReportModal } from './components/PDFReportModal';
 import {
   supabase,
   checkSupabaseConnection,
@@ -165,6 +166,7 @@ export default function App() {
   const [isKellyCalculatorOpen, setIsKellyCalculatorOpen] = useState(false);
   const [isStakePlannerOpen, setIsStakePlannerOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isPdfReportOpen, setIsPdfReportOpen] = useState(false);
   const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isAntiFuriaModalOpen, setIsAntiFuriaModalOpen] = useState(false);
@@ -583,6 +585,7 @@ export default function App() {
         onOpenStakePlanner={() => setIsStakePlannerOpen(true)}
         onOpenSupabase={() => setIsSupabaseModalOpen(true)}
         onOpenAntiFuria={() => setIsAntiFuriaModalOpen(true)}
+        onOpenPdfReport={() => setIsPdfReportOpen(true)}
         onClearNotifications={handleClearNotifications}
         onResetData={handleResetData}
       />
@@ -967,12 +970,25 @@ export default function App() {
         isOpen={isStakePlannerOpen}
         onClose={() => setIsStakePlannerOpen(false)}
         initialCapital={metrics.currentCapital}
+        trades={trades}
+        metrics={metrics}
+        settings={settings}
       />
 
       <ImportTradesModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImportTrades={handleImportTrades}
+      />
+
+      <PDFReportModal
+        isOpen={isPdfReportOpen}
+        onClose={() => setIsPdfReportOpen(false)}
+        trades={trades}
+        metrics={metrics}
+        settings={settings}
+        dailyPerformance={dailyPerformance}
+        monthlyPerformance={monthlyPerformance}
       />
     </div>
   );

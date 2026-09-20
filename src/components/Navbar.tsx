@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Calculator,
   Upload,
+  FileText,
 } from 'lucide-react';
 import { OverallMetrics, RiskSettings, NotificationAlert } from '../types';
 import { formatCurrency, formatPercent, CurrencyCode, CURRENCIES, getGlobalCurrency } from '../utils/calculations';
@@ -37,6 +38,7 @@ interface NavbarProps {
   onOpenStakePlanner?: () => void;
   onOpenSupabase?: () => void;
   onOpenAntiFuria?: () => void;
+  onOpenPdfReport?: () => void;
   onClearNotifications?: () => void;
   onResetData?: () => void;
 }
@@ -59,6 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenStakePlanner,
   onOpenSupabase = () => {},
   onOpenAntiFuria,
+  onOpenPdfReport,
   onClearNotifications = () => {},
   onResetData = () => {},
 }) => {
@@ -247,6 +250,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md transition-all hover:bg-indigo-500 active:scale-95 shrink-0"
             >
               <TrendingUp className="h-4 w-4" />
+            </button>
+          )}
+
+          {/* PDF Report Button */}
+          {onOpenPdfReport && (
+            <button
+              id="btn-relatorio-pdf"
+              onClick={onOpenPdfReport}
+              title="Exportar Relatório Executivo em PDF"
+              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md transition-all hover:bg-violet-500 active:scale-95 shrink-0"
+            >
+              <FileText className="h-4 w-4" />
             </button>
           )}
 

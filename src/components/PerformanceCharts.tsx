@@ -566,9 +566,9 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                       {/* Render Candlesticks per Trade */}
                       {tradeCandles.map((c, idx) => {
                         const totalCandles = tradeCandles.length;
-                        const availableWidth = 800 - candlePaddingX - 160; // Reservando 160px na direita para os textos
+                        const availableWidth = 800 - candlePaddingX - 60;
                         const stepX = availableWidth / totalCandles;
-                        const candleWidth = Math.max(10, Math.min(36, stepX * 0.65));
+                        const candleWidth = Math.max(12, Math.min(42, stepX * 0.7));
                         const cx = candlePaddingX + idx * stepX + stepX / 2;
                         const xLeft = cx - candleWidth / 2;
 
@@ -576,11 +576,14 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                         const yClose = getCandleY(c.close);
 
                         const topBody = Math.min(yOpen, yClose);
-                        const bodyHeight = Math.max(3, Math.abs(yOpen - yClose));
+                        const bodyHeight = Math.max(4, Math.abs(yOpen - yClose));
                         
                         const isWin = c.isWin;
                         const color = isWin ? '#10b981' : '#f43f5e';
                         const isHovered = hoveredCandle?.index === c.index;
+
+                        // Only show floating text above/below candle if hovered or very few candles (<= 5)
+                        const showFloatingLabel = isHovered || totalCandles <= 5;
 
                         return (
                           <g
@@ -590,39 +593,46 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                             onMouseLeave={() => setHoveredCandle(null)}
                             onTouchStart={() => setHoveredCandle(c)}
                           >
-                            {/* Candle Body (Corpo) - Sem Pavio e Cor Sólida */}
+                            {/* Candle Body */}
                             <rect
                               x={xLeft}
                               y={topBody}
                               width={candleWidth}
                               height={bodyHeight}
-                              rx={2}
+                              rx={3}
                               fill={color}
                               fillOpacity={1}
                               stroke={isHovered ? '#ffffff' : color}
                               strokeWidth={isHovered ? 2 : 1}
                             />
 
-                            {/* Trade Value label on candle if space permits */}
-                            {(candleWidth >= 16 || isHovered) && (
+                            {/* Trade Value label on candle only when hovered or very few candles to avoid overlap */}
+                            {showFloatingLabel && (
                               <g>
                                 <text
                                   x={cx}
-                                  y={isWin ? topBody - 11 : topBody + bodyHeight + 11}
+                                  y={isWin ? topBody - 13 : topBody + bodyHeight + 13}
                                   textAnchor="middle"
                                   fontSize="9"
                                   fontWeight="bold"
-                                  fill="#94a3b8"
+                                  fill="#ffffff"
+                                  stroke="#000000"
+                                  strokeWidth="3"
+                                  paintOrder="stroke"
                                   className="font-mono select-none"
                                 >
                                   {formatCurrency(c.close)}
                                 </text>
                                 <text
                                   x={cx}
-                                  y={isWin ? topBody - 3 : topBody + bodyHeight + 19}
+                                  y={isWin ? topBody - 4 : topBody + bodyHeight + 22}
                                   textAnchor="middle"
                                   fontSize="8"
+                                  fontWeight="bold"
                                   fill={color}
+                                  stroke="#000000"
+                                  strokeWidth="3"
+                                  paintOrder="stroke"
                                   className="font-mono select-none"
                                 >
                                   ({c.pnl >= 0 ? '+' : ''}{formatCurrency(c.pnl)})
@@ -630,22 +640,25 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                               </g>
                             )}
 
-                            {/* X Axis Trade Index & Time */}
+                            {/* X Axis Trade Index & Time (Cleaner view when many candles) */}
                             <text
                               x={cx}
                               y={candleChartHeight - 6}
                               textAnchor="middle"
                               fontSize="9"
+                              fontWeight={isHovered ? 'bold' : 'normal'}
                               fill={isHovered ? '#ffffff' : '#94a3b8'}
                               className="font-mono select-none"
                             >
-                              #{c.index} ({c.time})
+                              {totalCandles <= 7 || isHovered
+                                ? `#${c.index} (${c.time})`
+                                : `#${c.index}`}
                             </text>
                           </g>
                         );
                       })}
 
-                      {/* Guide Lines & Labels (Rendered last to stay on top) */}
+                      {/* Guide Lines & Labels */}
                       {/* Zero axis line (Starting Balance) */}
                       <line
                         x1={candlePaddingX}
@@ -655,40 +668,6 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                         stroke="#475569"
                         strokeWidth="1.5"
                       />
-
-                      {/* Current Capital Line */}
-                      <g>
-                        <line
-                          x1={candlePaddingX}
-                          y1={getCandleY(tradeCandles[tradeCandles.length - 1].close)}
-                          x2={800 - candlePaddingX}
-                          y2={getCandleY(tradeCandles[tradeCandles.length - 1].close)}
-                          stroke="#3b82f6"
-                          strokeDasharray="3 3"
-                          strokeWidth="1.5"
-                        />
-                        <rect
-                          x={800 - candlePaddingX - 140}
-                          y={getCandleY(tradeCandles[tradeCandles.length - 1].close) - 13}
-                          width={140}
-                          height={16}
-                          fill="#000000"
-                        />
-                        <text
-                          x={800 - candlePaddingX}
-                          y={getCandleY(tradeCandles[tradeCandles.length - 1].close) - 1}
-                          textAnchor="end"
-                          fontSize="10"
-                          fontWeight="bold"
-                          fill="#3b82f6"
-                          stroke="#000000"
-                          strokeWidth="3"
-                          paintOrder="stroke"
-                          className="font-mono"
-                        >
-                          Saldo: {formatCurrency(tradeCandles[tradeCandles.length - 1].close)}
-                        </text>
-                      </g>
                     </svg>
 
                     {/* Hovered Candle Tooltip Detail Card */}
