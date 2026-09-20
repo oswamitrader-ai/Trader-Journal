@@ -1,6 +1,19 @@
 export type TradeResult = 'GAIN' | 'LOSS' | 'BREAKEVEN';
 export type TradeType = 'BUY' | 'SELL';
 
+export type UserRole = 'ADMIN' | 'CLIENT';
+
+export interface SystemUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  active: boolean;
+  createdAt: string;
+  lastLoginAt?: string;
+  password?: string;
+}
+
 export interface Trade {
   id: string;
   date: string; // YYYY-MM-DD

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Trade, RiskSettings } from '../types';
+import { isTradeProtected } from '../utils/calculations';
 
 // Default configuration provided by the user
 export const SUPABASE_URL =
@@ -91,19 +92,23 @@ export async function checkSupabaseConnection(): Promise<SupabaseHealthResult> {
 /**
  * Load all trades from Supabase (Isolated per device/user)
  */
-export async function fetchTradesFromSupabase(): Promise<{ data: Trade[] | null; error: string | null }> {
+export async function fetchTradesFromSupabase(userEmail?: string): Promise<{ data: Trade[] | null; error: string | null }> {
   try {
     const deviceId = getClientDeviceId();
-    // Tenta buscar filtrando por device_id
-    let { data, error } = await supabase
-      .from('trades')
-      .select('*')
-      .eq('device_id', deviceId)
+    let query = supabase.from('trades').select('*');
+
+    if (userEmail) {
+      query = query.eq('user_email', userEmail);
+    } else {
+      query = query.eq('device_id', deviceId);
+    }
+
+    let { data, error } = await query
       .order('date', { ascending: false })
       .order('time', { ascending: false });
 
-    // Fallback se a coluna device_id ainda não existir no schema do Supabase
-    if (error && (error.code === 'PGRST204' || error.message.includes('column') || error.message.includes('device_id'))) {
+    // Fallback se colunas ainda não existirem no schema do Supabase
+    if (error && (error.code === 'PGRST204' || error.message.includes('column'))) {
       const fallback = await supabase
         .from('trades')
         .select('*')
@@ -147,12 +152,13 @@ export async function fetchTradesFromSupabase(): Promise<{ data: Trade[] | null;
 /**
  * Insert or update a single trade in Supabase (Isolated per device/user)
  */
-export async function upsertTradeToSupabase(trade: Trade): Promise<{ success: boolean; error: string | null }> {
+export async function upsertTradeToSupabase(trade: Trade, userEmail?: string): Promise<{ success: boolean; error: string | null }> {
   try {
     const deviceId = getClientDeviceId();
     const payload: any = {
       id: trade.id,
       device_id: deviceId,
+      user_email: userEmail || null,
       date: trade.date,
       time: trade.time,
       asset: trade.asset,
@@ -174,7 +180,7 @@ export async function upsertTradeToSupabase(trade: Trade): Promise<{ success: bo
     let { error } = await supabase.from('trades').upsert(payload);
 
     if (error && (error.code === 'PGRST204' || error.message.includes('column'))) {
-      // Fallback enviando campos base se novas colunas ainda não existirem no Supabase
+      delete payload.user_email;
       delete payload.device_id;
       delete payload.accountType;
       delete payload.isReal;
@@ -197,6 +203,15 @@ export async function upsertTradeToSupabase(trade: Trade): Promise<{ success: bo
  */
 export async function deleteTradeFromSupabase(tradeId: string): Promise<{ success: boolean; error: string | null }> {
   try {
+    // 1. Consulta se a operação é da Conta Real (protegida pelo Anti-Fúria)
+    const { data: existing } = await supabase.from('trades').select('*').eq('id', tradeId).maybeSingle();
+    if (existing && isTradeProtected(existing as Trade)) {
+      return {
+        success: false,
+        error: 'Operação de Conta Real capturada é estritamente protegida pelo Sistema Anti-Fúria e não pode ser excluída.',
+      };
+    }
+
     const { error } = await supabase.from('trades').delete().eq('id', tradeId);
     if (error) {
       return { success: false, error: error.message };
@@ -208,12 +223,19 @@ export async function deleteTradeFromSupabase(tradeId: string): Promise<{ succes
 }
 
 /**
- * Delete all trades from Supabase for this device
+ * Delete all trades from Supabase for this device/user
  */
-export async function clearAllTradesFromSupabase(): Promise<{ success: boolean; error: string | null }> {
+export async function clearAllTradesFromSupabase(userEmail?: string): Promise<{ success: boolean; error: string | null }> {
   try {
     const deviceId = getClientDeviceId();
-    let { error } = await supabase.from('trades').delete().eq('device_id', deviceId);
+    let query = supabase.from('trades').delete();
+    if (userEmail) {
+      query = query.eq('user_email', userEmail);
+    } else {
+      query = query.eq('device_id', deviceId);
+    }
+
+    let { error } = await query;
     if (error) {
       const fallback = await supabase.from('trades').delete().neq('id', '___all_records_cleanup___');
       error = fallback.error;
@@ -230,7 +252,7 @@ export async function clearAllTradesFromSupabase(): Promise<{ success: boolean; 
 /**
  * Batch upload/sync all local trades to Supabase
  */
-export async function syncAllTradesToSupabase(trades: Trade[]): Promise<{ count: number; error: string | null }> {
+export async function syncAllTradesToSupabase(trades: Trade[], userEmail?: string): Promise<{ count: number; error: string | null }> {
   if (!trades || trades.length === 0) {
     return { count: 0, error: null };
   }
@@ -240,6 +262,7 @@ export async function syncAllTradesToSupabase(trades: Trade[]): Promise<{ count:
     const payload = trades.map((trade) => ({
       id: trade.id,
       device_id: deviceId,
+      user_email: userEmail || null,
       date: trade.date,
       time: trade.time,
       asset: trade.asset,
@@ -260,7 +283,7 @@ export async function syncAllTradesToSupabase(trades: Trade[]): Promise<{ count:
 
     let { error } = await supabase.from('trades').upsert(payload);
     if (error && (error.code === 'PGRST204' || error.message.includes('column'))) {
-      const cleanPayload = payload.map(({ device_id, accountType, isReal, isAutoCaptured, ...rest }) => rest);
+      const cleanPayload = payload.map(({ user_email, device_id, accountType, isReal, isAutoCaptured, ...rest }) => rest);
       const res = await supabase.from('trades').upsert(cleanPayload);
       error = res.error;
     }

@@ -35,10 +35,10 @@ interface SupabaseSyncModalProps {
   onTradesLoadedFromCloud: (trades: Trade[]) => void;
 }
 
-const SQL_SCHEMA_SCRIPT = `-- SCHEMA DE CRIAÇÃO NO SUPABASE
+const SQL_SCHEMA_SCRIPT = `-- SCHEMA E MIGRAÇÃO DE SEGURANÇA NO SUPABASE
 -- Copie e cole este código no Supabase: SQL Editor -> New Query -> Run
 
--- 1. Tabela de Trades
+-- 1. Garante a existência da tabela de trades
 CREATE TABLE IF NOT EXISTS public.trades (
   id TEXT PRIMARY KEY,
   date TEXT NOT NULL,
@@ -47,31 +47,44 @@ CREATE TABLE IF NOT EXISTS public.trades (
   type TEXT NOT NULL CHECK (type IN ('BUY', 'SELL')),
   strategy TEXT NOT NULL,
   result TEXT NOT NULL CHECK (result IN ('GAIN', 'LOSS', 'BREAKEVEN')),
-  pnl NUMERIC NOT NULL,
-  "contractsOrQuantity" NUMERIC NOT NULL DEFAULT 1,
-  "entryPrice" NUMERIC,
-  "exitPrice" NUMERIC,
-  notes TEXT,
-  tags TEXT[],
-  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+  pnl NUMERIC NOT NULL
 );
 
+-- 2. Adiciona todas as colunas de segurança se ainda não existirem
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS user_email TEXT;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS device_id TEXT;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "contractsOrQuantity" NUMERIC DEFAULT 1;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "entryPrice" NUMERIC;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "exitPrice" NUMERIC;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS tags TEXT[];
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "accountType" TEXT;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "isReal" BOOLEAN DEFAULT false;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "isAutoCaptured" BOOLEAN DEFAULT false;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+-- 3. Ativa a segurança RLS
 ALTER TABLE public.trades ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Permitir leitura de trades" ON public.trades;
-CREATE POLICY "Permitir leitura de trades" ON public.trades FOR SELECT USING (true);
+-- 4. Cria as políticas de segurança RLS
+DROP POLICY IF EXISTS "Trades Read Access" ON public.trades;
+CREATE POLICY "Trades Read Access" ON public.trades FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "Permitir inserção de trades" ON public.trades;
-CREATE POLICY "Permitir inserção de trades" ON public.trades FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Trades Insert Access" ON public.trades;
+CREATE POLICY "Trades Insert Access" ON public.trades FOR INSERT WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Permitir atualização de trades" ON public.trades;
-CREATE POLICY "Permitir atualização de trades" ON public.trades FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Trades Update Access" ON public.trades;
+CREATE POLICY "Trades Update Access" ON public.trades FOR UPDATE USING (
+  COALESCE("isReal", false) IS NOT TRUE AND COALESCE("isAutoCaptured", false) IS NOT TRUE
+);
 
-DROP POLICY IF EXISTS "Permitir exclusão de trades" ON public.trades;
-CREATE POLICY "Permitir exclusão de trades" ON public.trades FOR DELETE USING (true);
+DROP POLICY IF EXISTS "Trades Delete Access" ON public.trades;
+CREATE POLICY "Trades Delete Access" ON public.trades FOR DELETE USING (
+  COALESCE("isReal", false) IS NOT TRUE AND COALESCE("isAutoCaptured", false) IS NOT TRUE
+);
 
--- 2. Tabela de Configurações de Risco
+-- 5. Tabela de Configurações de Risco
 CREATE TABLE IF NOT EXISTS public.risk_settings (
   id TEXT PRIMARY KEY DEFAULT 'default_settings',
   "initialCapital" NUMERIC NOT NULL DEFAULT 10000,
@@ -86,14 +99,8 @@ CREATE TABLE IF NOT EXISTS public.risk_settings (
 
 ALTER TABLE public.risk_settings ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Permitir leitura de risk_settings" ON public.risk_settings;
-CREATE POLICY "Permitir leitura de risk_settings" ON public.risk_settings FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Permitir gravação de risk_settings" ON public.risk_settings;
-CREATE POLICY "Permitir gravação de risk_settings" ON public.risk_settings FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Permitir atualização de risk_settings" ON public.risk_settings;
-CREATE POLICY "Permitir atualização de risk_settings" ON public.risk_settings FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Risk Settings Access" ON public.risk_settings;
+CREATE POLICY "Risk Settings Access" ON public.risk_settings FOR ALL USING (true);
 `;
 
 export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({

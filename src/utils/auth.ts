@@ -1,0 +1,235 @@
+import { SystemUser } from '../types';
+
+const USERS_STORAGE_KEY = 'trader_journal_users_v1';
+const SESSION_STORAGE_KEY = 'trader_journal_session_v1';
+
+// Admin padrão pré-cadastrado no sistema
+export const INITIAL_ADMIN_USER: SystemUser = {
+  id: 'usr-admin-001',
+  email: 'oswamitrader@gmail.com',
+  name: 'Swami Trader (Admin)',
+  role: 'ADMIN',
+  active: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  password: 'admin123',
+};
+
+// Obter todos os usuários pré-cadastrados (com fallback para o Admin padrão)
+export function getSavedUsers(): SystemUser[] {
+  if (typeof window === 'undefined') return [INITIAL_ADMIN_USER];
+
+  try {
+    const stored = localStorage.getItem(USERS_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Garantir que o email do admin principal sempre exista e tenha role ADMIN
+        const hasAdmin = parsed.some(
+          (u: SystemUser) => u.email.toLowerCase() === INITIAL_ADMIN_USER.email.toLowerCase()
+        );
+        if (!hasAdmin) {
+          const updated = [INITIAL_ADMIN_USER, ...parsed];
+          localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
+          return updated;
+        }
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao carregar lista de usuários:', e);
+  }
+
+  // Lista padrão inicial com o Admin
+  const defaultList = [INITIAL_ADMIN_USER];
+  try {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(defaultList));
+  } catch (e) {
+    console.error(e);
+  }
+  return defaultList;
+}
+
+// Salvar a lista atualizada de usuários no localStorage
+export function saveUsersList(users: SystemUser[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+  } catch (e) {
+    console.error('Erro ao salvar lista de usuários:', e);
+  }
+}
+
+// Obter usuário da sessão atual
+export function getCurrentSession(): SystemUser | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const stored = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (stored && stored !== 'null' && stored !== 'undefined') {
+      const user = JSON.parse(stored) as SystemUser;
+      // Valida se o usuário ainda existe e está ativo na lista oficial
+      const allUsers = getSavedUsers();
+      const validUser = allUsers.find(
+        (u) => u.email.toLowerCase() === user.email.toLowerCase() && u.active
+      );
+      if (validUser) {
+        return validUser;
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao carregar sessão:', e);
+  }
+
+  return null;
+}
+
+// Salvar sessão do usuário logado
+export function setCurrentSession(user: SystemUser | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (user) {
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  } catch (e) {
+    console.error('Erro ao atualizar sessão:', e);
+  }
+}
+
+// Encerrar a sessão do usuário
+export function logoutUser(): void {
+  setCurrentSession(null);
+}
+
+// Autenticar usuário por e-mail e senha
+export function authenticateUser(
+  emailInput: string,
+  passwordInput: string
+): { success: boolean; user?: SystemUser; message?: string } {
+  const cleanEmail = emailInput.trim().toLowerCase();
+  const cleanPass = passwordInput.trim();
+
+  if (!cleanEmail || !cleanPass) {
+    return { success: false, message: 'Por favor, preencha o e-mail e a senha.' };
+  }
+
+  const allUsers = getSavedUsers();
+  const foundUser = allUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+
+  if (!foundUser) {
+    return {
+      success: false,
+      message: 'E-mail não cadastrado. O acesso é exclusivo para usuários autorizados pelo Administrador.',
+    };
+  }
+
+  if (!foundUser.active) {
+    return {
+      success: false,
+      message: 'Sua conta está inativa. Entre em contato com o Administrador para reativar seu acesso.',
+    };
+  }
+
+  // Verifica senha (se não houver senha definida, aceita admin123 como padrão para o admin)
+  const expectedPass = foundUser.password || 'admin123';
+  if (cleanPass !== expectedPass) {
+    return {
+      success: false,
+      message: 'Senha incorreta. Verifique os dados digitados e tente novamente.',
+    };
+  }
+
+  // Sucesso - atualiza o último login
+  const updatedUser: SystemUser = {
+    ...foundUser,
+    lastLoginAt: new Date().toISOString(),
+  };
+
+  const updatedList = allUsers.map((u) => (u.id === foundUser.id ? updatedUser : u));
+  saveUsersList(updatedList);
+  setCurrentSession(updatedUser);
+
+  return {
+    success: true,
+    user: updatedUser,
+  };
+}
+
+// Cadastrar novo cliente pelo Admin
+export function createNewUserByAdmin(newUser: {
+  name: string;
+  email: string;
+  password?: string;
+  role?: 'ADMIN' | 'CLIENT';
+}): { success: boolean; user?: SystemUser; message?: string } {
+  const cleanEmail = newUser.email.trim().toLowerCase();
+  const cleanName = newUser.name.trim();
+
+  if (!cleanEmail || !cleanName) {
+    return { success: false, message: 'Preencha o nome e o e-mail do cliente.' };
+  }
+
+  const allUsers = getSavedUsers();
+  const exists = allUsers.some((u) => u.email.toLowerCase() === cleanEmail);
+
+  if (exists) {
+    return { success: false, message: `O e-mail ${cleanEmail} já está cadastrado no sistema.` };
+  }
+
+  const userObj: SystemUser = {
+    id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    email: cleanEmail,
+    name: cleanName,
+    role: newUser.role || 'CLIENT',
+    active: true,
+    createdAt: new Date().toISOString(),
+    password: newUser.password?.trim() || 'cliente123',
+  };
+
+  const updatedList = [userObj, ...allUsers];
+  saveUsersList(updatedList);
+
+  return {
+    success: true,
+    user: userObj,
+    message: `Cliente ${cleanName} (${cleanEmail}) cadastrado com sucesso!`,
+  };
+}
+
+// Alternar status ativo/inativo do usuário
+export function toggleUserStatus(userId: string): SystemUser[] {
+  const allUsers = getSavedUsers();
+  const updated = allUsers.map((u) => {
+    if (u.id === userId && u.email.toLowerCase() !== INITIAL_ADMIN_USER.email.toLowerCase()) {
+      return { ...u, active: !u.active };
+    }
+    return u;
+  });
+  saveUsersList(updated);
+  return updated;
+}
+
+// Redefinir senha de um usuário
+export function resetUserPassword(userId: string, newPassword: string): SystemUser[] {
+  const allUsers = getSavedUsers();
+  const updated = allUsers.map((u) => {
+    if (u.id === userId) {
+      return { ...u, password: newPassword.trim() };
+    }
+    return u;
+  });
+  saveUsersList(updated);
+  return updated;
+}
+
+// Excluir um cliente pelo Admin
+export function deleteUserByAdmin(userId: string): SystemUser[] {
+  const allUsers = getSavedUsers();
+  // Não permite apagar o admin principal
+  const updated = allUsers.filter(
+    (u) => !(u.id === userId && u.email.toLowerCase() === INITIAL_ADMIN_USER.email.toLowerCase())
+  );
+  saveUsersList(updated);
+  return updated;
+}

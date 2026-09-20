@@ -15,8 +15,10 @@ import {
   Calculator,
   Upload,
   FileText,
+  Users,
+  LogOut,
 } from 'lucide-react';
-import { OverallMetrics, RiskSettings, NotificationAlert } from '../types';
+import { OverallMetrics, RiskSettings, NotificationAlert, SystemUser } from '../types';
 import { formatCurrency, formatPercent, CurrencyCode, CURRENCIES, getGlobalCurrency } from '../utils/calculations';
 import { SupabaseConnectionStatus } from '../lib/supabase';
 
@@ -29,6 +31,7 @@ interface NavbarProps {
   currentCapital?: number;
   supabaseStatus?: SupabaseConnectionStatus;
   currentCurrency?: CurrencyCode;
+  currentUser?: SystemUser | null;
   onCurrencyChange?: (currency: CurrencyCode) => void;
   onOpenNewTrade: () => void;
   onOpenImportModal?: () => void;
@@ -39,6 +42,8 @@ interface NavbarProps {
   onOpenSupabase?: () => void;
   onOpenAntiFuria?: () => void;
   onOpenPdfReport?: () => void;
+  onOpenAdminManagement?: () => void;
+  onLogout?: () => void;
   onClearNotifications?: () => void;
   onResetData?: () => void;
 }
@@ -52,6 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentCapital,
   supabaseStatus = 'connecting',
   currentCurrency = getGlobalCurrency(),
+  currentUser,
   onCurrencyChange = (_curr: CurrencyCode) => {},
   onOpenNewTrade,
   onOpenImportModal,
@@ -62,6 +68,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSupabase = () => {},
   onOpenAntiFuria,
   onOpenPdfReport,
+  onOpenAdminManagement,
+  onLogout,
   onClearNotifications = () => {},
   onResetData = () => {},
 }) => {
@@ -418,6 +426,51 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Settings className="h-4 w-4" />
           </button>
+
+          {/* Admin User Management Button */}
+          {currentUser?.role === 'ADMIN' && onOpenAdminManagement && (
+            <button
+              id="btn-gestao-clientes-admin"
+              onClick={onOpenAdminManagement}
+              title="Painel Admin - Gestão de Clientes"
+              className="flex h-8 sm:h-9 items-center gap-1.5 px-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md transition hover:opacity-90 active:scale-95 shrink-0 text-xs font-bold font-mono"
+            >
+              <Users className="h-4 w-4 text-violet-200" />
+              <span className="hidden sm:inline">Clientes</span>
+            </button>
+          )}
+
+          {/* Current User Badge & Logout */}
+          {currentUser && (
+            <div className="flex items-center gap-1.5 border-l border-slate-800 pl-2 ml-1">
+              <div
+                title={`${currentUser.name} (${currentUser.email})`}
+                className="hidden xl:flex flex-col items-end text-[11px]"
+              >
+                <span className="font-bold text-slate-200 leading-tight max-w-[120px] truncate">
+                  {currentUser.name || currentUser.email.split('@')[0]}
+                </span>
+                <span
+                  className={`text-[9px] font-mono font-bold uppercase tracking-wider ${
+                    currentUser.role === 'ADMIN' ? 'text-violet-400' : 'text-emerald-400'
+                  }`}
+                >
+                  {currentUser.role === 'ADMIN' ? '[ADMIN]' : '[CLIENTE]'}
+                </span>
+              </div>
+
+              {onLogout && (
+                <button
+                  id="btn-logout"
+                  onClick={onLogout}
+                  title="Sair da Conta"
+                  className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-rose-950/40 border border-rose-900/50 text-rose-300 hover:bg-rose-900/60 hover:text-white shadow-md transition active:scale-95 shrink-0"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </header>

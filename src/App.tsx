@@ -43,6 +43,10 @@ import { KellyCalculatorModal } from './components/KellyCalculatorModal';
 import { StakePlannerModal } from './components/StakePlannerModal';
 import { ImportTradesModal } from './components/ImportTradesModal';
 import { PDFReportModal } from './components/PDFReportModal';
+import { LoginScreen } from './components/LoginScreen';
+import { AdminUserManagementModal } from './components/AdminUserManagementModal';
+import { getCurrentSession, logoutUser } from './utils/auth';
+import { SystemUser } from './types';
 import {
   supabase,
   checkSupabaseConnection,
@@ -51,6 +55,7 @@ import {
   upsertTradeToSupabase,
   deleteTradeFromSupabase,
   clearAllTradesFromSupabase,
+  syncAllTradesToSupabase,
   saveRiskSettingsToSupabase,
   SupabaseHealthResult,
 } from './lib/supabase';
@@ -58,6 +63,15 @@ import {
 type ActiveView = 'all' | 'charts' | 'calendar' | 'weekly' | 'trades';
 
 export default function App() {
+  // 0. Auth State
+  const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => getCurrentSession());
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+  };
+
   // 1. Persistent Trades State (100% Real - sem dados mockados)
   const [trades, setTrades] = useState<Trade[]>(() => {
     try {
@@ -195,10 +209,13 @@ export default function App() {
 
         if (health.status === 'connected') {
           // If table exists, load real trades from Supabase
-          const cloudTrades = await fetchTradesFromSupabase();
+          const cloudTrades = await fetchTradesFromSupabase(currentUser?.email);
           if (!isMounted) return;
-          if (cloudTrades.data) {
+          if (cloudTrades.data && cloudTrades.data.length > 0) {
             setTrades(cloudTrades.data);
+          } else if (trades.length > 0) {
+            // Se localmente temos trades mas no cloud ainda não, faz push automático das locais!
+            syncAllTradesToSupabase(trades, currentUser?.email);
           }
 
           const cloudSettings = await fetchRiskSettingsFromSupabase();
@@ -212,7 +229,9 @@ export default function App() {
       }
     };
 
-    initSupabase();
+    if (currentUser) {
+      initSupabase();
+    }
 
     // Subscribe to real-time changes on public.trades
     const channel = supabase
@@ -221,7 +240,7 @@ export default function App() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'trades' },
         async () => {
-          const res = await fetchTradesFromSupabase();
+          const res = await fetchTradesFromSupabase(currentUser?.email);
           if (res.data) {
             setTrades(res.data);
           }
@@ -233,7 +252,7 @@ export default function App() {
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [currentUser]);
 
   // 4. Computed Analytics Engine
   const netCapitalTransactions = useMemo(() => {
@@ -596,6 +615,10 @@ export default function App() {
     setDismissedAlerts((prev) => ({ ...prev, [alertKey]: true }));
   };
 
+  if (!currentUser) {
+    return <LoginScreen onLoginSuccess={(user) => setCurrentUser(user)} />;
+  }
+
   return (
     <div className="min-h-screen bg-black text-slate-100 selection:bg-emerald-500 selection:text-white pb-16">
       {/* Top Navigation */}
@@ -608,6 +631,7 @@ export default function App() {
         currentCapital={metrics.currentCapital}
         supabaseStatus={supabaseHealth.status}
         currentCurrency={currency}
+        currentUser={currentUser}
         onCurrencyChange={handleCurrencyChange}
         onOpenNewTrade={handleOpenNewTrade}
         onOpenImportModal={() => setIsImportModalOpen(true)}
@@ -618,6 +642,8 @@ export default function App() {
         onOpenSupabase={() => setIsSupabaseModalOpen(true)}
         onOpenAntiFuria={() => setIsAntiFuriaModalOpen(true)}
         onOpenPdfReport={() => setIsPdfReportOpen(true)}
+        onOpenAdminManagement={() => setIsAdminModalOpen(true)}
+        onLogout={handleLogout}
         onClearNotifications={handleClearNotifications}
         onResetData={handleResetData}
       />
@@ -1021,6 +1047,12 @@ export default function App() {
         settings={settings}
         dailyPerformance={dailyPerformance}
         monthlyPerformance={monthlyPerformance}
+      />
+
+      <AdminUserManagementModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        currentUser={currentUser}
       />
     </div>
   );
