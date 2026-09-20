@@ -226,13 +226,16 @@ export async function fetchRiskSettingsFromSupabase(): Promise<{ data: RiskSetti
     }
 
     const settings: RiskSettings = {
-      initialCapital: Number(data.initialCapital) || 10000,
+      initialCapital: data.initialCapital != null ? Number(data.initialCapital) : 0,
       dailyProfitTarget: Number(data.dailyProfitTarget) || 500,
       dailyLossLimit: Number(data.dailyLossLimit) || 300,
       monthlyProfitTarget: Number(data.monthlyProfitTarget) || 5000,
       monthlyLossLimit: Number(data.monthlyLossLimit) || 3000,
       maxTradesPerDay: Number(data.maxTradesPerDay) || 5,
       alertSoundEnabled: Boolean(data.alertSoundEnabled),
+      antiFuriaCustomWindowEnabled: Boolean(data.antiFuriaCustomWindowEnabled),
+      antiFuriaStartTime: data.antiFuriaStartTime || '07:00',
+      antiFuriaEndTime: data.antiFuriaEndTime || '11:30',
     };
 
     return { data: settings, error: null };
@@ -246,7 +249,7 @@ export async function fetchRiskSettingsFromSupabase(): Promise<{ data: RiskSetti
  */
 export async function saveRiskSettingsToSupabase(settings: RiskSettings): Promise<{ success: boolean; error: string | null }> {
   try {
-    const { error } = await supabase.from('risk_settings').upsert({
+    const payload: any = {
       id: 'default_settings',
       initialCapital: settings.initialCapital,
       dailyProfitTarget: settings.dailyProfitTarget,
@@ -255,10 +258,22 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings): Promis
       monthlyLossLimit: settings.monthlyLossLimit,
       maxTradesPerDay: settings.maxTradesPerDay,
       alertSoundEnabled: settings.alertSoundEnabled,
+      antiFuriaCustomWindowEnabled: settings.antiFuriaCustomWindowEnabled ?? false,
+      antiFuriaStartTime: settings.antiFuriaStartTime || '07:00',
+      antiFuriaEndTime: settings.antiFuriaEndTime || '11:30',
       updated_at: new Date().toISOString(),
-    });
+    };
+
+    const { error } = await supabase.from('risk_settings').upsert(payload);
 
     if (error) {
+      // Se a coluna antiFuria ainda não existir na tabela do Supabase, faz fallback enviando os campos base
+      if (error.code === 'PGRST204' || error.message.includes('column') || error.message.includes('schema')) {
+        delete payload.antiFuriaCustomWindowEnabled;
+        delete payload.antiFuriaStartTime;
+        delete payload.antiFuriaEndTime;
+        await supabase.from('risk_settings').upsert(payload);
+      }
       return { success: false, error: error.message };
     }
     return { success: true, error: null };

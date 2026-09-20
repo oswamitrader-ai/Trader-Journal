@@ -78,18 +78,20 @@ export default function App() {
       const saved = localStorage.getItem('trader_journal_settings_v1');
       if (saved && saved !== 'undefined' && saved !== 'null') {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') {
+          const parseVal = (v: any, fallback: number) => {
+            const num = Number(v);
+            return isNaN(num) || v === null || v === undefined ? fallback : num;
+          };
           return {
             ...DEFAULT_RISK_SETTINGS,
             ...parsed,
-            initialCapital: Number(parsed.initialCapital) || DEFAULT_RISK_SETTINGS.initialCapital,
-            dailyProfitTarget: Number(parsed.dailyProfitTarget) || DEFAULT_RISK_SETTINGS.dailyProfitTarget,
-            dailyLossLimit: Number(parsed.dailyLossLimit) || DEFAULT_RISK_SETTINGS.dailyLossLimit,
-            monthlyProfitTarget: Number(parsed.monthlyProfitTarget) || DEFAULT_RISK_SETTINGS.monthlyProfitTarget,
-            monthlyLossLimit: Number(parsed.monthlyLossLimit) || DEFAULT_RISK_SETTINGS.monthlyLossLimit,
-            maxTradesPerDay: Number(parsed.maxTradesPerDay) || DEFAULT_RISK_SETTINGS.maxTradesPerDay,
+            initialCapital: parseVal(parsed.initialCapital, DEFAULT_RISK_SETTINGS.initialCapital),
+            dailyProfitTarget: parseVal(parsed.dailyProfitTarget, DEFAULT_RISK_SETTINGS.dailyProfitTarget),
+            dailyLossLimit: parseVal(parsed.dailyLossLimit, DEFAULT_RISK_SETTINGS.dailyLossLimit),
+            monthlyProfitTarget: parseVal(parsed.monthlyProfitTarget, DEFAULT_RISK_SETTINGS.monthlyProfitTarget),
+            monthlyLossLimit: parseVal(parsed.monthlyLossLimit, DEFAULT_RISK_SETTINGS.monthlyLossLimit),
+            maxTradesPerDay: parseVal(parsed.maxTradesPerDay, DEFAULT_RISK_SETTINGS.maxTradesPerDay),
           };
-        }
       }
     } catch (e) {
       console.warn('Failed to load saved settings from storage', e);
@@ -221,7 +223,12 @@ export default function App() {
   const netCapitalTransactions = useMemo(() => {
     return capitalTransactions.reduce((acc, tx) => {
       const amt = Number(tx.amount) || 0;
-      return tx.type === 'DEPOSIT' ? acc + amt : acc - amt;
+      const fee = Number(tx.fee) || 0;
+      if (tx.type === 'DEPOSIT') {
+        return acc + (amt - fee);
+      } else {
+        return acc - (amt + fee);
+      }
     }, 0);
   }, [capitalTransactions]);
 
@@ -315,11 +322,25 @@ export default function App() {
     todayPnl,
     settings.dailyLossLimit,
     metrics.winRate,
-    metrics.profitFactor,
-    metrics.currentCapital,
-    metrics.maxDrawdownPercent,
     todayPerformance?.tradesCount,
   ]);
+
+  // Ouvinte de trades capturados automaticamente pela Extensão Chrome em tempo real
+  useEffect(() => {
+    const handleAutoCapturedMessage = (event: MessageEvent) => {
+      if (
+        event.data &&
+        (event.data.type === 'AUTO_TRADE_CAPTURED' || event.data.type === 'TRADER_JOURNAL_AUTO_TRADE') &&
+        event.data.trade
+      ) {
+        const capturedTrade: Trade = event.data.trade;
+        handleSaveTrade(capturedTrade);
+      }
+    };
+
+    window.addEventListener('message', handleAutoCapturedMessage);
+    return () => window.removeEventListener('message', handleAutoCapturedMessage);
+  }, []);
 
   // Handlers for CRUD
   const handleSaveTrade = (tradeData: Trade) => {
@@ -360,6 +381,20 @@ export default function App() {
         if (res.error) {
           console.warn('Erro ao remover do Supabase:', res.error);
         }
+      });
+    }
+  };
+
+  const handleDeleteMultipleTrades = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    if (window.confirm(`Tem certeza que deseja excluir as ${ids.length} operações selecionadas?`)) {
+      const idSet = new Set(ids);
+      setTrades((prev) => prev.filter((t) => !idSet.has(t.id)));
+      // Delete from Supabase in background
+      ids.forEach((id) => {
+        deleteTradeFromSupabase(id).catch((err) => {
+          console.warn('Erro ao remover do Supabase:', err);
+        });
       });
     }
   };
@@ -709,6 +744,7 @@ export default function App() {
               onOpenImportModal={() => setIsImportModalOpen(true)}
               onEditTrade={handleEditTrade}
               onDeleteTrade={handleDeleteTrade}
+              onDeleteMultipleTrades={handleDeleteMultipleTrades}
               onResetData={handleResetData}
             />
           </div>
@@ -756,6 +792,7 @@ export default function App() {
               onOpenImportModal={() => setIsImportModalOpen(true)}
               onEditTrade={handleEditTrade}
               onDeleteTrade={handleDeleteTrade}
+              onDeleteMultipleTrades={handleDeleteMultipleTrades}
               onResetData={handleResetData}
             />
           </div>
@@ -860,6 +897,7 @@ export default function App() {
         onDeleteTrade={(id) => {
           handleDeleteTrade(id);
         }}
+        onDeleteMultipleTrades={handleDeleteMultipleTrades}
       />
 
       <AiTraderMentorModal

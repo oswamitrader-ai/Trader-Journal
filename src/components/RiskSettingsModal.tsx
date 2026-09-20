@@ -33,16 +33,31 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
     settings.antiFuriaEndTime || '11:30'
   );
 
+  // Sincroniza estado interno sempre que o modal abre ou settings muda
+  React.useEffect(() => {
+    if (isOpen) {
+      setInitialCapital(settings.initialCapital);
+      setDailyProfitTarget(settings.dailyProfitTarget);
+      setDailyLossLimit(settings.dailyLossLimit);
+      setMonthlyProfitTarget(settings.monthlyProfitTarget);
+      setMonthlyLossLimit(settings.monthlyLossLimit);
+      setMaxTradesPerDay(settings.maxTradesPerDay);
+      setAntiFuriaCustomWindowEnabled(settings.antiFuriaCustomWindowEnabled ?? false);
+      setAntiFuriaStartTime(settings.antiFuriaStartTime || '07:00');
+      setAntiFuriaEndTime(settings.antiFuriaEndTime || '11:30');
+    }
+  }, [isOpen, settings]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
-      initialCapital: Math.max(100, Number(initialCapital) || 10000),
-      dailyProfitTarget: Math.max(10, Number(dailyProfitTarget) || 500),
-      dailyLossLimit: Math.max(10, Number(dailyLossLimit) || 300),
-      monthlyProfitTarget: Math.max(50, Number(monthlyProfitTarget) || 5000),
-      monthlyLossLimit: Math.max(50, Number(monthlyLossLimit) || 2000),
+      initialCapital: Number(initialCapital) || 0,
+      dailyProfitTarget: Math.max(0, Number(dailyProfitTarget) || 0),
+      dailyLossLimit: Math.max(0, Number(dailyLossLimit) || 0),
+      monthlyProfitTarget: Math.max(0, Number(monthlyProfitTarget) || 0),
+      monthlyLossLimit: Math.max(0, Number(monthlyLossLimit) || 0),
       maxTradesPerDay: Math.max(1, Number(maxTradesPerDay) || 5),
       alertSoundEnabled: true,
       antiFuriaCustomWindowEnabled,
@@ -80,7 +95,7 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
             </p>
             <input
               type="number"
-              min="100"
+              min="0"
               step="any"
               required
               value={initialCapital}

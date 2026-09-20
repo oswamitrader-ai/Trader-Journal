@@ -15,11 +15,14 @@ import {
   Sparkles,
   HelpCircle,
   Plus,
+  FileType,
+  Loader2,
 } from 'lucide-react';
 import { Trade } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import {
   parseTradeFile,
+  parsePdfFile,
   PlatformPreset,
   ParsedTradeItem,
   ParseReportResult,
@@ -39,27 +42,58 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
   const [selectedPreset, setSelectedPreset] = useState<PlatformPreset>('AUTO');
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>('');
+  const [fileType, setFileType] = useState<'csv' | 'pdf' | null>(null);
   const [parseResult, setParseResult] = useState<ParseReportResult | null>(null);
   const [parsedItems, setParsedItems] = useState<ParsedTradeItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
-  const handleFileProcess = (file: File) => {
+  const handleFileProcess = async (file: File) => {
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      if (text) {
-        setFileContent(text);
-        const res = parseTradeFile(text, selectedPreset);
+    setIsProcessing(true);
+
+    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+    setFileType(isPdf ? 'pdf' : 'csv');
+
+    try {
+      if (isPdf) {
+        // PDF: lê como ArrayBuffer
+        const buffer = await file.arrayBuffer();
+        const res = await parsePdfFile(buffer, selectedPreset);
+        setFileContent('[PDF]');
         setParseResult(res);
         setParsedItems(res.trades);
+      } else {
+        // CSV/TXT/TSV: lê como texto
+        const text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = () => reject(new Error('Erro ao ler o arquivo'));
+          reader.readAsText(file);
+        });
+
+        if (text) {
+          setFileContent(text);
+          const res = parseTradeFile(text, selectedPreset);
+          setParseResult(res);
+          setParsedItems(res.trades);
+        }
       }
-    };
-    reader.readAsText(file);
+    } catch (err: any) {
+      setParseResult({
+        trades: [],
+        errors: [`Erro ao processar arquivo: ${err?.message || 'Erro desconhecido'}`],
+        platformDetected: 'Erro',
+        totalPnl: 0,
+      });
+      setParsedItems([]);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,9 +112,10 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
     }
   };
 
-  const handlePresetChange = (preset: PlatformPreset) => {
+  const handlePresetChange = async (preset: PlatformPreset) => {
     setSelectedPreset(preset);
-    if (fileContent) {
+    // Re-parse apenas para CSV (PDF precisa do ArrayBuffer original)
+    if (fileContent && fileContent !== '[PDF]') {
       const res = parseTradeFile(fileContent, preset);
       setParseResult(res);
       setParsedItems(res.trades);
@@ -113,6 +148,11 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
     .filter((t) => t.selected)
     .reduce((acc, t) => acc + t.pnl, 0);
 
+  // Stats rápidos
+  const selectedWins = parsedItems.filter((t) => t.selected && t.result === 'GAIN').length;
+  const selectedLosses = parsedItems.filter((t) => t.selected && t.result === 'LOSS').length;
+  const selectedBreakevens = parsedItems.filter((t) => t.selected && t.result === 'BREAKEVEN').length;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-2 sm:p-4 backdrop-blur-md pt-safe pb-safe overflow-y-auto">
       <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl border border-slate-800 bg-slate-900/95 shadow-2xl backdrop-blur-xl my-auto overflow-hidden">
@@ -125,14 +165,14 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                  Importar Relatório de Performance (CSV)
+                  Importar Relatório de Performance
                 </h2>
                 <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-blue-300 border border-blue-500/30">
-                  Lote CSV
+                  CSV / PDF
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Importe dezenas de trades da ProfitChart, MetaTrader 4/5 ou Exnova de uma só vez.
+                Importe dezenas de trades da ProfitChart, MetaTrader 4/5 ou Exnova de uma só vez — via CSV ou PDF.
               </p>
             </div>
           </div>
@@ -154,7 +194,7 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                { key: 'AUTO', label: 'Auto-detectar', desc: 'Genérico CSV' },
+                { key: 'AUTO', label: 'Auto-detectar', desc: 'Genérico CSV/PDF' },
                 { key: 'PROFITCHART', label: 'ProfitChart', desc: 'Nelogica B3' },
                 { key: 'METATRADER', label: 'MetaTrader 4/5', desc: 'B3 / Forex' },
                 { key: 'EXNOVA', label: 'Exnova / IQ', desc: 'Opções Binárias' },
@@ -196,38 +236,66 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.txt,.tsv"
+              accept=".csv,.txt,.tsv,.pdf"
               onChange={handleFileChange}
               className="hidden"
             />
 
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800/80 text-blue-400 border border-slate-700 mb-3">
-              <Upload className="h-6 w-6" />
-            </div>
-
-            {fileName ? (
-              <div className="text-center">
-                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 justify-center">
-                  <CheckCircle2 className="h-4 w-4" /> Arquivo selecionado: {fileName}
-                </span>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Clique ou arraste outro arquivo para substituir.
+            {isProcessing ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />
+                <span className="text-sm font-bold text-blue-300">Processando arquivo...</span>
+                <p className="text-[11px] text-slate-400">
+                  Analisando colunas, datas, valores e resultados
                 </p>
               </div>
             ) : (
-              <div className="text-center">
-                <span className="text-sm font-bold text-white">
-                  Arraste seu arquivo CSV / TXT aqui
-                </span>
-                <p className="text-xs text-slate-400 mt-1">
-                  ou clique para selecionar no computador (suporta relatórios ProfitChart, MT4, MT5 e Exnova)
-                </p>
-              </div>
+              <>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800/80 text-blue-400 border border-slate-700 mb-3">
+                  <Upload className="h-6 w-6" />
+                </div>
+
+                {fileName ? (
+                  <div className="text-center">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 justify-center">
+                      <CheckCircle2 className="h-4 w-4" /> Arquivo selecionado: {fileName}
+                      {fileType && (
+                        <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300 uppercase font-mono ml-1">
+                          {fileType}
+                        </span>
+                      )}
+                    </span>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Clique ou arraste outro arquivo para substituir.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <span className="text-sm font-bold text-white">
+                      Arraste seu arquivo CSV ou PDF aqui
+                    </span>
+                    <p className="text-xs text-slate-400 mt-1">
+                      ou clique para selecionar no computador
+                    </p>
+                    <div className="flex items-center justify-center gap-3 mt-3">
+                      <span className="flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold text-emerald-300 border border-emerald-500/20">
+                        <FileSpreadsheet className="h-3 w-3" /> CSV / TXT / TSV
+                      </span>
+                      <span className="flex items-center gap-1 rounded-lg bg-rose-500/10 px-2.5 py-1 text-[10px] font-bold text-rose-300 border border-rose-500/20">
+                        <FileType className="h-3 w-3" /> PDF
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2">
+                      Suporta relatórios ProfitChart, MT4, MT5 e Exnova / IQ Option
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
           {/* Parsed Trades Preview */}
-          {parseResult && (
+          {parseResult && !isProcessing && (
             <div className="space-y-4">
               {/* Summary Stats Banner */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-800 bg-slate-950/70">
@@ -236,7 +304,7 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
                     <FileText className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-white">
                         {parsedItems.length} trades identificados
                       </span>
@@ -244,9 +312,22 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
                         {parseResult.platformDetected}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Selecione quais operações deseja importar para o seu Diário.
-                    </p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-[11px] text-emerald-400 font-mono font-bold">
+                        {selectedWins}W
+                      </span>
+                      <span className="text-[11px] text-rose-400 font-mono font-bold">
+                        {selectedLosses}L
+                      </span>
+                      {selectedBreakevens > 0 && (
+                        <span className="text-[11px] text-slate-400 font-mono font-bold">
+                          {selectedBreakevens}E
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-400">
+                        Selecione quais operações importar.
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -306,7 +387,7 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
                       <th className="p-3">Data / Hora</th>
                       <th className="p-3">Ativo</th>
                       <th className="p-3">Tipo</th>
-                      <th className="p-3">Qtd / Contratos</th>
+                      <th className="p-3">Investimento</th>
                       <th className="p-3 text-right">Resultado (R$)</th>
                     </tr>
                   </thead>
@@ -350,11 +431,11 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
                                   : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                               }`}
                             >
-                              {trade.type === 'BUY' ? 'Compra' : 'Venda'}
+                              {trade.type === 'BUY' ? 'CALL ↑' : 'PUT ↓'}
                             </span>
                           </td>
                           <td className="p-3 whitespace-nowrap text-slate-300">
-                            {trade.contractsOrQuantity}
+                            {formatCurrency(trade.contractsOrQuantity)}
                           </td>
                           <td className="p-3 whitespace-nowrap text-right font-black">
                             <span
@@ -397,7 +478,7 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
             </button>
             <button
               type="button"
-              disabled={selectedCount === 0}
+              disabled={selectedCount === 0 || isProcessing}
               onClick={handleConfirmImport}
               className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-blue-900/30 transition hover:bg-blue-500 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >

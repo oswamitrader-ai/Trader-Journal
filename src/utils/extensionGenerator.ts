@@ -110,13 +110,19 @@ export async function generateExtensionZip(config?: Partial<ExtensionConfig>): P
     content_scripts: [
       {
         matches: ['<all_urls>'],
+        js: ['injected.js'],
+        run_at: 'document_start',
+        world: 'MAIN',
+      },
+      {
+        matches: ['<all_urls>'],
         js: ['content.js'],
         run_at: 'document_start',
       },
     ],
     web_accessible_resources: [
       {
-        resources: ['blocked.html', 'blocked.js', 'icon.png'],
+        resources: ['blocked.html', 'blocked.js', 'icon.png', 'injected.js'],
         matches: ['<all_urls>'],
       },
     ],
@@ -222,11 +228,55 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   });
 });
 
-// Message listener from web app or popup
+// Message listener from web app, popup, or auto-capture
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'AUTO_TRADE_CAPTURED' && msg.trade) {
+    console.log('[Anti-Fúria Service Worker] Auto trade capturado:', msg.trade);
+
+    // 1. Transmite o trade para todas as abas do Trader Journal abertas no navegador
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach((tab) => {
+        if (tab.id && tab.url && (tab.url.includes('localhost') || tab.url.includes('127.0.0.1') || tab.url.includes('trader') || tab.url.includes('vercel.app'))) {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'TRADER_JOURNAL_AUTO_TRADE',
+            trade: msg.trade,
+          }).catch(() => {});
+        }
+      });
+    });
+
+    // 2. Atualiza PnL e verifica se acionou o Stop Loss
+    chrome.storage.local.get(['todayPnl', 'dailyLossLimit', 'blockedDomains'], (res) => {
+      const currentPnl = Number(res.todayPnl) || 0;
+      const tradePnl = Number(msg.trade.pnl) || 0;
+      const newPnl = currentPnl + tradePnl;
+      const limit = Number(res.dailyLossLimit) || ${dailyLossLimit};
+      const isHit = newPnl <= -limit;
+
+      chrome.storage.local.set({
+        todayPnl: newPnl,
+        isStopHit: isHit,
+        lastTradeCaptured: msg.trade,
+      }, () => {
+        if (isHit) {
+          const doms = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
+          chrome.tabs.query({}, (tabs) => {
+            tabs.forEach((tab) => {
+              if (tab.id && tab.url && isUrlBlocked(tab.url, doms)) {
+                const blockedUrl = chrome.runtime.getURL('blocked.html?orig=' + encodeURIComponent(tab.url));
+                chrome.tabs.update(tab.id, { url: blockedUrl });
+              }
+            });
+          });
+        }
+        sendResponse({ success: true, isStopHit: isHit, newPnl: newPnl });
+      });
+    });
+    return true;
+  }
+
   if (msg.type === 'UPDATE_STOP_STATUS') {
     chrome.storage.local.get(['testMode'], (st) => {
-      // If user manually triggered testMode, do not let automatic web app sync unlock it until user disables testMode
       if (st && st.testMode && !msg.isStopHit) {
         sendResponse({ success: true, testMode: true });
         return;
@@ -329,9 +379,366 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 `;
 
-  // 3. CONTENT.JS (Injected in pages to bridge with the Trader Journal app)
+  // 3. INJECTED.JS (Hooks into WebSocket & DOM on broker platforms for Auto Capture)
+  const injectedJs = `// Anti-Fúria Auto-Capture Engine v2 - Proxy WebSocket + XHR/Fetch Interceptor
+(function() {
+  if (window.__antiFuriaAutoCaptureInjected) return;
+  window.__antiFuriaAutoCaptureInjected = true;
+
+  const HOST = window.location.hostname;
+
+  // ─── ONLY activate on broker domains, NEVER on localhost/Trader Journal ───
+  const BROKER_DOMAINS = ['exnova.com', 'xnova.com', 'iqoption.com', 'quotex.com', 'qxbroker.com', 'pocketoption.com', 'binomo.com', 'olymptrade.com', 'deriv.com', 'binary.com'];
+  const isBroker = BROKER_DOMAINS.some(d => HOST === d || HOST.endsWith('.' + d));
+  if (!isBroker) {
+    return; // Do NOT run on localhost, Trader Journal, or any non-broker site
+  }
+
+  const DEBUG = true;
+  const processedIds = new Set();
+
+  console.log('🛡️ [Anti-Fúria Auto-Capture v2] Módulo ativado em:', HOST);
+
+  // ─── Broadcast helper ────────────────────────────────────────────
+  function broadcastTrade(tradeData) {
+    if (!tradeData) return;
+    if (processedIds.has(tradeData.id)) return; // Dedup
+    processedIds.add(tradeData.id);
+    console.log('🚀 [Anti-Fúria] Transmitindo trade capturado:', JSON.stringify(tradeData));
+    window.postMessage({ type: 'AUTO_TRADE_CAPTURED', trade: tradeData }, '*');
+  }
+
+  // ─── Build trade object from raw data ────────────────────────────
+  function buildTrade(raw, source) {
+    if (!raw || typeof raw !== 'object') return null;
+
+    console.log('🔧 [Anti-Fúria] buildTrade raw data:', JSON.stringify(raw).substring(0, 500));
+
+    // --- CRITICAL: Only process CLOSED trades with a definitive result ---
+    // Exnova fires position-changed on OPEN and CLOSE. We MUST filter out opens.
+    const resultField = String(raw.result || '').toLowerCase();
+    const winField = String(raw.win || '').toLowerCase();
+    const closedResults = ['win', 'loose', 'loss', 'equal', 'draw'];
+    const isClosed = closedResults.includes(resultField) || closedResults.includes(winField);
+
+    if (!isClosed) {
+      console.log('⏩ [Anti-Fúria] Ignorando: sem resultado definitivo (result=' + resultField + ', win=' + winField + ')');
+      return null;
+    }
+
+    // --- Dedup by option_id ---
+    const optionId = raw.option_id || raw.id || raw.deal_id || '';
+    if (optionId && processedIds.has('oid-' + optionId)) {
+      console.log('⏩ [Anti-Fúria] Ignorando trade duplicado, option_id:', optionId);
+      return null;
+    }
+    if (optionId) processedIds.add('oid-' + optionId);
+
+    // --- Win/Loss detection ---
+    const isWin = resultField === 'win' || winField === 'win';
+    const isEqual = resultField === 'equal' || resultField === 'draw' || winField === 'equal';
+    const isLoss = resultField === 'loose' || resultField === 'loss' || winField === 'loose' || winField === 'loss';
+
+    // --- Amount invested ---
+    const amount = Math.abs(Number(raw.amount || raw.enrolled_amount || raw.investment || raw.stake || raw.buy_amount) || 0);
+
+    // --- PnL Extraction ---
+    const profitAmount = Number(raw.profit_amount) || 0;
+    const winEnrolled = Number(raw.win_enrolled_amount || raw.win_amount) || 0;
+    let pnl = Number(raw.pnl || raw.profit || raw.net_pnl) || 0;
+
+    if (pnl === 0 && profitAmount > 0) {
+      // Exnova WIN: profit_amount IS the net profit
+      pnl = profitAmount;
+    } else if (pnl === 0 && winEnrolled > 0 && amount > 0) {
+      // win_enrolled_amount is TOTAL return. Net PnL = return - investment
+      pnl = winEnrolled - amount;
+    } else if (pnl === 0 && isLoss && amount > 0) {
+      // LOSS: trader lost the entire invested amount
+      pnl = -Math.abs(amount);
+    } else if (pnl === 0 && isWin && amount > 0) {
+      // WIN without explicit profit data: use profit_percent
+      // Exnova profit_percent=188 means TOTAL payout is 188% of amount (net profit = 88%)
+      const profitPct = Number(raw.profit_percent) || 185;
+      pnl = Math.abs(amount * ((profitPct - 100) / 100));
+    } else if (isEqual) {
+      pnl = 0;
+    }
+
+    // Asset - use active_id as fallback since Exnova uses numeric IDs
+    const activeId = raw.active_id || raw.act || '';
+    const asset = String(raw.active || raw.asset || raw.instrument || raw.active_name || (activeId ? 'ID_' + activeId : 'DIGITAL')).toUpperCase();
+
+    // Direction
+    const dir = String(raw.dir || raw.direction || '').toLowerCase();
+    const type = (dir === 'put' || dir.includes('sell') || dir.includes('baixa')) ? 'SELL' : 'BUY';
+
+    const now = new Date();
+    const roundedPnl = Math.round(pnl * 100) / 100;
+    const result = isWin ? 'GAIN' : (isLoss ? 'LOSS' : 'BREAKEVEN');
+    const tradeId = optionId || Date.now();
+
+    console.log('✅ [Anti-Fúria] Trade FECHADO:', result, 'PnL:', roundedPnl, 'Amount:', amount, 'Asset:', asset, 'Dir:', type);
+
+    return {
+      id: 'auto-' + tradeId + '-' + Math.random().toString(36).substring(2, 6),
+      date: now.toISOString().split('T')[0],
+      time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
+      asset: asset.replace(/[^A-Z0-9/._-]/g, '') || 'DIGITAL',
+      type: type,
+      strategy: 'Captura Automática (' + source + ')',
+      result: result,
+      pnl: roundedPnl,
+      contractsOrQuantity: amount > 0 ? Math.round(amount * 100) / 100 : Math.abs(roundedPnl),
+      notes: 'Capturado automaticamente em ' + HOST,
+    };
+  }
+
+  // ─── Detect if a WS message is a trade-close event ───────────────
+  function isTradeCloseEvent(parsed) {
+    if (!parsed) return false;
+
+    // Exnova / IQ Option format: { name: "option-closed", msg: {...} }
+    const name = (parsed.name || '').toLowerCase();
+    if (
+      name === 'option-closed' ||
+      name === 'digital-option-closed' ||
+      name === 'position-changed' ||
+      name === 'deal-closed' ||
+      name === 'option' ||
+      name === 'result'
+    ) return true;
+
+    // Quotex / generic format: look for keywords in stringified JSON
+    const str = JSON.stringify(parsed).toLowerCase();
+    if (
+      (str.includes('"option-closed"') || str.includes('"deal-closed"')) ||
+      (str.includes('"win"') && str.includes('"amount"') && (str.includes('"win_amount"') || str.includes('"profit"'))) ||
+      (str.includes('"close_quote"') && str.includes('"buy_amount"'))
+    ) return true;
+
+    return false;
+  }
+
+  // ─── Extract raw trade data from various message structures ──────
+  function extractRawTrade(parsed) {
+    // Exnova/IQ Option: { name: "position-changed", msg: { raw_event: { binary_options_option_changed1: { ...tradeData } } } }
+    if (parsed.msg && typeof parsed.msg === 'object') {
+      // Deep nested: msg.raw_event.binary_options_option_changed1 (or similar key)
+      if (parsed.msg.raw_event && typeof parsed.msg.raw_event === 'object') {
+        const keys = Object.keys(parsed.msg.raw_event);
+        for (const key of keys) {
+          const candidate = parsed.msg.raw_event[key];
+          if (candidate && typeof candidate === 'object' && (candidate.amount !== undefined || candidate.result !== undefined || candidate.win !== undefined)) {
+            console.log('🔍 [Anti-Fúria] Dados extraídos de msg.raw_event.' + key);
+            return candidate;
+          }
+        }
+      }
+      // msg.result (some brokers)
+      if (parsed.msg.result && typeof parsed.msg.result === 'object') return parsed.msg.result;
+      // msg is the trade directly
+      if (parsed.msg.win !== undefined || parsed.msg.win_amount !== undefined || parsed.msg.amount !== undefined) return parsed.msg;
+    }
+    // Nested data
+    if (parsed.data && typeof parsed.data === 'object') return parsed.data;
+    // Top-level
+    return parsed;
+  }
+
+  // ─── 1. WEBSOCKET PROXY INTERCEPTION ─────────────────────────────
+  const OriginalWebSocket = window.WebSocket;
+
+  window.WebSocket = new Proxy(OriginalWebSocket, {
+    construct(target, args) {
+      const ws = new target(...args);
+      console.log('🛡️ [Anti-Fúria WS] Conexão criada:', args[0]);
+
+      ws.addEventListener('message', function(event) {
+        try {
+          let msgStr = '';
+          if (typeof event.data === 'string') {
+            msgStr = event.data;
+          } else if (event.data instanceof Blob) {
+            // Blob: read async
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                const text = reader.result;
+                if (typeof text === 'string') processWsMessage(text);
+              } catch(e) {}
+            };
+            reader.readAsText(event.data);
+            return;
+          } else if (event.data instanceof ArrayBuffer) {
+            msgStr = new TextDecoder('utf-8').decode(event.data);
+          }
+
+          if (msgStr) processWsMessage(msgStr);
+        } catch (err) {
+          // Silent
+        }
+      });
+
+      return ws;
+    }
+  });
+
+  function processWsMessage(msgStr) {
+    if (!msgStr || msgStr.length < 5) return;
+
+    let parsed = null;
+    try { parsed = JSON.parse(msgStr); } catch(e) { return; }
+
+    if (!parsed || typeof parsed !== 'object') return;
+
+    // Debug: log every meaningful WS message name
+    if (DEBUG && parsed.name) {
+      console.log('📡 [Anti-Fúria WS msg]', parsed.name, parsed.msg ? '(has msg)' : '');
+    }
+
+    if (isTradeCloseEvent(parsed)) {
+      console.log('🎯 [Anti-Fúria WS] TRADE CLOSE detectado:', JSON.stringify(parsed).substring(0, 500));
+
+      const raw = extractRawTrade(parsed);
+      const trade = buildTrade(raw, 'WebSocket');
+      if (trade) {
+        broadcastTrade(trade);
+      } else {
+        console.warn('⚠️ [Anti-Fúria WS] Trade detectado mas não foi possível extrair dados válidos:', raw);
+      }
+    }
+  }
+
+  // ─── 2. XHR INTERCEPTOR (fallback for HTTP-based results) ────────
+  const OrigXHROpen = XMLHttpRequest.prototype.open;
+  const OrigXHRSend = XMLHttpRequest.prototype.send;
+
+  XMLHttpRequest.prototype.open = function(method, url) {
+    this._afUrl = url;
+    return OrigXHROpen.apply(this, arguments);
+  };
+
+  XMLHttpRequest.prototype.send = function() {
+    this.addEventListener('load', function() {
+      try {
+        const url = (this._afUrl || '').toLowerCase();
+        if (
+          url.includes('option') || url.includes('trade') || url.includes('deal') ||
+          url.includes('history') || url.includes('result') || url.includes('close')
+        ) {
+          const text = this.responseText;
+          if (text && text.length > 10) {
+            let data = null;
+            try { data = JSON.parse(text); } catch(e) {}
+            if (data && isTradeCloseEvent(data)) {
+              console.log('🎯 [Anti-Fúria XHR] Trade close via HTTP:', url);
+              const raw = extractRawTrade(data);
+              const trade = buildTrade(raw, 'XHR');
+              if (trade) broadcastTrade(trade);
+            }
+          }
+        }
+      } catch(e) {}
+    });
+    return OrigXHRSend.apply(this, arguments);
+  };
+
+  // ─── 3. FETCH INTERCEPTOR ────────────────────────────────────────
+  const OrigFetch = window.fetch;
+  window.fetch = function() {
+    const url = (arguments[0] || '').toString().toLowerCase();
+    const promise = OrigFetch.apply(this, arguments);
+
+    if (
+      url.includes('option') || url.includes('trade') || url.includes('deal') ||
+      url.includes('history') || url.includes('result') || url.includes('close')
+    ) {
+      promise.then(response => {
+        const clone = response.clone();
+        clone.text().then(text => {
+          try {
+            let data = JSON.parse(text);
+            if (data && isTradeCloseEvent(data)) {
+              console.log('🎯 [Anti-Fúria Fetch] Trade close via fetch:', url);
+              const raw = extractRawTrade(data);
+              const trade = buildTrade(raw, 'Fetch');
+              if (trade) broadcastTrade(trade);
+            }
+          } catch(e) {}
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+
+    return promise;
+  };
+
+  // ─── 4. DOM MUTATION OBSERVER (visual fallback) ──────────────────
+  let lastDomTradeTime = 0;
+  const observer = new MutationObserver((mutations) => {
+    const now = Date.now();
+    if (now - lastDomTradeTime < 3000) return; // Throttle: 3s between DOM captures
+
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        const el = node;
+        const text = (el.innerText || el.textContent || '').trim();
+        if (text.length < 3 || text.length > 500) continue;
+
+        // Look for trade result patterns
+        const hasCurrency = /[R$€\\$]/.test(text);
+        const hasResult = /(resultado|result|lucro|profit|perda|loss|ganho|win|payout)/i.test(text);
+        const hasAmount = /[+-]?\\s*[\\d.,]+/.test(text);
+
+        if (hasCurrency && hasResult && hasAmount) {
+          const pnlMatch = text.match(/([+-]?)\\s*[R$€\\$\\s]*([\\d]+[.,]?[\\d]*)/);
+          if (pnlMatch) {
+            const sign = pnlMatch[1] === '-' ? -1 : 1;
+            const rawNum = pnlMatch[2].replace(',', '.');
+            let pnlVal = parseFloat(rawNum) * sign;
+            // If text contains loss/perda keywords, force negative
+            if (/(loss|perda|perdeu)/i.test(text) && pnlVal > 0) pnlVal = -pnlVal;
+
+            if (!isNaN(pnlVal) && pnlVal !== 0) {
+              lastDomTradeTime = now;
+              const d = new Date();
+              broadcastTrade({
+                id: 'dom-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+                date: d.toISOString().split('T')[0],
+                time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'),
+                asset: 'DIGITAL',
+                type: 'BUY',
+                strategy: 'Captura DOM (' + HOST + ')',
+                result: pnlVal > 0 ? 'GAIN' : 'LOSS',
+                pnl: Math.round(pnlVal * 100) / 100,
+                contractsOrQuantity: Math.abs(Math.round(pnlVal * 100) / 100),
+                notes: 'Capturado via DOM em ' + HOST,
+              });
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (document.body) {
+    observer.observe(document.body, { childList: true, subtree: true });
+  } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (document.body) observer.observe(document.body, { childList: true, subtree: true });
+    });
+  }
+
+  console.log('✅ [Anti-Fúria Auto-Capture v2] WebSocket Proxy + XHR + Fetch + DOM interceptors ativos.');
+})();
+`;
+
+  // 4. CONTENT.JS (Injected in pages to bridge with the Trader Journal app)
   const contentJs = `// Content script bridging Trader Web App with the Extension
 (function() {
+  console.log('🛡️ [Anti-Fúria ContentScript] Bridge iniciado em:', window.location.hostname);
+
   function syncFromPage() {
     const bridgeEl = document.getElementById('anti-furia-status-bridge');
     if (bridgeEl) {
@@ -356,7 +763,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }
 
-  // Listen to window postMessage from the web app
+  // Listen to window postMessage from the web app or injected script
   window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'ANTI_FURIA_SYNC') {
       chrome.runtime.sendMessage({
@@ -369,6 +776,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         todayTradesCount: event.data.todayTradesCount,
         currentCapital: event.data.currentCapital,
       });
+    }
+
+    if (event.data && event.data.type === 'AUTO_TRADE_CAPTURED' && event.data.trade) {
+      console.log('🎯 [Anti-Fúria ContentScript] Enviando trade capturado para background:', event.data.trade);
+      chrome.runtime.sendMessage({
+        type: 'AUTO_TRADE_CAPTURED',
+        trade: event.data.trade,
+      });
+    }
+  });
+
+  // Ouve mensagens vindas do Service Worker para repassar ao Trader Journal
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg && msg.type === 'TRADER_JOURNAL_AUTO_TRADE' && msg.trade) {
+      console.log('🎉 [Anti-Fúria ContentScript] Transmitindo trade para o Trader Journal:', msg.trade);
+      window.postMessage({
+        type: 'TRADER_JOURNAL_AUTO_TRADE',
+        trade: msg.trade,
+      }, '*');
     }
   });
 
@@ -895,6 +1321,7 @@ Boas operações e mantenha a disciplina inegociável!
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
   zip.file('background.js', backgroundJs);
   zip.file('content.js', contentJs);
+  zip.file('injected.js', injectedJs);
   zip.file('blocked.html', blockedHtml);
   zip.file('blocked.js', blockedJs);
   zip.file('popup.html', popupHtml);

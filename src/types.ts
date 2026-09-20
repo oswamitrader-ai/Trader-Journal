@@ -24,6 +24,7 @@ export interface CapitalTransaction {
   id: string;
   type: CapitalTransactionType;
   amount: number;
+  fee?: number; // Taxa cobrada pela corretora (R$)
   date: string; // YYYY-MM-DD
   time?: string; // HH:mm
   broker?: string; // Ex: 'Exnova', 'XP', 'Clear'

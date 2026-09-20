@@ -12,6 +12,8 @@ import {
   FileText,
   DollarSign,
   TrendingUp,
+  Percent,
+  Receipt,
 } from 'lucide-react';
 import { CapitalTransaction, CapitalTransactionType } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
@@ -39,6 +41,8 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
 }) => {
   const [activeType, setActiveType] = useState<CapitalTransactionType>('WITHDRAWAL');
   const [amount, setAmount] = useState<string>('');
+  const [fee, setFee] = useState<string>('');
+  const [showFeeInput, setShowFeeInput] = useState<boolean>(false);
   const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [broker, setBroker] = useState<string>('Exnova');
   const [customBroker, setCustomBroker] = useState<string>('');
@@ -55,11 +59,15 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
     .filter((t) => t.type === 'WITHDRAWAL')
     .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
+  const totalFees = transactions
+    .reduce((acc, t) => acc + (Number(t.fee) || 0), 0);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = Number(amount);
     if (!numAmount || numAmount <= 0) return;
 
+    const numFee = Number(fee);
     const finalBroker = broker === 'Outra' ? customBroker.trim() || 'Outra Corretora' : broker;
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -68,6 +76,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
       id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       type: activeType,
       amount: numAmount,
+      fee: !isNaN(numFee) && numFee > 0 ? numFee : undefined,
       date: date || new Date().toISOString().split('T')[0],
       time: timeStr,
       broker: finalBroker,
@@ -78,7 +87,9 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
 
     // Reset form
     setAmount('');
+    setFee('');
     setNotes('');
+    setShowFeeInput(false);
     setShowAddForm(false);
   };
 
@@ -96,7 +107,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                 Gestão de Capital & Movimentações
               </h3>
               <p className="text-xs text-slate-400">
-                Histórico completo de saques e depósitos nas corretoras
+                Histórico completo de saques, depósitos e taxas das corretoras
               </p>
             </div>
           </div>
@@ -111,38 +122,49 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
         {/* Content Body */}
         <div className="overflow-y-auto p-4 sm:p-6 space-y-5 text-xs">
           {/* Summary Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             {/* Capital Atual */}
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5 space-y-1">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-1">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                 Capital Atual Total
               </span>
-              <div className="text-lg font-black font-mono text-white">
+              <div className="text-base sm:text-lg font-black font-mono text-white">
                 {formatCurrency(currentCapital)}
               </div>
               <p className="text-[10px] text-slate-500">Saldo atual da banca</p>
             </div>
 
             {/* Total Depósitos */}
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-3.5 space-y-1">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-3 space-y-1">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                <ArrowUpRight className="h-3.5 w-3.5" /> Total Depósitos
+                <ArrowUpRight className="h-3.5 w-3.5" /> Depósitos
               </span>
-              <div className="text-lg font-black font-mono text-emerald-400">
+              <div className="text-base sm:text-lg font-black font-mono text-emerald-400">
                 +{formatCurrency(totalDeposits)}
               </div>
               <p className="text-[10px] text-slate-400">Total injetado na banca</p>
             </div>
 
             {/* Total Saques */}
-            <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-3.5 space-y-1">
+            <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-3 space-y-1">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1">
-                <ArrowDownRight className="h-3.5 w-3.5" /> Total Saques
+                <ArrowDownRight className="h-3.5 w-3.5" /> Saques
               </span>
-              <div className="text-lg font-black font-mono text-amber-400">
+              <div className="text-base sm:text-lg font-black font-mono text-amber-400">
                 -{formatCurrency(totalWithdrawals)}
               </div>
-              <p className="text-[10px] text-slate-400">Total realizado / retirado</p>
+              <p className="text-[10px] text-slate-400">Total retirado</p>
+            </div>
+
+            {/* Total Taxas das Corretoras */}
+            <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 p-3 space-y-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-400 flex items-center gap-1">
+                <Receipt className="h-3.5 w-3.5" /> Taxas Cobradas
+              </span>
+              <div className="text-base sm:text-lg font-black font-mono text-rose-400">
+                {formatCurrency(totalFees)}
+              </div>
+              <p className="text-[10px] text-slate-400">Custo de saques / taxas</p>
             </div>
           </div>
 
@@ -249,6 +271,42 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                 </div>
               </div>
 
+              {/* Botão Nano Modal / Toggle para Taxa de Saque */}
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowFeeInput(!showFeeInput)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-amber-500/30 bg-amber-950/30 text-[11px] font-bold text-amber-300 hover:bg-amber-900/40 transition"
+                >
+                  <Percent className="h-3.5 w-3.5 text-amber-400" />
+                  {showFeeInput ? 'Ocultar Campo de Taxa' : '+ Registrar Taxa da Corretora / Saque'}
+                </button>
+              </div>
+
+              {/* Campo de Taxa da Corretora */}
+              {showFeeInput && (
+                <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-950/20 space-y-1">
+                  <label className="block font-semibold text-amber-300 text-xs">
+                    Taxa da Corretora / Taxa de Saque (R$)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 font-mono font-bold text-slate-400">R$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="0,00 (Ex: taxa PIX, TED ou corretagem)"
+                      value={fee}
+                      onChange={(e) => setFee(e.target.value)}
+                      className="w-full rounded-xl border border-amber-500/40 bg-slate-900 pl-10 pr-3 py-1.5 text-white font-mono text-xs font-bold focus:border-amber-400 focus:outline-none"
+                    />
+                  </div>
+                  <p className="text-[10px] text-amber-400/80">
+                    A taxa será descontada automaticamente do saldo total da conta.
+                  </p>
+                </div>
+              )}
+
               {/* Custom Broker if 'Outra' */}
               {broker === 'Outra' && (
                 <div>
@@ -312,6 +370,8 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                 .sort((a, b) => b.date.localeCompare(a.date))
                 .map((t) => {
                   const isDeposit = t.type === 'DEPOSIT';
+                  const hasFee = Boolean(t.fee && t.fee > 0);
+
                   return (
                     <div
                       key={t.id}
@@ -344,6 +404,11 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                             <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300 font-medium">
                               {t.broker || 'Corretora'}
                             </span>
+                            {hasFee && (
+                              <span className="rounded bg-rose-500/20 px-1.5 py-0.5 text-[9px] font-bold text-rose-300 border border-rose-500/30">
+                                Taxa: {formatCurrency(t.fee!)}
+                              </span>
+                            )}
                           </div>
                           <p className="text-[11px] text-slate-400 mt-0.5">
                             {formatDate(t.date)} {t.time ? `às ${t.time}` : ''}
@@ -353,14 +418,21 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span
-                          className={`font-mono font-bold text-sm ${
-                            isDeposit ? 'text-emerald-400' : 'text-amber-400'
-                          }`}
-                        >
-                          {isDeposit ? '+' : '-'}
-                          {formatCurrency(t.amount)}
-                        </span>
+                        <div className="text-right">
+                          <span
+                            className={`font-mono font-bold text-sm block ${
+                              isDeposit ? 'text-emerald-400' : 'text-amber-400'
+                            }`}
+                          >
+                            {isDeposit ? '+' : '-'}
+                            {formatCurrency(t.amount)}
+                          </span>
+                          {hasFee && (
+                            <span className="text-[10px] font-mono text-slate-400 block">
+                              Total: {formatCurrency(isDeposit ? t.amount - t.fee! : t.amount + t.fee!)}
+                            </span>
+                          )}
+                        </div>
                         <button
                           onClick={() => onDeleteTransaction(t.id)}
                           className="p-1 text-slate-500 hover:text-rose-400 transition"

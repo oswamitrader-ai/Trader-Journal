@@ -36,7 +36,7 @@ export function getWeekNumber(d: Date): { year: number; week: number } {
 }
 
 export function calculateMetrics(trades: Trade[], settings?: RiskSettings): OverallMetrics {
-  const initialCapital = settings?.initialCapital || 10000;
+  const initialCapital = settings?.initialCapital ?? 0;
   if (!trades || trades.length === 0) {
     return {
       initialCapital,
