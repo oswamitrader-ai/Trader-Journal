@@ -13,6 +13,24 @@ export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+/**
+ * Retorna ou gera um UUID único persistente por navegador/computador.
+ * Garante que múltiplos usuários usando o mesmo projeto Supabase nunca misturem dados.
+ */
+export function getClientDeviceId(): string {
+  if (typeof window === 'undefined') return 'server_device';
+  try {
+    let deviceId = localStorage.getItem('trader_journal_device_id');
+    if (!deviceId) {
+      deviceId = `dev-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem('trader_journal_device_id', deviceId);
+    }
+    return deviceId;
+  } catch {
+    return 'fallback_device';
+  }
+}
+
 export type SupabaseConnectionStatus = 'connected' | 'table_missing' | 'error' | 'connecting';
 
 export interface SupabaseHealthResult {
@@ -71,15 +89,29 @@ export async function checkSupabaseConnection(): Promise<SupabaseHealthResult> {
 }
 
 /**
- * Load all trades from Supabase
+ * Load all trades from Supabase (Isolated per device/user)
  */
 export async function fetchTradesFromSupabase(): Promise<{ data: Trade[] | null; error: string | null }> {
   try {
-    const { data, error } = await supabase
+    const deviceId = getClientDeviceId();
+    // Tenta buscar filtrando por device_id
+    let { data, error } = await supabase
       .from('trades')
       .select('*')
+      .eq('device_id', deviceId)
       .order('date', { ascending: false })
       .order('time', { ascending: false });
+
+    // Fallback se a coluna device_id ainda não existir no schema do Supabase
+    if (error && (error.code === 'PGRST204' || error.message.includes('column') || error.message.includes('device_id'))) {
+      const fallback = await supabase
+        .from('trades')
+        .select('*')
+        .order('date', { ascending: false })
+        .order('time', { ascending: false });
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) {
       return { data: null, error: error.message };
@@ -101,6 +133,9 @@ export async function fetchTradesFromSupabase(): Promise<{ data: Trade[] | null;
       exitPrice: row.exitPrice != null ? Number(row.exitPrice) : undefined,
       notes: row.notes || undefined,
       tags: Array.isArray(row.tags) ? row.tags : undefined,
+      accountType: row.accountType || undefined,
+      isReal: row.isReal != null ? Boolean(row.isReal) : undefined,
+      isAutoCaptured: row.isAutoCaptured != null ? Boolean(row.isAutoCaptured) : undefined,
     }));
 
     return { data: trades, error: null };
@@ -110,12 +145,14 @@ export async function fetchTradesFromSupabase(): Promise<{ data: Trade[] | null;
 }
 
 /**
- * Insert or update a single trade in Supabase
+ * Insert or update a single trade in Supabase (Isolated per device/user)
  */
 export async function upsertTradeToSupabase(trade: Trade): Promise<{ success: boolean; error: string | null }> {
   try {
-    const { error } = await supabase.from('trades').upsert({
+    const deviceId = getClientDeviceId();
+    const payload: any = {
       id: trade.id,
+      device_id: deviceId,
       date: trade.date,
       time: trade.time,
       asset: trade.asset,
@@ -128,8 +165,23 @@ export async function upsertTradeToSupabase(trade: Trade): Promise<{ success: bo
       exitPrice: trade.exitPrice ?? null,
       notes: trade.notes ?? null,
       tags: trade.tags ?? [],
+      accountType: trade.accountType ?? null,
+      isReal: trade.isReal ?? null,
+      isAutoCaptured: trade.isAutoCaptured ?? null,
       updated_at: new Date().toISOString(),
-    });
+    };
+
+    let { error } = await supabase.from('trades').upsert(payload);
+
+    if (error && (error.code === 'PGRST204' || error.message.includes('column'))) {
+      // Fallback enviando campos base se novas colunas ainda não existirem no Supabase
+      delete payload.device_id;
+      delete payload.accountType;
+      delete payload.isReal;
+      delete payload.isAutoCaptured;
+      const res = await supabase.from('trades').upsert(payload);
+      error = res.error;
+    }
 
     if (error) {
       return { success: false, error: error.message };
@@ -156,11 +208,16 @@ export async function deleteTradeFromSupabase(tradeId: string): Promise<{ succes
 }
 
 /**
- * Delete all trades from Supabase
+ * Delete all trades from Supabase for this device
  */
 export async function clearAllTradesFromSupabase(): Promise<{ success: boolean; error: string | null }> {
   try {
-    const { error } = await supabase.from('trades').delete().neq('id', '___all_records_cleanup___');
+    const deviceId = getClientDeviceId();
+    let { error } = await supabase.from('trades').delete().eq('device_id', deviceId);
+    if (error) {
+      const fallback = await supabase.from('trades').delete().neq('id', '___all_records_cleanup___');
+      error = fallback.error;
+    }
     if (error) {
       return { success: false, error: error.message };
     }
@@ -179,8 +236,10 @@ export async function syncAllTradesToSupabase(trades: Trade[]): Promise<{ count:
   }
 
   try {
+    const deviceId = getClientDeviceId();
     const payload = trades.map((trade) => ({
       id: trade.id,
+      device_id: deviceId,
       date: trade.date,
       time: trade.time,
       asset: trade.asset,
@@ -193,10 +252,19 @@ export async function syncAllTradesToSupabase(trades: Trade[]): Promise<{ count:
       exitPrice: trade.exitPrice ?? null,
       notes: trade.notes ?? null,
       tags: trade.tags ?? [],
+      accountType: trade.accountType ?? null,
+      isReal: trade.isReal ?? null,
+      isAutoCaptured: trade.isAutoCaptured ?? null,
       updated_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase.from('trades').upsert(payload);
+    let { error } = await supabase.from('trades').upsert(payload);
+    if (error && (error.code === 'PGRST204' || error.message.includes('column'))) {
+      const cleanPayload = payload.map(({ device_id, accountType, isReal, isAutoCaptured, ...rest }) => rest);
+      const res = await supabase.from('trades').upsert(cleanPayload);
+      error = res.error;
+    }
+
     if (error) {
       return { count: 0, error: error.message };
     }
@@ -207,17 +275,28 @@ export async function syncAllTradesToSupabase(trades: Trade[]): Promise<{ count:
 }
 
 /**
- * Fetch Risk Settings from Supabase
+ * Fetch Risk Settings from Supabase (Isolated per device)
  */
 export async function fetchRiskSettingsFromSupabase(): Promise<{ data: RiskSettings | null; error: string | null }> {
   try {
-    const { data, error } = await supabase
+    const settingId = `settings_${getClientDeviceId()}`;
+    let { data, error } = await supabase
       .from('risk_settings')
       .select('*')
-      .eq('id', 'default_settings')
+      .eq('id', settingId)
       .maybeSingle();
 
-    if (error) {
+    if (!data) {
+      // Fallback para settings default
+      const fallback = await supabase
+        .from('risk_settings')
+        .select('*')
+        .eq('id', 'default_settings')
+        .maybeSingle();
+      data = fallback.data;
+    }
+
+    if (error && !data) {
       return { data: null, error: error.message };
     }
 
@@ -245,12 +324,13 @@ export async function fetchRiskSettingsFromSupabase(): Promise<{ data: RiskSetti
 }
 
 /**
- * Save Risk Settings to Supabase
+ * Save Risk Settings to Supabase (Isolated per device)
  */
 export async function saveRiskSettingsToSupabase(settings: RiskSettings): Promise<{ success: boolean; error: string | null }> {
   try {
+    const settingId = `settings_${getClientDeviceId()}`;
     const payload: any = {
-      id: 'default_settings',
+      id: settingId,
       initialCapital: settings.initialCapital,
       dailyProfitTarget: settings.dailyProfitTarget,
       dailyLossLimit: settings.dailyLossLimit,
