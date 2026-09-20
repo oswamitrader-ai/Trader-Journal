@@ -345,7 +345,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
   }, [equityCurvePoints]);
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-black/80 p-5 shadow-xl backdrop-blur-sm">
+    <div className="rounded-2xl border border-slate-800 bg-black/80 p-5 shadow-xl">
       {/* Header with Chart Selectors */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-4">
         <div>
@@ -364,7 +364,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             onClick={() => setActiveTab('daily')}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
               activeTab === 'daily'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -376,7 +376,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             onClick={() => setActiveTab('equity')}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
               activeTab === 'equity'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -388,7 +388,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             onClick={() => setActiveTab('drawdown')}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
               activeTab === 'drawdown'
-                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                ? 'bg-rose-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -400,7 +400,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             onClick={() => setActiveTab('breakdown')}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
               activeTab === 'breakdown'
-                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -417,7 +417,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             }}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
               activeTab === 'radar'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                ? 'bg-amber-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -429,7 +429,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             onClick={() => setActiveTab('emotion')}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
               activeTab === 'emotion'
-                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -441,7 +441,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             onClick={() => setActiveTab('montecarlo')}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-2 sm:py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
               activeTab === 'montecarlo'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                ? 'bg-cyan-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -464,7 +464,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                   onClick={() => setDailyViewMode('candles')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                     dailyViewMode === 'candles'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -475,7 +475,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                   onClick={() => setDailyViewMode('bars')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                     dailyViewMode === 'bars'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -541,7 +541,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                 </div>
 
                 {tradeCandles.length === 0 ? (
-                  <div className="py-16 text-center text-sm text-slate-400 bg-black/40 rounded-xl border border-slate-800">
+                  <div className="py-16 text-center text-sm text-slate-400 bg-black rounded-xl border border-slate-800">
                     <p className="font-semibold text-slate-300">Nenhuma operação encontrada para esta data.</p>
                     <p className="text-xs text-slate-500 mt-1">Selecione outra data ou registre trades para visualizar os candles de P&L.</p>
                   </div>
@@ -699,7 +699,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
 
                     {/* Hovered Candle Tooltip Detail Card */}
                     {hoveredCandle && (
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-black/95 p-3 shadow-xl text-xs backdrop-blur-md">
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-black p-3 shadow-xl text-xs backdrop-blur-md">
                         <div className="flex flex-wrap items-center gap-3">
                           <div className="flex items-center gap-1.5">
                             <span className="text-slate-400">Ordem:</span>
@@ -882,7 +882,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                     </svg>
 
                     {hoveredDay && (
-                      <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-700 bg-black/90 p-3 shadow-lg text-xs">
+                      <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-700 bg-black p-3 shadow-lg text-xs">
                         <div className="flex items-center gap-3">
                           <div>
                             <span className="text-slate-400">Data: </span>
@@ -934,7 +934,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                   onClick={() => setEquityViewMode('trade')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                     equityViewMode === 'trade'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -945,7 +945,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                   onClick={() => setEquityViewMode('daily')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                     equityViewMode === 'daily'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -980,7 +980,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             </div>
 
             {equityCurvePoints.length <= 1 ? (
-              <div className="py-16 text-center text-sm text-slate-400 bg-black/40 rounded-xl border border-slate-800">
+              <div className="py-16 text-center text-sm text-slate-400 bg-black rounded-xl border border-slate-800">
                 <p className="font-semibold text-slate-300">Nenhuma operação registrada para traçar a curva de capital.</p>
                 <p className="text-xs text-slate-500 mt-1">Insira trades ou sincronize sua corretora para visualizar a evolução do capital.</p>
               </div>
@@ -1106,7 +1106,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
 
                 {/* Hovered Equity Point Tooltip Card */}
                 {hoveredEquityPoint && (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-black/95 p-3 shadow-xl text-xs backdrop-blur-md">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-black p-3 shadow-xl text-xs backdrop-blur-md">
                     <div className="flex items-center gap-3">
                       <div>
                         <span className="text-slate-400">Ponto: </span>
@@ -1155,13 +1155,13 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             {/* Drawdown Summary Cards Grid */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {/* Card 1: Drawdown Máximo (%) */}
-              <div className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-3.5 backdrop-blur-sm">
+              <div className="rounded-xl border border-rose-600 bg-black p-3.5">
                 <div className="flex items-center justify-between text-xs text-rose-300">
                   <span className="font-semibold flex items-center gap-1.5">
                     <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
                     Drawdown Máximo (%)
                   </span>
-                  <span className="rounded bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-mono text-rose-300 border border-rose-500/30">
+                  <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-mono text-white shadow-sm">
                     Pico Histórico
                   </span>
                 </div>
@@ -1174,13 +1174,13 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
               </div>
 
               {/* Card 2: Drawdown Máximo (R$) */}
-              <div className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-3.5 backdrop-blur-sm">
+              <div className="rounded-xl border border-rose-600 bg-black p-3.5">
                 <div className="flex items-center justify-between text-xs text-rose-300">
                   <span className="font-semibold flex items-center gap-1.5">
                     <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
                     Drawdown Máximo (R$)
                   </span>
-                  <span className="rounded bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-mono text-rose-300 border border-rose-500/30">
+                  <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-mono text-white shadow-sm">
                     Perda Máx.
                   </span>
                 </div>
@@ -1193,7 +1193,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
               </div>
 
               {/* Card 3: Drawdown Atual (%) */}
-              <div className="rounded-xl border border-slate-800 bg-black/60 p-3.5 backdrop-blur-sm">
+              <div className="rounded-xl border border-slate-800 bg-black p-3.5 backdrop-blur-sm">
                 <div className="flex items-center justify-between text-xs text-slate-300">
                   <span className="font-semibold flex items-center gap-1.5">
                     <Activity className="h-3.5 w-3.5 text-emerald-400" />
@@ -1202,8 +1202,8 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                   <span
                     className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold ${
                       metrics.currentDrawdownPercent === 0
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-amber-600 text-white shadow-sm'
                     }`}
                   >
                     {metrics.currentDrawdownPercent === 0 ? 'No Topo (0%)' : 'Submerso'}
@@ -1226,7 +1226,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
               </div>
 
               {/* Card 4: Distância do Topo (R$) */}
-              <div className="rounded-xl border border-slate-800 bg-black/60 p-3.5 backdrop-blur-sm">
+              <div className="rounded-xl border border-slate-800 bg-black p-3.5 backdrop-blur-sm">
                 <div className="flex items-center justify-between text-xs text-slate-300">
                   <span className="font-semibold flex items-center gap-1.5">
                     <Shield className="h-3.5 w-3.5 text-blue-400" />
@@ -1279,7 +1279,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
 
             {/* Underwater Chart SVG */}
             {equityCurvePoints.length <= 1 ? (
-              <div className="py-16 text-center text-sm text-slate-400 bg-black/40 rounded-xl border border-slate-800">
+              <div className="py-16 text-center text-sm text-slate-400 bg-black rounded-xl border border-slate-800">
                 <p className="font-semibold text-slate-300">Nenhum dado registrado para calcular drawdown.</p>
                 <p className="text-xs text-slate-500 mt-1">Registre trades para acompanhar a curva de risco submerso.</p>
               </div>
@@ -1370,7 +1370,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
 
                 {/* Hovered Drawdown Tooltip Inspection Card */}
                 {hoveredDrawdownPoint && (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-900/50 bg-black/95 p-3 shadow-xl text-xs backdrop-blur-md">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-900/50 bg-black p-3 shadow-xl text-xs backdrop-blur-md">
                     <div className="flex items-center gap-3">
                       <div>
                         <span className="text-slate-400">Ponto: </span>
@@ -1430,7 +1430,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             )}
 
             {/* Educational Info Box */}
-            <div className="rounded-xl border border-slate-800 bg-black/40 p-4 text-xs text-slate-300">
+            <div className="rounded-xl border border-slate-800 bg-black p-4 text-xs text-slate-300">
               <h5 className="font-bold text-white flex items-center gap-2 mb-1.5">
                 <Info className="h-4 w-4 text-blue-400" />
                 Como interpretar o Gráfico Submerso de Drawdown (Underwater Chart)
@@ -1446,7 +1446,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
         {activeTab === 'breakdown' && (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 pt-2">
             {/* By Asset */}
-            <div className="rounded-xl border border-slate-800/80 bg-black/40 p-4">
+            <div className="rounded-xl border border-slate-800/80 bg-black p-4">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-3">
                 <Layers className="h-4 w-4 text-emerald-400" />
                 Performance por Ativo
@@ -1487,7 +1487,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
             </div>
 
             {/* By Strategy */}
-            <div className="rounded-xl border border-slate-800/80 bg-black/40 p-4">
+            <div className="rounded-xl border border-slate-800/80 bg-black p-4">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-3">
                 <Activity className="h-4 w-4 text-purple-400" />
                 Performance por Estratégia
@@ -1532,7 +1532,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
         {/* 5. STRATEGY COMPARISON RADAR CHART */}
         {activeTab === 'radar' && (
           <div className="pt-2 space-y-4">
-            <div className="rounded-xl border border-slate-800/80 bg-black/40 p-4 sm:p-5">
+            <div className="rounded-xl border border-slate-800/80 bg-black p-4 sm:p-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <div>
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
@@ -1632,7 +1632,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                       return (
                         <div
                           key={strat.strategy}
-                          className="rounded-xl border border-slate-800 bg-black/90 p-3 space-y-1.5"
+                          className="rounded-xl border border-slate-800 bg-black p-3 space-y-1.5"
                           style={{ borderLeftColor: color, borderLeftWidth: '4px' }}
                         >
                           <div className="flex items-center justify-between">
@@ -1680,7 +1680,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
         {/* 6. EMOTION BREAKDOWN */}
         {activeTab === 'emotion' && (
           <div className="pt-2">
-            <div className="rounded-xl border border-slate-800/80 bg-black/40 p-4">
+            <div className="rounded-xl border border-slate-800/80 bg-black p-4">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-3">
                 <Smile className="h-4 w-4 text-blue-400" />
                 Performance por Estado Emocional
@@ -1768,7 +1768,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
   if (metrics.totalTrades < 5) {
     return (
       <div className="pt-2">
-        <div className="rounded-xl border border-slate-800/80 bg-black/40 p-8 text-center">
+        <div className="rounded-xl border border-slate-800/80 bg-black p-8 text-center">
           <Dices className="h-12 w-12 text-cyan-400/40 mx-auto mb-3" />
           <p className="text-sm text-slate-400">
             Registre pelo menos <strong className="text-cyan-300">5 trades</strong> para executar a simulação de Monte Carlo.
@@ -1784,7 +1784,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
   if (!result) return null;
 
   const riskColor = result.riskOfRuin < 0.05 ? 'text-emerald-400' : result.riskOfRuin < 0.2 ? 'text-amber-400' : 'text-rose-400';
-  const riskBg = result.riskOfRuin < 0.05 ? 'bg-emerald-500/10 border-emerald-500/20' : result.riskOfRuin < 0.2 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-rose-500/10 border-rose-500/20';
+  const riskBg = result.riskOfRuin < 0.05 ? 'bg-emerald-600 text-white shadow-sm' : result.riskOfRuin < 0.2 ? 'bg-amber-600 text-white shadow-sm' : 'bg-rose-600 text-white shadow-sm';
   const riskLabel = result.riskOfRuin < 0.05 ? 'SEGURO' : result.riskOfRuin < 0.2 ? 'ATENÇÃO' : 'CRÍTICO';
 
   const riskPercent = Math.min(100, result.riskOfRuin * 100);
@@ -1796,7 +1796,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
     const data = payload[0]?.payload;
     if (!data) return null;
     return (
-      <div className="rounded-lg border border-slate-700 bg-black/95 p-3 text-xs shadow-xl backdrop-blur">
+      <div className="rounded-lg border border-slate-700 bg-black p-3 text-xs shadow-xl backdrop-blur">
         <p className="font-bold text-cyan-300 mb-1.5">Dia {data.day}</p>
         <div className="space-y-0.5">
           <p className="text-emerald-300">P90 (Otimista): <strong>{formatCurrency(data.p90)}</strong></p>
@@ -1813,7 +1813,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
     <div className="pt-2 space-y-4">
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 rounded-lg bg-black/60 border border-slate-800 px-3 py-1.5">
+        <div className="flex items-center gap-2 rounded-lg bg-black border border-slate-800 px-3 py-1.5">
           <span className="text-[11px] text-slate-400">Projeção:</span>
           {([30, 60, 90] as const).map(d => (
             <button
@@ -1821,7 +1821,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
               onClick={() => setProjectionDays(d)}
               className={`rounded px-2 py-0.5 text-[11px] font-bold transition ${
                 projectionDays === d
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                  ? 'bg-cyan-600 text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-300'
               }`}
             >
@@ -1829,7 +1829,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 rounded-lg bg-black/60 border border-slate-800 px-3 py-1.5">
+        <div className="flex items-center gap-2 rounded-lg bg-black border border-slate-800 px-3 py-1.5">
           <span className="text-[11px] text-slate-400">Simulações:</span>
           {[500, 1000, 2000].map(n => (
             <button
@@ -1837,7 +1837,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
               onClick={() => setNumSimulations(n)}
               className={`rounded px-2 py-0.5 text-[11px] font-bold transition ${
                 numSimulations === n
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                  ? 'bg-cyan-600 text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-300'
               }`}
             >
@@ -1894,7 +1894,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
         </div>
 
         {/* Expectancy + Avg DD */}
-        <div className="rounded-xl border border-slate-800/80 bg-black/40 p-4 space-y-3">
+        <div className="rounded-xl border border-slate-800/80 bg-black p-4 space-y-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className={`h-3.5 w-3.5 ${expectancyPositive ? 'text-emerald-400' : 'text-rose-400'}`} />
@@ -1919,7 +1919,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
         </div>
 
         {/* Projections 30/60/90 */}
-        <div className="rounded-xl border border-slate-800/80 bg-black/40 p-4">
+        <div className="rounded-xl border border-slate-800/80 bg-black p-4">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-4 w-4 text-cyan-400" />
             <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Projeção (Mediana)</span>
@@ -1933,7 +1933,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
               const diff = item.value - (metrics.currentCapital > 0 ? metrics.currentCapital : metrics.initialCapital);
               const isUp = diff >= 0;
               return (
-                <div key={item.label} className="flex items-center justify-between rounded-lg bg-black/50 px-3 py-2">
+                <div key={item.label} className="flex items-center justify-between rounded-lg bg-black px-3 py-2">
                   <span className="text-xs text-slate-400">{item.label}</span>
                   <div className="text-right">
                     <p className="text-sm font-bold font-mono text-slate-200">
@@ -1951,7 +1951,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
       </div>
 
       {/* Area Chart - Capital Projection Bands */}
-      <div className="rounded-xl border border-slate-800/80 bg-black/40 p-4">
+      <div className="rounded-xl border border-slate-800/80 bg-black p-4">
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <Layers className="h-4 w-4 text-cyan-400" />
@@ -2022,7 +2022,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
       </div>
 
       {/* Final Capital Distribution */}
-      <div className="rounded-xl border border-slate-800/80 bg-black/40 p-4">
+      <div className="rounded-xl border border-slate-800/80 bg-black p-4">
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-3">
           <Dices className="h-4 w-4 text-cyan-400" />
           Distribuição de Capital Final ({projectionDays} dias)
@@ -2035,7 +2035,7 @@ const MonteCarloPanel: React.FC<MonteCarloPanelProps> = ({ metrics, trades }) =>
             { label: 'P75', value: result.finalCapitalPercentiles.p75, color: 'text-emerald-400' },
             { label: 'P90 (Melhor cenário)', value: result.finalCapitalPercentiles.p90, color: 'text-emerald-300' },
           ].map(item => (
-            <div key={item.label} className="rounded-lg bg-black/60 p-2.5 text-center">
+            <div key={item.label} className="rounded-lg bg-black p-2.5 text-center">
               <p className="text-[10px] text-slate-500 mb-0.5">{item.label}</p>
               <p className={`text-sm font-bold font-mono ${item.color}`}>
                 {formatCurrency(item.value)}

@@ -205,9 +205,9 @@ export const TradeList: React.FC<TradeListProps> = ({
               type="button"
               onClick={handleDeleteSelected}
               title="Excluir todas as operações selecionadas"
-              className="flex items-center gap-1.5 rounded-xl border border-rose-500/60 bg-rose-950/80 px-3.5 py-1.5 text-xs font-bold text-rose-200 hover:bg-rose-900 transition shadow-md ring-1 ring-rose-500/30 animate-pulse"
+              className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-rose-500 transition shadow-md animate-pulse"
             >
-              <Trash2 className="h-3.5 w-3.5 text-rose-300" />
+              <Trash2 className="h-3.5 w-3.5 text-white" />
               <span>Excluir Selecionados ({selectedIds.length})</span>
             </button>
           )}
@@ -216,9 +216,9 @@ export const TradeList: React.FC<TradeListProps> = ({
             <button
               onClick={onOpenImportModal}
               title="Importar relatório de performance da ProfitChart, MetaTrader ou Exnova"
-              className="flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-blue-950/40 px-3 py-1.5 text-xs font-bold text-blue-300 hover:bg-blue-900/50 hover:text-white transition shadow-sm"
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-500 transition shadow-sm"
             >
-              <Upload className="h-3.5 w-3.5 text-blue-400" />
+              <Upload className="h-3.5 w-3.5 text-white" />
               <span>Importar CSV</span>
             </button>
           )}
@@ -226,7 +226,7 @@ export const TradeList: React.FC<TradeListProps> = ({
           <button
             onClick={exportToCsv}
             title="Exportar dados filtrados para arquivo CSV"
-            className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white transition"
+            className="flex items-center gap-1.5 rounded-xl bg-slate-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-600 transition shadow-sm"
           >
             <Download className="h-3.5 w-3.5" />
             <span>Exportar CSV</span>
@@ -236,7 +236,7 @@ export const TradeList: React.FC<TradeListProps> = ({
             <button
               onClick={onResetData}
               title="Limpar histórico de operações"
-              className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-black px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-rose-300 hover:border-rose-900/50 hover:bg-rose-950/20 transition"
+              className="flex items-center gap-1.5 rounded-xl bg-black border border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-rose-600 hover:border-rose-600 hover:text-white transition shadow-sm"
             >
               <Trash2 className="h-3.5 w-3.5" />
               <span>Limpar Diário</span>
@@ -341,7 +341,7 @@ export const TradeList: React.FC<TradeListProps> = ({
           </label>
 
           {selectedIds.length > 0 && (
-            <span className="rounded-full bg-rose-500/20 px-2.5 py-0.5 text-[11px] font-bold text-rose-300 border border-rose-500/30 font-mono">
+            <span className="rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-bold text-white font-mono shadow-sm">
               {selectedIds.length} selecionado{selectedIds.length > 1 ? 's' : ''}
             </span>
           )}
@@ -393,8 +393,8 @@ export const TradeList: React.FC<TradeListProps> = ({
                 key={trade.id}
                 className={`rounded-2xl border p-3.5 shadow-sm space-y-2.5 transition active:scale-[0.99] ${
                   isSelected
-                    ? 'border-rose-500/50 bg-rose-950/20 ring-1 ring-rose-500/30'
-                    : 'border-slate-800/90 bg-black/70'
+                    ? 'border-rose-600 bg-rose-900'
+                    : 'border-slate-800 bg-black'
                 }`}
               >
                 {/* Top Row: Select Checkbox, Date, Time & PnL */}
@@ -432,8 +432,8 @@ export const TradeList: React.FC<TradeListProps> = ({
                   <span
                     className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
                       trade.type === 'BUY'
-                        ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-amber-600 text-white shadow-sm'
                     }`}
                   >
                     {trade.type === 'BUY' ? (
@@ -447,7 +447,7 @@ export const TradeList: React.FC<TradeListProps> = ({
                     )}
                   </span>
 
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-slate-800/90 px-2 py-1 text-[11px] text-slate-300 border border-slate-700/40">
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-2 py-1 text-[11px] font-bold text-slate-200 border border-slate-700">
                     <Tag className="h-2.5 w-2.5 text-slate-400" />
                     {trade.strategy}
                   </span>
@@ -490,7 +490,7 @@ export const TradeList: React.FC<TradeListProps> = ({
                     <button
                       type="button"
                       onClick={() => onDeleteTrade(trade.id)}
-                      className="flex items-center gap-1 rounded-xl border border-rose-500/30 bg-rose-950/40 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-900/50 active:scale-95 transition"
+                      className="flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-500 active:scale-95 transition shadow-sm"
                     >
                       <Trash2 className="h-3.5 w-3.5 text-rose-400" />
                       <span>Excluir</span>
@@ -506,7 +506,7 @@ export const TradeList: React.FC<TradeListProps> = ({
       {/* Desktop Trades Table (Visible on md and larger) */}
       <div className="mt-4 hidden md:block overflow-x-auto rounded-xl border border-slate-800">
         <table className="w-full text-left text-xs">
-          <thead className="border-b border-slate-800 bg-black/80 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <thead className="border-b border-slate-800 bg-black text-[11px] font-bold uppercase tracking-wider text-slate-400">
             <tr>
               <th className="px-3 py-3 w-10 text-center">
                 <input
@@ -545,8 +545,8 @@ export const TradeList: React.FC<TradeListProps> = ({
                     key={trade.id}
                     className={`transition-colors duration-150 ${
                       isSelected
-                        ? 'bg-rose-950/30 border-l-2 border-l-rose-500'
-                        : 'hover:bg-slate-800/40'
+                        ? 'bg-rose-900 border-l-2 border-l-rose-500'
+                        : 'hover:bg-slate-900'
                     }`}
                   >
                     {/* Checkbox */}
@@ -577,8 +577,8 @@ export const TradeList: React.FC<TradeListProps> = ({
                       <span
                         className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                           trade.type === 'BUY'
-                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-amber-600 text-white shadow-sm'
                         }`}
                       >
                         {trade.type === 'BUY' ? (
@@ -646,7 +646,7 @@ export const TradeList: React.FC<TradeListProps> = ({
                           type="button"
                           onClick={() => onDeleteTrade(trade.id)}
                           title="Excluir Trade"
-                          className="rounded p-1 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400 transition"
+                          className="rounded p-1 text-slate-400 hover:bg-rose-600 hover:text-white transition"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

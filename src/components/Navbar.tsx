@@ -34,6 +34,7 @@ interface NavbarProps {
   onOpenSettings: () => void;
   onOpenAiMentor: () => void;
   onOpenKellyCalculator?: () => void;
+  onOpenStakePlanner?: () => void;
   onOpenSupabase?: () => void;
   onOpenAntiFuria?: () => void;
   onClearNotifications?: () => void;
@@ -55,6 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSettings,
   onOpenAiMentor,
   onOpenKellyCalculator,
+  onOpenStakePlanner,
   onOpenSupabase = () => {},
   onOpenAntiFuria,
   onClearNotifications = () => {},
@@ -234,6 +236,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-teal-500/40 bg-slate-800/90 text-teal-300 shadow-md transition-all hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
             >
               <Calculator className="h-4 w-4 text-teal-400" />
+            </button>
+          )}
+
+          {/* Stake Planner (Soros) Button */}
+          {onOpenStakePlanner && (
+            <button
+              id="btn-planejador-soros"
+              onClick={onOpenStakePlanner}
+              title="Planejador de Entradas (Simulador de Soros, Mão Fixa e Gale)"
+              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-indigo-500/40 bg-indigo-950/40 text-indigo-300 shadow-md transition-all hover:bg-indigo-900/50 hover:text-white active:scale-95 shrink-0"
+            >
+              <TrendingUp className="h-4 w-4 text-indigo-400" />
             </button>
           )}
 

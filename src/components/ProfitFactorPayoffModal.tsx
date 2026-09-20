@@ -39,55 +39,55 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
 
   let pfStatus = {
     label: 'Prejuízo',
-    color: 'text-rose-400',
-    bg: 'bg-rose-500/10 border-rose-500/30',
+    color: 'text-white',
+    bg: 'bg-rose-600 border-rose-500',
     desc: 'O total de perdas supera o total de ganhos. Reveja disciplina e stop.',
   };
   if (pf >= 1.6) {
     pfStatus = {
       label: 'Excelente / Alta Performance',
-      color: 'text-emerald-400',
-      bg: 'bg-emerald-500/10 border-emerald-500/30',
+      color: 'text-white',
+      bg: 'bg-emerald-600 border-emerald-500',
       desc: 'Operacional altamente rentável com ganhos expressivos sobre as perdas.',
     };
   } else if (pf >= 1.25) {
     pfStatus = {
       label: 'Bom e Consistente',
-      color: 'text-teal-400',
-      bg: 'bg-teal-500/10 border-teal-500/30',
+      color: 'text-white',
+      bg: 'bg-teal-600 border-teal-500',
       desc: 'Zona saudável de consistência no longo prazo.',
     };
   } else if (pf >= 1.0) {
     pfStatus = {
       label: 'Breakeven / Empate Tênue',
-      color: 'text-amber-400',
-      bg: 'bg-amber-500/10 border-amber-500/30',
+      color: 'text-white',
+      bg: 'bg-amber-600 border-amber-500',
       desc: 'Equilíbrio no limite. Pouca margem de segurança contra sequências de loss.',
     };
   }
 
   let payoffStatus = {
     label: 'Abaixo da Média de OB',
-    color: 'text-rose-400',
-    bg: 'bg-rose-500/10 border-rose-500/30',
+    color: 'text-white',
+    bg: 'bg-rose-600 border-rose-500',
   };
   if (payoff >= 1.15) {
     payoffStatus = {
       label: 'Excelente (Típico com Soros)',
-      color: 'text-purple-400',
-      bg: 'bg-purple-500/10 border-purple-500/30',
+      color: 'text-white',
+      bg: 'bg-purple-600 border-purple-500',
     };
   } else if (payoff >= 0.82) {
     payoffStatus = {
       label: 'Padrão Saudável de Opções Binárias',
-      color: 'text-emerald-400',
-      bg: 'bg-emerald-500/10 border-emerald-500/30',
+      color: 'text-white',
+      bg: 'bg-emerald-600 border-emerald-500',
     };
   } else if (payoff >= 0.75) {
     payoffStatus = {
       label: 'Atenção aos Payouts da Corretora',
-      color: 'text-amber-400',
-      bg: 'bg-amber-500/10 border-amber-500/30',
+      color: 'text-white',
+      bg: 'bg-amber-600 border-amber-500',
     };
   }
 
@@ -103,7 +103,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-800 px-4 sm:px-5 py-3 sm:py-3.5 bg-black/95 shrink-0">
           <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-purple-600 text-white shadow-sm shrink-0">
               <Scale className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div>
@@ -198,7 +198,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold whitespace-nowrap shrink-0 transition active:scale-95 ${
                 activeTab === 'overview'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-950/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-black/60 border border-slate-800/80'
+                  : 'text-slate-400 hover:bg-slate-900 bg-black border border-slate-800'
               }`}
             >
               <Lightbulb className="w-3.5 h-3.5 shrink-0" />
@@ -211,7 +211,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold whitespace-nowrap shrink-0 transition active:scale-95 ${
                 activeTab === 'profitFactor'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-950/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-black/60 border border-slate-800/80'
+                  : 'text-slate-400 hover:bg-slate-900 bg-black border border-slate-800'
               }`}
             >
               <Scale className="w-3.5 h-3.5 shrink-0" />
@@ -224,7 +224,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold whitespace-nowrap shrink-0 transition active:scale-95 ${
                 activeTab === 'payoff'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-950/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-black/60 border border-slate-800/80'
+                  : 'text-slate-400 hover:bg-slate-900 bg-black border border-slate-800'
               }`}
             >
               <TrendingUp className="w-3.5 h-3.5 shrink-0" />
@@ -237,7 +237,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold whitespace-nowrap shrink-0 transition active:scale-95 ${
                 activeTab === 'breakeven'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-950/60'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 bg-black/60 border border-slate-800/80'
+                  : 'text-slate-400 hover:bg-slate-900 bg-black border border-slate-800'
               }`}
             >
               <Calculator className="w-3.5 h-3.5 shrink-0" />
@@ -250,7 +250,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs sm:text-sm text-slate-300">
           {activeTab === 'overview' && (
             <div className="space-y-4">
-              <div className="rounded-xl bg-purple-950/20 border border-purple-800/40 p-4">
+              <div className="rounded-xl bg-black border border-slate-800 p-4">
                 <h4 className="text-purple-300 font-bold text-sm flex items-center gap-2">
                   <Lightbulb className="w-4 h-4 text-purple-400" />
                   Por que estas métricas são vitais para o Trader de Opções Binárias?
@@ -330,7 +330,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
                       <th className="px-3.5 py-2.5">O que significa na prática para OB</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800 bg-black/60 font-sans">
+                  <tbody className="divide-y divide-slate-800 bg-black font-sans">
                     <tr className="hover:bg-slate-800/40">
                       <td className="px-3.5 py-2.5 font-mono font-bold text-rose-400">&lt; 1,00</td>
                       <td className="px-3.5 py-2.5 font-medium text-rose-400">Prejuízo</td>
@@ -394,7 +394,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
                   </div>
                 </div>
 
-                <div className="rounded-xl bg-purple-950/30 border border-purple-800/40 p-3.5">
+                <div className="rounded-xl bg-black border border-slate-800 p-3.5">
                   <span className="text-xs font-bold text-purple-300 uppercase tracking-wide">
                     Opções Binárias (Payout Fixo)
                   </span>
@@ -412,7 +412,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
                 <div className="bg-black px-3.5 py-2 font-semibold text-xs text-slate-400 uppercase">
                   Referências de Payoff em Opções Binárias
                 </div>
-                <div className="divide-y divide-slate-800 bg-black/60 text-xs">
+                <div className="divide-y divide-slate-800 bg-black text-xs">
                   <div className="p-3 flex items-start gap-3">
                     <span className="font-mono font-bold text-rose-400 shrink-0 w-24">&lt; 1 : 0,75</span>
                     <div>
@@ -431,7 +431,7 @@ export const ProfitFactorPayoffModal: React.FC<ProfitFactorPayoffModalProps> = (
                       </p>
                     </div>
                   </div>
-                  <div className="p-3 flex items-start gap-3 bg-purple-950/20">
+                  <div className="p-3 flex items-start gap-3 bg-black border-t border-slate-800">
                     <span className="font-mono font-bold text-purple-300 shrink-0 w-24">&gt; 1 : 1,10</span>
                     <div>
                       <strong className="text-purple-300">Excelente / Alavancagem com Soros</strong>

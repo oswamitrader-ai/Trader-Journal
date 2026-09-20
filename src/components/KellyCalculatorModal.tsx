@@ -75,11 +75,11 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-md pt-safe pb-safe overflow-y-auto">
-      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl border border-slate-800 bg-black/95 shadow-2xl backdrop-blur-xl my-auto overflow-hidden">
+      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl border border-slate-800 bg-black shadow-2xl my-auto overflow-hidden">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-800/80 p-5 sm:p-7 pb-4 shrink-0 bg-black/80">
+        <div className="flex items-start justify-between border-b border-slate-800/80 p-5 sm:p-7 pb-4 shrink-0 bg-black">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-700 shadow-lg shadow-teal-900/40 text-white">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-600 shadow-sm text-white">
               <Calculator className="h-6 w-6" />
             </div>
             <div>
@@ -87,7 +87,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
                 <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
                   Calculadora do Critério de Kelly (Opções Binárias)
                 </h2>
-                <span className="rounded-full bg-teal-500/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-teal-300 border border-teal-500/30">
+                <span className="rounded-full bg-teal-600 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-white shadow-sm">
                   Stake / Entrada
                 </span>
               </div>
@@ -99,7 +99,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
 
           <button
             onClick={onClose}
-            className="rounded-xl border border-slate-800 bg-slate-800/50 p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            className="rounded-xl border border-slate-800 bg-slate-900 p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"
           >
             <X className="h-5 w-5" />
           </button>
@@ -108,7 +108,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
         {/* Modal Body */}
         <div className="overflow-y-auto p-5 sm:p-7 space-y-6 flex-1 min-h-0">
           {/* Top Info Banner & Reset */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-black/50 p-3 px-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-black p-3 px-4">
             <div className="flex items-center gap-2 text-xs text-slate-300">
               <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
               <span>Valores pré-preenchidos automaticamente com suas métricas históricas de trading.</span>
@@ -126,7 +126,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
           {/* Form Inputs Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Capital Total */}
-            <div className="rounded-2xl border border-slate-800 bg-black/70 p-3.5">
+            <div className="rounded-2xl border border-slate-800 bg-black p-3.5">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                 Capital da Banca
               </label>
@@ -143,7 +143,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
             </div>
 
             {/* Taxa de Acerto */}
-            <div className="rounded-2xl border border-slate-800 bg-black/70 p-3.5">
+            <div className="rounded-2xl border border-slate-800 bg-black p-3.5">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                 Taxa de Acerto (%)
               </label>
@@ -162,7 +162,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
             </div>
 
             {/* Stake Base do Trade */}
-            <div className="rounded-2xl border border-teal-500/30 bg-teal-950/20 p-3.5 ring-1 ring-teal-500/20">
+            <div className="rounded-2xl border border-teal-600 bg-black p-3.5 ring-1 ring-teal-500/30">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-teal-300 mb-1.5">
                 Stake Base / Entrada
               </label>
@@ -180,7 +180,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
             </div>
 
             {/* Lucro Médio */}
-            <div className="rounded-2xl border border-slate-800 bg-black/70 p-3.5">
+            <div className="rounded-2xl border border-slate-800 bg-black p-3.5">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                 Lucro Médio Gain
               </label>
@@ -197,7 +197,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
             </div>
 
             {/* Prejuízo Médio */}
-            <div className="rounded-2xl border border-slate-800 bg-black/70 p-3.5">
+            <div className="rounded-2xl border border-slate-800 bg-black p-3.5">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                 Prejuízo Médio Loss
               </label>
@@ -214,7 +214,7 @@ export const KellyCalculatorModal: React.FC<KellyCalculatorModalProps> = ({
             </div>
 
             {/* Payoff resultante */}
-            <div className="rounded-2xl border border-slate-800 bg-black/70 p-3.5 flex flex-col justify-between">
+            <div className="rounded-2xl border border-slate-800 bg-black p-3.5 flex flex-col justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Payoff Ratio (Média W/L)
               </span>

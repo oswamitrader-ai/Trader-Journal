@@ -114,16 +114,16 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
       {/* SEÇÃO DE MONITORAMENTO DE META DIÁRIA & LIMITE DE PERDA COM ALERTAS DE 80% */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         {/* CARD: META DIÁRIA DE GANHO */}
-        <div className={`relative overflow-hidden rounded-2xl border p-4 shadow-xl backdrop-blur-md transition-all ${
+        <div className={`relative overflow-hidden rounded-2xl border p-4 shadow-xl transition-all ${
           isTargetAchieved
-            ? 'border-emerald-500/60 bg-emerald-950/40 ring-1 ring-emerald-500/30'
+            ? 'border-emerald-600 bg-black ring-1 ring-emerald-500/30'
             : isNearTarget80
-            ? 'border-amber-500/60 bg-amber-950/30 ring-1 ring-amber-500/30'
-            : 'border-slate-800 bg-black/80'
+            ? 'border-amber-600 bg-black ring-1 ring-amber-500/30'
+            : 'border-slate-800 bg-black'
         }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
                 <Trophy className="h-4 w-4" />
               </div>
               <div>
@@ -192,7 +192,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
 
           {/* 80% Alert Reminder Banner */}
           {isNearTarget80 && (
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-200">
+            <div className="mt-3 flex items-center justify-between rounded-xl bg-amber-600 p-2.5 text-xs text-white shadow-md">
               <div className="flex items-center gap-2">
                 <Target className="h-4 w-4 text-amber-400 shrink-0" />
                 <span>
@@ -203,7 +203,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
           )}
 
           {isTargetAchieved && (
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-200">
+            <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-600 p-2.5 text-xs text-white shadow-md">
               <div className="flex items-center gap-2">
                 <Trophy className="h-4 w-4 text-emerald-400 shrink-0" />
                 <span>
@@ -217,14 +217,14 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
         {/* CARD: LIMITE DIÁRIO DE PERDA */}
         <div className={`relative overflow-hidden rounded-2xl border p-4 shadow-xl backdrop-blur-md transition-all ${
           isStopLossReached
-            ? 'border-rose-500/80 bg-rose-950/50 ring-1 ring-rose-500/40'
+            ? 'border-rose-600 bg-black ring-1 ring-rose-500/40'
             : isNearStop80
-            ? 'border-rose-500/50 bg-rose-950/30 ring-1 ring-rose-500/30'
-            : 'border-slate-800 bg-black/80'
+            ? 'border-rose-600 bg-black ring-1 ring-rose-500/30'
+            : 'border-slate-800 bg-black'
         }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-600 text-white shadow-sm">
                 <ShieldAlert className="h-4 w-4" />
               </div>
               <div>
@@ -284,7 +284,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
                     ? 'bg-rose-600 shadow-md shadow-rose-600/50'
                     : isNearStop80
                     ? 'bg-gradient-to-r from-amber-500 to-rose-500'
-                    : 'bg-rose-500/80'
+                    : 'bg-rose-600'
                 }`}
                 style={{ width: `${lossProgressPct}%` }}
               />
@@ -293,7 +293,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
 
           {/* 80% Alert Reminder Banner */}
           {isNearStop80 && (
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs text-rose-200">
+            <div className="mt-3 flex items-center justify-between rounded-xl bg-rose-600 p-2.5 text-xs text-white shadow-md">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
                 <span>
@@ -329,7 +329,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
             onOpenCapitalModal?.();
           }
         }}
-        className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-black/80 p-3.5 sm:p-4 shadow-lg backdrop-blur-sm cursor-pointer hover:border-emerald-500/60 hover:bg-black hover:shadow-emerald-950/30 transition-all duration-200"
+        className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-black p-3.5 sm:p-4 shadow-lg backdrop-blur-sm cursor-pointer hover:border-emerald-500/60 hover:bg-black hover:shadow-emerald-950/30 transition-all duration-200"
         title="Clique para abrir a tela de Depósitos, Saques e Histórico de Capital"
       >
         <div className="flex items-center justify-between">
@@ -373,7 +373,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
       </div>
 
       {/* CARD 2: ASSERTIVIDADE (WIN RATE) */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black/80 p-4 shadow-lg backdrop-blur-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black p-4 shadow-lg backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Assertividade
@@ -393,7 +393,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
                 <span>Calc. Kelly</span>
               </button>
             )}
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-600 text-white shadow-sm">
               <Target className="h-4 w-4" />
             </div>
           </div>
@@ -446,12 +446,12 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
       </div>
 
       {/* CARD 3: VARIAÇÃO DIÁRIA COMPARADA */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black/80 p-4 shadow-lg backdrop-blur-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black p-4 shadow-lg backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Variação Dia vs Dia Anterior
           </span>
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
             <CalendarDays className="h-4 w-4" />
           </div>
         </div>
@@ -495,19 +495,19 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
       </div>
 
       {/* CARD 4: DRAWDOWN ACUMULADO */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black/80 p-4 shadow-lg backdrop-blur-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black p-4 shadow-lg backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Drawdown Máximo
           </span>
           <div
-            className={`flex h-8 w-8 items-center justify-center rounded-xl border ${
-              isDrawdownSafe
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                : isDrawdownWarning
-                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-            }`}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold ${
+                isDrawdownSafe
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : isDrawdownWarning
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-rose-600 text-white shadow-sm'
+              }`}
           >
             <TrendingDown className="h-4 w-4" />
           </div>
@@ -533,12 +533,12 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
 
           <div className="mt-1 flex items-center gap-1.5 text-xs">
             <span
-              className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                  className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-mono font-bold mt-1 shadow-sm ${
                 isDrawdownSafe
-                  ? 'bg-emerald-500/20 text-emerald-300'
+                  ? 'bg-emerald-600 text-white'
                   : isDrawdownWarning
-                  ? 'bg-amber-500/20 text-amber-300'
-                  : 'bg-rose-500/20 text-rose-300'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-rose-600 text-white'
               }`}
             >
               {isDrawdownSafe ? 'Risco Baixo' : isDrawdownWarning ? 'Risco Moderado' : 'Alerta Alto'}
@@ -622,7 +622,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
             setShowPfModal(true);
           }
         }}
-        className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-black/80 p-4 shadow-lg backdrop-blur-sm cursor-pointer transition-all duration-200 hover:border-purple-500/50 hover:bg-black hover:shadow-purple-950/20 hover:scale-[1.01] text-left"
+        className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-black p-4 shadow-lg backdrop-blur-sm cursor-pointer transition-all duration-200 hover:border-purple-500/50 hover:bg-black hover:shadow-purple-950/20 hover:scale-[1.01] text-left"
         title="Clique para ver o guia detalhado e referências de Fator de Lucro e Payoff para Opções Binárias"
       >
         <div className="flex items-center justify-between">
@@ -633,7 +633,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
             <span className="hidden sm:inline-flex text-[10px] font-bold text-white bg-purple-600 px-2 py-1 rounded transition shadow-md shadow-purple-900/30 whitespace-nowrap">
               Guia OB
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:bg-purple-500/20 transition shrink-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-600 text-white shadow-sm group-hover:bg-purple-500 transition shrink-0">
               <Scale className="h-4 w-4" />
             </div>
           </div>

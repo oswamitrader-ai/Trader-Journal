@@ -226,9 +226,9 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
       <div className="relative w-full max-w-2xl bg-black border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-black/80">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-black">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+            <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-sm">
               <Database className="w-5 h-5" />
             </div>
             <div>
@@ -251,7 +251,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
         {/* Content */}
         <div className="p-6 space-y-5 overflow-y-auto">
           {/* Status Box */}
-          <div className="p-4 rounded-xl border bg-black/60 border-slate-800 space-y-3">
+          <div className="p-4 rounded-xl border bg-black border-slate-800 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Status da Conexão
@@ -296,9 +296,9 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
 
           {/* If table is missing: High Priority Call-to-action */}
           {health.status === 'table_missing' && (
-            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+            <div className="p-4 rounded-xl bg-amber-600 space-y-3 shadow-md">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-amber-300 font-semibold text-sm">
+                <div className="flex items-center gap-2 text-white font-semibold text-sm">
                   <Code2 className="w-4 h-4" />
                   Como criar as tabelas no Supabase em 1 minuto:
                 </div>
@@ -311,14 +311,14 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
                 </button>
               </div>
 
-              <ol className="text-xs text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
+              <ol className="text-xs text-white space-y-1.5 list-decimal list-inside leading-relaxed">
                 <li>
                   Acesse o painel do seu projeto no{' '}
-                  <a
+                    <a
                     href="https://supabase.com/dashboard/project/mreykdrbyfrwqovsleqi/sql"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-amber-400 hover:underline inline-flex items-center gap-1 font-medium"
+                    className="text-white hover:underline inline-flex items-center gap-1 font-bold"
                   >
                     Supabase SQL Editor <ExternalLink className="w-3 h-3 inline" />
                   </a>
@@ -331,7 +331,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
               <div>
                 <button
                   onClick={() => setShowSqlViewer(!showSqlViewer)}
-                  className="text-xs text-amber-400/80 hover:text-amber-300 underline"
+                  className="text-xs text-white hover:underline font-bold"
                 >
                   {showSqlViewer ? 'Ocultar código SQL' : 'Visualizar código SQL completo'}
                 </button>
@@ -348,16 +348,16 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
           {/* Feedback banner */}
           {syncFeedback && (
             <div
-              className={`p-3.5 rounded-xl border text-xs leading-relaxed flex items-center justify-between ${
+              className={`p-3.5 rounded-xl text-xs font-bold leading-relaxed flex items-center justify-between shadow-sm ${
                 syncFeedback.type === 'success'
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-rose-600 text-white'
               }`}
             >
               <span>{syncFeedback.message}</span>
               <button
                 onClick={() => setSyncFeedback(null)}
-                className="p-1 text-slate-400 hover:text-white"
+                className="p-1 text-white/80 hover:text-white"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -398,7 +398,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
             <button
               onClick={handleClearCloudTrades}
               disabled={isClearingCloud || health.status === 'error'}
-              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-rose-400 transition py-1 px-3 rounded-lg hover:bg-rose-950/30"
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-white transition py-1 px-3 rounded-lg hover:bg-rose-600 font-bold"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>{isClearingCloud ? 'Limpando...' : 'Limpar todas as operações no Supabase'}</span>
@@ -407,7 +407,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-slate-800 bg-black/50 flex items-center justify-between text-xs text-slate-400">
+        <div className="px-6 py-3 border-t border-slate-800 bg-black flex items-center justify-between text-xs text-slate-400">
           <span>Tabela: <strong className="text-slate-200">public.trades</strong></span>
           <button
             onClick={onClose}

@@ -24,11 +24,11 @@ export const WeeklyPerformancePanel: React.FC<WeeklyPerformancePanelProps> = ({
   const dailyProfitTarget = settings?.dailyProfitTarget ?? 500;
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-black/80 p-5 shadow-xl backdrop-blur-sm">
+    <div className="rounded-2xl border border-slate-800 bg-black p-5 shadow-xl">
       {/* Header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md">
             <CalendarRange className="h-5 w-5" />
           </div>
           <div>
@@ -63,8 +63,8 @@ export const WeeklyPerformancePanel: React.FC<WeeklyPerformancePanelProps> = ({
               key={week.id}
               className={`relative flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-200 ${
                 isPositive
-                  ? 'border-emerald-500/30 bg-gradient-to-b from-slate-900/90 to-emerald-950/20 shadow-md shadow-emerald-950/20'
-                  : 'border-rose-500/30 bg-gradient-to-b from-slate-900/90 to-rose-950/20 shadow-md shadow-rose-950/20'
+                  ? 'border-emerald-600 bg-black shadow-md shadow-emerald-900/20'
+                  : 'border-rose-600 bg-black shadow-md shadow-rose-900/20'
               }`}
             >
               {/* Card Header: Week Label & Status Tag */}
@@ -74,15 +74,15 @@ export const WeeklyPerformancePanel: React.FC<WeeklyPerformancePanelProps> = ({
                     {week.weekLabel}
                   </span>
                   {isTargetHit ? (
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-500/30">
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
                       <Trophy className="h-3 w-3" /> Meta Superada
                     </span>
                   ) : isPositive ? (
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
                       <CheckCircle className="h-3 w-3" /> Positiva
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-400 border border-rose-500/20">
+                    <span className="flex items-center gap-1 rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
                       <AlertTriangle className="h-3 w-3" /> Negativa
                     </span>
                   )}
@@ -120,7 +120,7 @@ export const WeeklyPerformancePanel: React.FC<WeeklyPerformancePanelProps> = ({
               </div>
 
               {/* Weekly Details Table */}
-              <div className="mt-4 space-y-2 border-t border-slate-800/80 pt-3 text-xs text-slate-300">
+              <div className="mt-4 space-y-2 border-t border-slate-800 pt-3 text-xs text-slate-300">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">Operações Realizadas:</span>
                   <span className="font-semibold text-white">

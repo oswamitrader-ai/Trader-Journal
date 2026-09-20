@@ -39,6 +39,7 @@ import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { AntiFuriaExtensionModal } from './components/AntiFuriaExtensionModal';
 import { CapitalHistoryModal } from './components/CapitalHistoryModal';
 import { KellyCalculatorModal } from './components/KellyCalculatorModal';
+import { StakePlannerModal } from './components/StakePlannerModal';
 import { ImportTradesModal } from './components/ImportTradesModal';
 import {
   supabase,
@@ -161,7 +162,8 @@ export default function App() {
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isAiMentorOpen, setIsAiMentorOpen] = useState(false);
-  const [isKellyModalOpen, setIsKellyModalOpen] = useState(false);
+  const [isKellyCalculatorOpen, setIsKellyCalculatorOpen] = useState(false);
+  const [isStakePlannerOpen, setIsStakePlannerOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
@@ -577,7 +579,8 @@ export default function App() {
         onOpenImportModal={() => setIsImportModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         onOpenAiMentor={() => setIsAiMentorOpen(true)}
-        onOpenKellyCalculator={() => setIsKellyModalOpen(true)}
+        onOpenKellyCalculator={() => setIsKellyCalculatorOpen(true)}
+        onOpenStakePlanner={() => setIsStakePlannerOpen(true)}
         onOpenSupabase={() => setIsSupabaseModalOpen(true)}
         onOpenAntiFuria={() => setIsAntiFuriaModalOpen(true)}
         onClearNotifications={handleClearNotifications}
@@ -721,7 +724,7 @@ export default function App() {
           dailyPerformance={dailyPerformance}
           dailyProfitTarget={settings.dailyProfitTarget}
           onOpenCapitalModal={() => setIsCapitalModalOpen(true)}
-          onOpenKellyCalculator={() => setIsKellyModalOpen(true)}
+          onOpenKellyCalculator={() => setIsKellyCalculatorOpen(true)}
         />
 
         {/* Conditional View Sections */}
@@ -954,10 +957,16 @@ export default function App() {
       />
 
       <KellyCalculatorModal
-        isOpen={isKellyModalOpen}
-        onClose={() => setIsKellyModalOpen(false)}
+        isOpen={isKellyCalculatorOpen}
+        onClose={() => setIsKellyCalculatorOpen(false)}
         metrics={metrics}
         currentCapital={metrics.currentCapital}
+      />
+
+      <StakePlannerModal
+        isOpen={isStakePlannerOpen}
+        onClose={() => setIsStakePlannerOpen(false)}
+        initialCapital={metrics.currentCapital}
       />
 
       <ImportTradesModal
