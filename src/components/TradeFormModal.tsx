@@ -47,6 +47,15 @@ const DEFAULT_EMOTIONS = [
   'Irritado',
 ];
 const EMOTIONS_STORAGE_KEY = 'trader_saved_emotions';
+const LAST_EMOTION_STORAGE_KEY = 'trader_last_emotional_state';
+
+const getLastEmotionalState = (): string => {
+  try {
+    const saved = localStorage.getItem(LAST_EMOTION_STORAGE_KEY);
+    if (saved && saved.trim()) return saved.trim();
+  } catch {}
+  return 'Calmo';
+};
 
 export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   isOpen,
@@ -283,18 +292,18 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   useEffect(() => {
     if (editingTrade) {
-      setDate(editingTrade.date);
+      setDate(editingTrade.date || new Date().toISOString().split('T')[0]);
       setTime(editingTrade.time || '');
-      setAsset(editingTrade.asset);
-      setType(editingTrade.type);
-      setStrategy(editingTrade.strategy);
-      setContractsOrQuantity(editingTrade.contractsOrQuantity);
-      setPnl(editingTrade.pnl);
-      setResult(editingTrade.result);
+      setAsset(editingTrade.asset || savedAssets[0] || 'WIN');
+      setType(editingTrade.type || 'BUY');
+      setStrategy(editingTrade.strategy || savedStrategies[0] || 'Price Action');
+      setContractsOrQuantity(editingTrade.contractsOrQuantity || 0);
+      setPnl(editingTrade.pnl || 0);
+      setResult(editingTrade.result || 'GAIN');
       setEntryPrice(editingTrade.entryPrice ? String(editingTrade.entryPrice) : '');
       setExitPrice(editingTrade.exitPrice ? String(editingTrade.exitPrice) : '');
       setNotes(editingTrade.notes || '');
-      setEmotionalState(editingTrade.emotionalState || 'Neutro');
+      setEmotionalState(editingTrade.emotionalState || getLastEmotionalState());
       setAccountType(editingTrade.accountType || (editingTrade.isReal === false ? 'DEMO' : 'REAL'));
     } else {
       // Default new trade: real today's date and clean values
@@ -307,16 +316,16 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
           .toString()
           .padStart(2, '0')}`
       );
-      setAsset(savedAssets[0] || '');
+      setAsset(savedAssets[0] || 'WIN');
       setType('BUY');
-      setStrategy(savedStrategies[0] || '');
+      setStrategy(savedStrategies[0] || 'Price Action');
       setContractsOrQuantity(0);
       setPnl(0);
       setResult('GAIN');
       setEntryPrice('');
       setExitPrice('');
       setNotes('');
-      setEmotionalState('Neutro');
+      setEmotionalState(getLastEmotionalState());
       setAccountType('REAL');
     }
   }, [editingTrade, isOpen]);
@@ -347,9 +356,14 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       updateSavedStrategies([...savedStrategies, normalizedStrategy]);
     }
 
-    const normalizedEmotion = emotionalState.trim() || 'Neutro';
+    const normalizedEmotion = emotionalState.trim() || getLastEmotionalState();
     if (!savedEmotions.includes(normalizedEmotion)) {
       updateSavedEmotions([...savedEmotions, normalizedEmotion]);
+    }
+    try {
+      localStorage.setItem(LAST_EMOTION_STORAGE_KEY, normalizedEmotion);
+    } catch (e) {
+      console.warn(e);
     }
 
     const currentDateStr = new Date().toISOString().split('T')[0];
@@ -370,7 +384,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       entryPrice: isEditingProtected && editingTrade ? editingTrade.entryPrice : (entryPrice ? Number(entryPrice) : undefined),
       exitPrice: isEditingProtected && editingTrade ? editingTrade.exitPrice : (exitPrice ? Number(exitPrice) : undefined),
       notes: notes.trim(),
-      emotionalState,
+      emotionalState: normalizedEmotion,
       accountType: isEditingProtected && editingTrade ? editingTrade.accountType : accountType,
       isReal: isEditingProtected && editingTrade ? (editingTrade.isReal !== false) : (accountType === 'REAL'),
       isAutoCaptured: editingTrade?.isAutoCaptured,
@@ -1154,7 +1168,12 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     <button
                       key={state}
                       type="button"
-                      onClick={() => setEmotionalState(state)}
+                      onClick={() => {
+                        setEmotionalState(state);
+                        try {
+                          localStorage.setItem(LAST_EMOTION_STORAGE_KEY, state);
+                        } catch {}
+                      }}
                       className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
                         emotionalState.trim().toLowerCase() === state.trim().toLowerCase()
                           ? 'bg-purple-600 text-white shadow-md shadow-purple-900/30'
