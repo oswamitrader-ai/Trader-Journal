@@ -16,6 +16,9 @@ export interface Trade {
   notes?: string;
   tags?: string[];
   emotionalState?: string; // e.g., 'Calmo', 'Ansioso', 'Eufórico'
+  accountType?: 'REAL' | 'DEMO';
+  isReal?: boolean;
+  isAutoCaptured?: boolean;
 }
 
 export type CapitalTransactionType = 'DEPOSIT' | 'WITHDRAWAL';

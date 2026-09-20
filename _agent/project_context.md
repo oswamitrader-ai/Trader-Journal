@@ -51,6 +51,13 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **index.html**: Fonte Google removida (Plus Jakarta Sans), body com `bg-black`.
     - **index.css**: Tipografia global com Arial Black em todos os elementos.
 
+12. **Proteção Anti-Burlar contra Exclusão de Operações de Conta Real (Imutabilidade Anti-Fúria)**:
+    - Implementada a função utilitária `isTradeProtected(trade)` em `calculations.ts`.
+    - Operações de **Conta Real** (`accountType: 'REAL'`, `isReal: true`, `isAutoCaptured: true`) são **estritamente protegidas e imutáveis contra exclusão**.
+    - Impede que o trader exclua trades de perda da conta real para resetar o histórico e tentar destravar as corretoras bloqueadas pela Trava Anti-Fúria.
+    - Bloqueios ativos na exclusão individual (`TradeList.tsx` e `DayDetailModal.tsx`), exclusão em massa (`handleDeleteMultipleTrades`), e na limpeza de dados (`handleResetData` em `App.tsx`).
+    - Interface gráfica exibe o selo **"Protegido 🔒"** com ícone de escudo em todos os trades de conta real.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.

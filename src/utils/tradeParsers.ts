@@ -252,6 +252,9 @@ function parseExnovaDedicated(
         notes: `Digital Options | Investimento: R$ ${investment.toFixed(2)}`,
         selected: true,
         rawRow: rowStr,
+        accountType: 'REAL',
+        isReal: true,
+        isAutoCaptured: true,
       };
 
       trades.push(tradeItem);
@@ -401,6 +404,9 @@ function parseGeneric(
         notes: `Importado de relatório ${detected}`,
         selected: true,
         rawRow: rowStr,
+        accountType: 'REAL',
+        isReal: true,
+        isAutoCaptured: true,
       });
     } catch (err: any) {
       errors.push(`Linha ${i + 1}: ${err?.message || 'Erro de leitura'}`);

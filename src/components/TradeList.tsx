@@ -17,9 +17,10 @@ import {
   Upload,
   CheckSquare,
   Square,
+  ShieldCheck,
 } from 'lucide-react';
 import { Trade } from '../types';
-import { formatCurrency, formatDate } from '../utils/calculations';
+import { formatCurrency, formatDate, isTradeProtected } from '../utils/calculations';
 
 interface TradeListProps {
   trades: Trade[];
@@ -487,14 +488,26 @@ export const TradeList: React.FC<TradeListProps> = ({
                       <Edit2 className="h-3.5 w-3.5 text-slate-300" />
                       <span>Editar</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteTrade(trade.id)}
-                      className="flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-500 active:scale-95 transition shadow-sm"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-rose-400" />
-                      <span>Excluir</span>
-                    </button>
+                    {isTradeProtected(trade) ? (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteTrade(trade.id)}
+                        title="🔒 Operação de Conta Real capturada. Protegida pelo Sistema Anti-Fúria contra exclusão."
+                        className="flex items-center gap-1 rounded-xl bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/20"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Protegido 🔒</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteTrade(trade.id)}
+                        className="flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-500 active:scale-95 transition shadow-sm"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-white" />
+                        <span>Excluir</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -642,14 +655,25 @@ export const TradeList: React.FC<TradeListProps> = ({
                         >
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteTrade(trade.id)}
-                          title="Excluir Trade"
-                          className="rounded p-1 text-slate-400 hover:bg-rose-600 hover:text-white transition"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {isTradeProtected(trade) ? (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteTrade(trade.id)}
+                            title="🔒 Operação de Conta Real capturada. Protegida pelo Sistema Anti-Fúria contra exclusão."
+                            className="rounded p-1 text-amber-400 hover:bg-amber-950/40 transition"
+                          >
+                            <ShieldCheck className="h-4 w-4 text-amber-400" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteTrade(trade.id)}
+                            title="Excluir Trade"
+                            className="rounded p-1 text-slate-400 hover:bg-rose-600 hover:text-white transition"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -9,9 +9,10 @@ import {
   ArrowDown,
   Plus,
   Trash2,
+  ShieldCheck,
 } from 'lucide-react';
 import { Trade, DayPerformance } from '../types';
-import { formatCurrency, formatPercent, formatDate } from '../utils/calculations';
+import { formatCurrency, formatPercent, formatDate, isTradeProtected } from '../utils/calculations';
 
 interface DayDetailModalProps {
   date: string | null;
@@ -289,13 +290,25 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                           >
                             Editar
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => onDeleteTrade(t.id)}
-                            className="text-slate-400 hover:text-rose-400 px-1.5 py-0.5 rounded hover:bg-rose-950/40 text-[11px]"
-                          >
-                            Excluir
-                          </button>
+                          {isTradeProtected(t) ? (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteTrade(t.id)}
+                              title="🔒 Operação de Conta Real capturada. Protegida pelo Sistema Anti-Fúria contra exclusão."
+                              className="text-amber-400 hover:text-amber-300 px-1.5 py-0.5 rounded hover:bg-amber-950/40 text-[11px] font-bold flex items-center gap-1"
+                            >
+                              <ShieldCheck className="h-3 w-3" />
+                              <span>Protegido 🔒</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteTrade(t.id)}
+                              className="text-slate-400 hover:text-rose-400 px-1.5 py-0.5 rounded hover:bg-rose-950/40 text-[11px]"
+                            >
+                              Excluir
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

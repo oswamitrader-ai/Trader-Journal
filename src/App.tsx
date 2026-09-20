@@ -23,6 +23,7 @@ import {
   CurrencyCode,
   getGlobalCurrency,
   setGlobalCurrency,
+  isTradeProtected,
 } from './utils/calculations';
 import { Navbar } from './components/Navbar';
 import { RiskAlertBanner } from './components/RiskAlertBanner';
@@ -389,24 +390,43 @@ export default function App() {
   };
 
   const handleDeleteTrade = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir esta operação?')) {
+    const targetTrade = trades.find((t) => t.id === id);
+    if (targetTrade && isTradeProtected(targetTrade)) {
+      alert(
+        '🔒 Ação Bloqueada pelo Sistema Anti-Fúria!\n\nOperações de Conta Real capturadas pelas corretoras são imutáveis e não podem ser excluídas para impedir a burla da Trava Anti-Fúria e proteger sua gestão de risco.'
+      );
+      return;
+    }
+
+    if (window.confirm('Tem certeza que deseja excluir esta operação do diário?')) {
       setTrades((prev) => prev.filter((t) => t.id !== id));
-      // Delete from Supabase in background
-      deleteTradeFromSupabase(id).then((res) => {
-        if (res.error) {
-          console.warn('Erro ao remover do Supabase:', res.error);
-        }
+      deleteTradeFromSupabase(id).catch((err) => {
+        console.warn('Erro ao remover do Supabase:', err);
       });
     }
   };
 
   const handleDeleteMultipleTrades = (ids: string[]) => {
     if (!ids || ids.length === 0) return;
-    if (window.confirm(`Tem certeza que deseja excluir as ${ids.length} operações selecionadas?`)) {
-      const idSet = new Set(ids);
+
+    const targetTrades = trades.filter((t) => ids.includes(t.id));
+    const protectedCount = targetTrades.filter((t) => isTradeProtected(t)).length;
+    const deletableIds = targetTrades.filter((t) => !isTradeProtected(t)).map((t) => t.id);
+
+    if (protectedCount > 0) {
+      alert(
+        `🔒 Proteção Anti-Fúria Ativada:\n\n${protectedCount} operação(ões) de Conta Real foram preservadas e NÃO puderam ser excluídas para manter a integridade da sua trava de risco.`
+      );
+    }
+
+    if (deletableIds.length === 0) return;
+
+    if (
+      window.confirm(`Deseja realmente excluir as ${deletableIds.length} operações selecionadas?`)
+    ) {
+      const idSet = new Set(deletableIds);
       setTrades((prev) => prev.filter((t) => !idSet.has(t.id)));
-      // Delete from Supabase in background
-      ids.forEach((id) => {
+      deletableIds.forEach((id) => {
         deleteTradeFromSupabase(id).catch((err) => {
           console.warn('Erro ao remover do Supabase:', err);
         });
@@ -452,6 +472,18 @@ export default function App() {
   };
 
   const handleResetData = async () => {
+    const protectedTrades = trades.filter((t) => isTradeProtected(t));
+
+    if (protectedTrades.length > 0) {
+      alert(
+        `🔒 Proteção Anti-Fúria Ativada:\n\nSua conta possui ${protectedTrades.length} operação(ões) de Conta Real registradas. O Sistema Anti-Fúria preservou estas operações contra exclusão para que o histórico e os bloqueios de risco não sejam burlados.\n\nApenas operações manuais/demonstração foram limpas.`
+      );
+      setTrades(protectedTrades);
+      setClearedNotificationIds([]);
+      setDismissedAlerts({});
+      return;
+    }
+
     if (
       window.confirm(
         'Deseja realmente limpar todas as operações registradas no diário? Seus dados serão zerados localmente e na nuvem.'
