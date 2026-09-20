@@ -92,10 +92,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div
             className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border shadow-md font-mono transition-all ${
               todayPnl > 0
-                ? 'border-emerald-500/50 bg-emerald-950/70 text-emerald-300 ring-1 ring-emerald-500/30 shadow-emerald-950/40'
+                ? 'border-emerald-600 bg-black text-emerald-400'
                 : todayPnl < 0
-                ? 'border-rose-500/60 bg-rose-950/80 text-rose-300 ring-1 ring-rose-500/40 shadow-rose-950/50'
-                : 'border-slate-800 bg-black/90 text-slate-200'
+                ? 'border-rose-600 bg-black text-rose-400'
+                : 'border-slate-800 bg-black text-slate-200'
             }`}
           >
             <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400">
@@ -106,12 +106,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               {formatCurrency(todayPnl)}
             </span>
             {isTargetHit && (
-              <span className="rounded bg-emerald-500/30 px-1 py-0.2 text-[8px] sm:text-[9px] font-bold text-emerald-200 uppercase">
+              <span className="rounded bg-emerald-600 px-1 py-0.2 text-[8px] sm:text-[9px] font-bold text-white shadow-sm uppercase">
                 Meta
               </span>
             )}
             {isStopHit && (
-              <span className="rounded bg-rose-500/40 px-1 py-0.2 text-[8px] sm:text-[9px] font-bold text-rose-200 uppercase animate-pulse">
+              <span className="rounded bg-rose-600 px-1 py-0.2 text-[8px] sm:text-[9px] font-bold text-white shadow-sm uppercase animate-pulse">
                 Stop!
               </span>
             )}
@@ -123,10 +123,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div
             className={`flex items-center gap-3.5 rounded-2xl border px-4 py-2 shadow-lg transition-all ${
               todayPnl > 0
-                ? 'border-emerald-500/50 bg-emerald-950/50 text-emerald-300 ring-1 ring-emerald-500/20 shadow-emerald-950/30'
+                ? 'border-emerald-600 bg-black text-emerald-400'
                 : todayPnl < 0
-                ? 'border-rose-500/60 bg-rose-950/60 text-rose-300 ring-1 ring-rose-500/30 shadow-rose-950/40'
-                : 'border-slate-800 bg-black/80 text-slate-200'
+                ? 'border-rose-600 bg-black text-rose-400'
+                : 'border-slate-800 bg-black text-slate-200'
             }`}
           >
             <div className="flex flex-col">
@@ -152,17 +152,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {formatCurrency(todayPnl)}
                 </span>
                 {isTargetHit && (
-                  <span className="flex items-center gap-1 rounded-lg bg-emerald-500/30 px-2 py-0.5 text-xs font-bold text-emerald-200 border border-emerald-500/40">
+                  <span className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
                     <CheckCircle2 className="h-3.5 w-3.5" /> Meta Batida
                   </span>
                 )}
                 {isStopHit && (
-                  <span className="flex items-center gap-1 rounded-lg bg-rose-500/35 px-2 py-0.5 text-xs font-bold text-rose-200 border border-rose-500/50 animate-pulse">
+                  <span className="flex items-center gap-1 rounded-lg bg-rose-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm animate-pulse">
                     <XCircle className="h-3.5 w-3.5" /> Stop Atingido
                   </span>
                 )}
                 {!isStopHit && isNearStop && (
-                  <span className="flex items-center gap-1 rounded-lg bg-amber-500/30 px-2 py-0.5 text-xs font-bold text-amber-200 border border-amber-500/40">
+                  <span className="flex items-center gap-1 rounded-lg bg-amber-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
                     <AlertTriangle className="h-3.5 w-3.5" /> Alerta Stop
                   </span>
                 )}
@@ -193,8 +193,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons (Scrollable horizontally on very small screens to ensure all fit) */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 overflow-x-auto scrollbar-none pb-1 sm:pb-0 max-w-full">
+        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5 shrink-0 pb-1 sm:pb-0 max-w-full">
           {/* New Trade Button */}
           <button
             id="btn-nova-operacao"
@@ -210,9 +209,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="btn-mentor-ia"
             onClick={onOpenAiMentor}
             title="Mentor Trader Inteligente (Gemini IA)"
-            className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-teal-600 bg-teal-900 text-teal-100 shadow-md transition-all hover:bg-teal-800 active:scale-95 shrink-0"
+            className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md transition-all hover:bg-teal-500 active:scale-95 shrink-0"
           >
-            <Brain className="h-4 w-4 text-teal-300" />
+            <Brain className="h-4 w-4" />
           </button>
 
           {/* Import CSV Button */}
@@ -221,9 +220,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="btn-importar-csv"
               onClick={onOpenImportModal}
               title="Importar Relatório de Performance (ProfitChart, MT4/MT5, Exnova)"
-              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-blue-500/40 bg-blue-950/40 text-blue-300 shadow-md transition-all hover:bg-blue-900/50 hover:text-white active:scale-95 shrink-0"
+              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md transition-all hover:bg-blue-500 active:scale-95 shrink-0"
             >
-              <Upload className="h-4 w-4 text-blue-400" />
+              <Upload className="h-4 w-4" />
             </button>
           )}
 
@@ -233,9 +232,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="btn-calculadora-kelly"
               onClick={onOpenKellyCalculator}
               title="Calculadora do Critério de Kelly (Dimensionamento de Lote & Contratos)"
-              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-teal-500/40 bg-slate-800/90 text-teal-300 shadow-md transition-all hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
+              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-slate-800 text-white shadow-md transition-all hover:bg-slate-700 active:scale-95 shrink-0"
             >
-              <Calculator className="h-4 w-4 text-teal-400" />
+              <Calculator className="h-4 w-4" />
             </button>
           )}
 
@@ -245,9 +244,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="btn-planejador-soros"
               onClick={onOpenStakePlanner}
               title="Planejador de Entradas (Simulador de Soros, Mão Fixa e Gale)"
-              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-indigo-500/40 bg-indigo-950/40 text-indigo-300 shadow-md transition-all hover:bg-indigo-900/50 hover:text-white active:scale-95 shrink-0"
+              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md transition-all hover:bg-indigo-500 active:scale-95 shrink-0"
             >
-              <TrendingUp className="h-4 w-4 text-indigo-400" />
+              <TrendingUp className="h-4 w-4" />
             </button>
           )}
 
@@ -277,7 +276,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="btn-notificacoes"
               onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
               title="Notificações e Alertas"
-              className="relative flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
+              className="relative flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-slate-800 text-white shadow-md transition hover:bg-slate-700 active:scale-95 shrink-0"
             >
               <Bell className="h-4 w-4" />
               {safeNotifList.length > 0 && (
@@ -294,7 +293,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="fixed inset-0 z-40 bg-black/40 sm:hidden"
                   onClick={() => setShowNotificationsDropdown(false)}
                 />
-                <div className="fixed sm:absolute right-2 sm:right-0 top-14 sm:top-auto mt-0 sm:mt-2 w-[calc(100vw-1rem)] max-w-sm sm:w-96 rounded-2xl border border-slate-800 bg-black/95 p-4 shadow-2xl backdrop-blur-xl z-50">
+                <div className="absolute right-0 top-14 sm:top-auto mt-2 w-[calc(100vw-1rem)] max-w-sm sm:w-96 rounded-2xl border border-slate-800 bg-black p-4 shadow-2xl z-50">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                     <div className="flex items-center gap-2">
                       <Bell className="h-4 w-4 text-emerald-400" />
@@ -349,7 +348,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="btn-moeda-painel"
               onClick={() => setShowCurrencyDropdown(!showCurrencyDropdown)}
               title="Alterar Moeda Exibida no Painel"
-              className="flex h-8 sm:h-9 items-center gap-1.5 px-2.5 rounded-xl border border-slate-700 bg-slate-800 text-xs font-bold text-white transition hover:bg-slate-700 active:scale-95 shrink-0 font-mono"
+              className="flex h-8 sm:h-9 items-center gap-1.5 px-2.5 rounded-xl bg-slate-800 text-xs font-bold text-white shadow-md transition hover:bg-slate-700 active:scale-95 shrink-0 font-mono"
             >
               <span className="text-sm">
                 {(CURRENCIES.find((c) => c.code === currentCurrency) || CURRENCIES[0]).flag}
@@ -365,7 +364,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="fixed inset-0 z-40 bg-black/40 sm:hidden"
                   onClick={() => setShowCurrencyDropdown(false)}
                 />
-                <div className="fixed sm:absolute right-2 sm:right-0 top-14 sm:top-auto mt-2 w-56 rounded-2xl border border-slate-800 bg-black p-2 shadow-2xl backdrop-blur-xl z-50">
+                <div className="absolute right-0 top-14 sm:top-auto mt-2 w-56 rounded-2xl border border-slate-800 bg-black p-2 shadow-2xl z-50">
                   <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 mb-1">
                     Moeda do Painel
                   </div>
@@ -379,8 +378,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                         }}
                         className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition ${
                           currentCurrency === c.code
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold'
-                            : 'text-slate-300 hover:bg-black hover:text-white'
+                            ? 'bg-emerald-600 text-white font-bold shadow-sm'
+                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -396,12 +395,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* 4. Risk Settings Button */}
           <button
             id="btn-config-risco"
             onClick={onOpenSettings}
             title="Configurar Metas & Limites de Risco"
-            className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white active:scale-95 shrink-0"
+            className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-slate-800 text-white shadow-md transition hover:bg-slate-700 active:scale-95 shrink-0"
           >
             <Settings className="h-4 w-4" />
           </button>

@@ -104,15 +104,27 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
     });
   }, [trades, activeCandleDate]);
 
+  // Determine the starting balance for the active view
+  const startOfDayBalance = useMemo(() => {
+    let bal = metrics.initialCapital || 0;
+    if (activeCandleDate !== 'all') {
+      const priorTrades = trades.filter((t) => t.date && t.date < activeCandleDate);
+      bal += priorTrades.reduce((sum, t) => sum + t.pnl, 0);
+    }
+    return bal;
+  }, [trades, metrics.initialCapital, activeCandleDate]);
+
   // Generate Trade Candlesticks (Open, Close, High, Low per trade)
   const tradeCandles = useMemo(() => {
-    let runningBalance = 0;
+    let runningBalance = startOfDayBalance;
     return candleTrades.map((t, idx) => {
       const open = runningBalance;
       const close = open + t.pnl;
       const high = Math.max(open, close);
       const low = Math.min(open, close);
       runningBalance = close;
+      
+      const sessionPnl = close - startOfDayBalance;
 
       return {
         index: idx + 1,
@@ -122,6 +134,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
         high,
         low,
         pnl: t.pnl,
+        sessionPnl,
         isWin: t.pnl >= 0,
         time: t.time || '--:--',
         date: t.date,
@@ -130,32 +143,39 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
         type: t.type || 'BUY',
       };
     });
-  }, [candleTrades]);
+  }, [candleTrades, startOfDayBalance]);
 
   // Dynamic scale limits for Trade Candlesticks
   const { candleMinVal, candleMaxVal } = useMemo(() => {
     if (tradeCandles.length === 0) {
-      return { candleMinVal: -dailyLossLimit * 1.1, candleMaxVal: dailyProfitTarget * 1.1 };
+      return { 
+        candleMinVal: startOfDayBalance - dailyLossLimit * 1.1, 
+        candleMaxVal: startOfDayBalance + dailyProfitTarget * 1.1 
+      };
     }
-    let min = 0;
-    let max = 0;
+    let min = startOfDayBalance;
+    let max = startOfDayBalance;
     tradeCandles.forEach((c) => {
-      if (c.low < min) min = c.low;
-      if (c.high > max) max = c.high;
+      if (c.close < min) min = c.close;
+      if (c.close > max) max = c.close;
     });
 
     if (activeCandleDate !== 'all') {
-      if (-dailyLossLimit < min) min = -dailyLossLimit;
-      if (dailyProfitTarget > max) max = dailyProfitTarget;
+      if (startOfDayBalance - dailyLossLimit < min) min = startOfDayBalance - dailyLossLimit;
+      if (startOfDayBalance + dailyProfitTarget > max) max = startOfDayBalance + dailyProfitTarget;
     }
 
-    const absMax = Math.max(Math.abs(min), Math.abs(max), 10);
-    const padding = Math.max(10, absMax * 0.15);
+    const currentCap = metrics.currentCapital || startOfDayBalance;
+    if (currentCap < min) min = currentCap;
+    if (currentCap > max) max = currentCap;
+
+    const absMaxRange = Math.max(Math.abs(max - startOfDayBalance), Math.abs(min - startOfDayBalance), 10);
+    const padding = Math.max(10, absMaxRange * 0.15);
     return {
-      candleMinVal: min < 0 ? min - padding : -padding,
-      candleMaxVal: max > 0 ? max + padding : padding,
+      candleMinVal: min - padding,
+      candleMaxVal: max + padding,
     };
-  }, [tradeCandles, dailyLossLimit, dailyProfitTarget, activeCandleDate]);
+  }, [tradeCandles, dailyLossLimit, dailyProfitTarget, activeCandleDate, startOfDayBalance, metrics.currentCapital]);
 
   const candleChartHeight = 320;
   const candlePaddingX = 50;
@@ -522,18 +542,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                       <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
                       Vela Loss (-Prejuízo)
                     </span>
-                    {activeCandleDate !== 'all' && (
-                      <>
-                        <span className="flex items-center gap-1.5 text-slate-500">
-                          <span className="h-0.5 w-3 border-t border-dashed border-emerald-500" />
-                          Meta (+{formatCurrency(dailyProfitTarget)})
-                        </span>
-                        <span className="flex items-center gap-1.5 text-slate-500">
-                          <span className="h-0.5 w-3 border-t border-dashed border-rose-500" />
-                          Stop (-{formatCurrency(dailyLossLimit)})
-                        </span>
-                      </>
-                    )}
+
                   </div>
                   <span className="text-[11px] text-slate-500">
                     Cada candle mostra a abertura e o fechamento do saldo no trade
@@ -552,72 +561,12 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                       viewBox={`0 0 800 ${candleChartHeight}`}
                       preserveAspectRatio="none"
                     >
-                      {/* Zero axis line */}
-                      <line
-                        x1={candlePaddingX}
-                        y1={getCandleY(0)}
-                        x2={800 - candlePaddingX}
-                        y2={getCandleY(0)}
-                        stroke="#475569"
-                        strokeWidth="1.5"
-                      />
 
-                      {/* Daily Profit Target Guide Line */}
-                      {activeCandleDate !== 'all' && dailyProfitTarget <= candleMaxVal && (
-                        <g>
-                          <line
-                            x1={candlePaddingX}
-                            y1={getCandleY(dailyProfitTarget)}
-                            x2={800 - candlePaddingX}
-                            y2={getCandleY(dailyProfitTarget)}
-                            stroke="#10b981"
-                            strokeDasharray="4 4"
-                            strokeOpacity="0.5"
-                            strokeWidth="1.2"
-                          />
-                          <text
-                            x={800 - candlePaddingX}
-                            y={getCandleY(dailyProfitTarget) - 4}
-                            textAnchor="end"
-                            fontSize="9"
-                            fill="#10b981"
-                            className="font-mono"
-                          >
-                            Meta: +{formatCurrency(dailyProfitTarget)}
-                          </text>
-                        </g>
-                      )}
-
-                      {/* Daily Stop Loss Limit Guide Line */}
-                      {activeCandleDate !== 'all' && -dailyLossLimit >= candleMinVal && (
-                        <g>
-                          <line
-                            x1={candlePaddingX}
-                            y1={getCandleY(-dailyLossLimit)}
-                            x2={800 - candlePaddingX}
-                            y2={getCandleY(-dailyLossLimit)}
-                            stroke="#f43f5e"
-                            strokeDasharray="4 4"
-                            strokeOpacity="0.5"
-                            strokeWidth="1.2"
-                          />
-                          <text
-                            x={800 - candlePaddingX}
-                            y={getCandleY(-dailyLossLimit) + 12}
-                            textAnchor="end"
-                            fontSize="9"
-                            fill="#f43f5e"
-                            className="font-mono"
-                          >
-                            Stop: -{formatCurrency(dailyLossLimit)}
-                          </text>
-                        </g>
-                      )}
 
                       {/* Render Candlesticks per Trade */}
                       {tradeCandles.map((c, idx) => {
                         const totalCandles = tradeCandles.length;
-                        const availableWidth = 800 - candlePaddingX * 2;
+                        const availableWidth = 800 - candlePaddingX - 160; // Reservando 160px na direita para os textos
                         const stepX = availableWidth / totalCandles;
                         const candleWidth = Math.max(10, Math.min(36, stepX * 0.65));
                         const cx = candlePaddingX + idx * stepX + stepX / 2;
@@ -625,12 +574,11 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
 
                         const yOpen = getCandleY(c.open);
                         const yClose = getCandleY(c.close);
-                        const yHigh = getCandleY(c.high);
-                        const yLow = getCandleY(c.low);
 
                         const topBody = Math.min(yOpen, yClose);
                         const bodyHeight = Math.max(3, Math.abs(yOpen - yClose));
-                        const isWin = c.close >= c.open;
+                        
+                        const isWin = c.isWin;
                         const color = isWin ? '#10b981' : '#f43f5e';
                         const isHovered = hoveredCandle?.index === c.index;
 
@@ -642,17 +590,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                             onMouseLeave={() => setHoveredCandle(null)}
                             onTouchStart={() => setHoveredCandle(c)}
                           >
-                            {/* Candle Wick (Pavio) */}
-                            <line
-                              x1={cx}
-                              y1={yHigh}
-                              x2={cx}
-                              y2={yLow}
-                              stroke={color}
-                              strokeWidth={isHovered ? '2.5' : '1.5'}
-                            />
-
-                            {/* Candle Body (Corpo) */}
+                            {/* Candle Body (Corpo) - Sem Pavio e Cor Sólida */}
                             <rect
                               x={xLeft}
                               y={topBody}
@@ -660,25 +598,36 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                               height={bodyHeight}
                               rx={2}
                               fill={color}
-                              fillOpacity={isHovered ? 1 : 0.85}
+                              fillOpacity={1}
                               stroke={isHovered ? '#ffffff' : color}
                               strokeWidth={isHovered ? 2 : 1}
                             />
 
                             {/* Trade Value label on candle if space permits */}
                             {(candleWidth >= 16 || isHovered) && (
-                              <text
-                                x={cx}
-                                y={isWin ? topBody - 5 : topBody + bodyHeight + 11}
-                                textAnchor="middle"
-                                fontSize="9"
-                                fontWeight="bold"
-                                fill={color}
-                                className="font-mono select-none"
-                              >
-                                {c.pnl >= 0 ? '+' : ''}
-                                {Math.round(c.pnl)}
-                              </text>
+                              <g>
+                                <text
+                                  x={cx}
+                                  y={isWin ? topBody - 11 : topBody + bodyHeight + 11}
+                                  textAnchor="middle"
+                                  fontSize="9"
+                                  fontWeight="bold"
+                                  fill="#94a3b8"
+                                  className="font-mono select-none"
+                                >
+                                  {formatCurrency(c.close)}
+                                </text>
+                                <text
+                                  x={cx}
+                                  y={isWin ? topBody - 3 : topBody + bodyHeight + 19}
+                                  textAnchor="middle"
+                                  fontSize="8"
+                                  fill={color}
+                                  className="font-mono select-none"
+                                >
+                                  ({c.pnl >= 0 ? '+' : ''}{formatCurrency(c.pnl)})
+                                </text>
+                              </g>
                             )}
 
                             {/* X Axis Trade Index & Time */}
@@ -695,6 +644,51 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                           </g>
                         );
                       })}
+
+                      {/* Guide Lines & Labels (Rendered last to stay on top) */}
+                      {/* Zero axis line (Starting Balance) */}
+                      <line
+                        x1={candlePaddingX}
+                        y1={getCandleY(startOfDayBalance)}
+                        x2={800 - candlePaddingX}
+                        y2={getCandleY(startOfDayBalance)}
+                        stroke="#475569"
+                        strokeWidth="1.5"
+                      />
+
+                      {/* Current Capital Line */}
+                      <g>
+                        <line
+                          x1={candlePaddingX}
+                          y1={getCandleY(tradeCandles[tradeCandles.length - 1].close)}
+                          x2={800 - candlePaddingX}
+                          y2={getCandleY(tradeCandles[tradeCandles.length - 1].close)}
+                          stroke="#3b82f6"
+                          strokeDasharray="3 3"
+                          strokeWidth="1.5"
+                        />
+                        <rect
+                          x={800 - candlePaddingX - 140}
+                          y={getCandleY(tradeCandles[tradeCandles.length - 1].close) - 13}
+                          width={140}
+                          height={16}
+                          fill="#000000"
+                        />
+                        <text
+                          x={800 - candlePaddingX}
+                          y={getCandleY(tradeCandles[tradeCandles.length - 1].close) - 1}
+                          textAnchor="end"
+                          fontSize="10"
+                          fontWeight="bold"
+                          fill="#3b82f6"
+                          stroke="#000000"
+                          strokeWidth="3"
+                          paintOrder="stroke"
+                          className="font-mono"
+                        >
+                          Saldo: {formatCurrency(tradeCandles[tradeCandles.length - 1].close)}
+                        </text>
+                      </g>
                     </svg>
 
                     {/* Hovered Candle Tooltip Detail Card */}
@@ -733,15 +727,16 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3">
-                          <div className="rounded-lg bg-black border border-slate-800 px-2.5 py-1">
-                            <span className="text-slate-400">Saldo da Sessão: </span>
+                          <div className="rounded-lg bg-black border border-slate-800 px-2.5 py-1.5 flex items-center gap-2">
+                            <span className="text-slate-400">Saldo Anterior:</span>
                             <span className="font-mono text-slate-300">
                               {formatCurrency(hoveredCandle.open)}
                             </span>
-                            <span className="text-slate-500 mx-1">➔</span>
+                            <span className="text-slate-600 font-bold">|</span>
+                            <span className="text-slate-400">Saldo Após:</span>
                             <strong
                               className={`font-mono ${
-                                hoveredCandle.close >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                                hoveredCandle.close >= hoveredCandle.open ? 'text-emerald-400' : 'text-rose-400'
                               }`}
                             >
                               {formatCurrency(hoveredCandle.close)}
