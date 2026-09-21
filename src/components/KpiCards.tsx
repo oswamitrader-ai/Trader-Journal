@@ -4,6 +4,7 @@ import {
   Target,
   Percent,
   TrendingDown,
+  TrendingUp,
   Scale,
   ArrowUpRight,
   ArrowDownRight,
@@ -82,6 +83,11 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
   const targetProgressPct = Math.min(100, Math.max(0, (todayPnl / (targetVal || 1)) * 100));
   const isNearTarget80 = todayPnl >= targetVal * 0.8 && todayPnl < targetVal;
   const isTargetAchieved = todayPnl >= targetVal;
+
+  // Profit Factor Status Diagnostics
+  const hasTrades = (metrics?.totalTrades ?? 0) > 0;
+  const isPfLoss = hasTrades && (metrics?.profitFactor ?? 0) < 1.0;
+  const isPfWin = hasTrades && (metrics?.profitFactor ?? 0) >= 1.0;
 
   // Calculations for Limite de Perda Card (Stop)
   const currentLossAbs = Math.abs(Math.min(0, todayPnl));
@@ -514,26 +520,27 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
         </div>
 
         <div className="mt-2.5">
-          <div className="flex items-baseline gap-2">
-            <span
-              className={`text-2xl font-black font-mono tracking-tight ${
-                isDrawdownSafe
-                  ? 'text-emerald-400'
-                  : isDrawdownWarning
-                  ? 'text-amber-400'
-                  : 'text-rose-400'
-              }`}
-            >
-              -{metrics.maxDrawdownPercent.toFixed(2)}%
-            </span>
-            <span className="text-xs text-slate-400 font-mono">
-              (-{formatCurrency(metrics.maxDrawdownAmount)})
-            </span>
+          <div
+            className={`text-2xl font-black font-mono tracking-tight ${
+              isDrawdownSafe
+                ? 'text-emerald-400'
+                : isDrawdownWarning
+                ? 'text-amber-400'
+                : 'text-rose-400'
+            }`}
+          >
+            -{metrics.maxDrawdownPercent.toFixed(2)}%
           </div>
 
-          <div className="mt-1 flex items-center gap-1.5 text-xs">
+          <div className="mt-1 flex items-center justify-between gap-1.5 text-xs">
             <span
-                  className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-mono font-bold mt-1 shadow-sm ${
+              className="text-[11px] font-mono text-slate-400"
+              title="Maior perda financeira absoluta a partir do pico histórico de banca"
+            >
+              Perda: <strong className="text-slate-300">-{formatCurrency(metrics.maxDrawdownAmount)}</strong>
+            </span>
+            <span
+              className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-mono font-bold shadow-sm shrink-0 ${
                 isDrawdownSafe
                   ? 'bg-emerald-600 text-white'
                   : isDrawdownWarning
@@ -622,46 +629,121 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
             setShowPfModal(true);
           }
         }}
-        className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-black p-4 shadow-lg backdrop-blur-sm cursor-pointer transition-all duration-200 hover:border-purple-500/50 hover:bg-black hover:shadow-purple-950/20 hover:scale-[1.01] text-left"
+        className={`group relative overflow-hidden rounded-2xl border p-4 shadow-lg backdrop-blur-sm cursor-pointer transition-all duration-200 hover:scale-[1.01] text-left ${
+          isPfLoss
+            ? 'border-rose-800/80 bg-black ring-1 ring-rose-500/30 hover:border-rose-600 hover:shadow-rose-950/40'
+            : isPfWin
+            ? 'border-emerald-800/80 bg-black ring-1 ring-emerald-500/20 hover:border-emerald-500/60 hover:shadow-emerald-950/30'
+            : 'border-slate-800 bg-black hover:border-purple-500/50 hover:shadow-purple-950/20'
+        }`}
         title="Clique para ver o guia detalhado e referências de Fator de Lucro e Payoff para Opções Binárias"
       >
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider group-hover:text-purple-300 transition-colors">
-            Fator de Lucro &amp; Payoff
-          </span>
-          <div className="flex items-center gap-1.5">
-            <span className="hidden sm:inline-flex text-[10px] font-bold text-white bg-purple-600 px-2 py-1 rounded transition shadow-md shadow-purple-900/30 whitespace-nowrap">
-              Guia OB
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider truncate group-hover:text-purple-300 transition-colors">
+              Fator de Lucro
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-600 text-white shadow-sm group-hover:bg-purple-500 transition shrink-0">
-              <Scale className="h-4 w-4" />
+            <span className="text-[10px] font-medium text-slate-500 truncate">
+              &amp; Payoff OB
+            </span>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {hasTrades ? (
+              <span
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition shadow-md whitespace-nowrap flex items-center gap-0.5 ${
+                  isPfLoss
+                    ? 'bg-rose-600 text-white shadow-rose-900/40 animate-pulse'
+                    : 'bg-emerald-600 text-white shadow-emerald-900/40'
+                }`}
+              >
+                {isPfLoss ? (
+                  <>
+                    <TrendingDown className="h-3 w-3 shrink-0" />
+                    <span>Prejuízo</span>
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="h-3 w-3 shrink-0" />
+                    <span>Lucrativo</span>
+                  </>
+                )}
+              </span>
+            ) : (
+              <span className="hidden sm:inline-flex text-[10px] font-bold text-white bg-purple-600 px-1.5 py-0.5 rounded transition shadow-md shadow-purple-900/30 whitespace-nowrap">
+                Guia OB
+              </span>
+            )}
+            <div
+              className={`flex h-7 w-7 items-center justify-center rounded-xl text-white shadow-sm transition shrink-0 ${
+                isPfLoss
+                  ? 'bg-rose-600 group-hover:bg-rose-500'
+                  : isPfWin
+                  ? 'bg-emerald-600 group-hover:bg-emerald-500'
+                  : 'bg-purple-600 group-hover:bg-purple-500'
+              }`}
+            >
+              <Scale className="h-3.5 w-3.5" />
             </div>
           </div>
         </div>
 
         <div className="mt-2.5">
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black font-mono tracking-tight text-purple-300">
+            <span
+              className={`text-2xl font-black font-mono tracking-tight ${
+                isPfLoss
+                  ? 'text-rose-400'
+                  : isPfWin
+                  ? 'text-emerald-400'
+                  : 'text-purple-300'
+              }`}
+            >
               {metrics.profitFactor.toFixed(2)}
             </span>
-            <span className="text-xs text-slate-400">Profit Factor</span>
+            <span className={`text-xs ${isPfLoss ? 'text-rose-300 font-bold' : 'text-slate-400'}`}>
+              Profit Factor {isPfLoss ? '(< 1.00)' : ''}
+            </span>
           </div>
 
-          <div className="mt-1 text-xs text-slate-300">
-            Payoff:{' '}
-            <strong className="text-white font-mono">1 : {metrics.payoff.toFixed(2)}</strong>
+          <div className="mt-1 flex items-center justify-between text-xs text-slate-300">
+            <span>
+              Payoff: <strong className="text-white font-mono">1 : {metrics.payoff.toFixed(2)}</strong>
+            </span>
+            {isPfLoss && (
+              <span className="text-[10px] font-bold text-rose-400 font-mono flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                Perdas &gt; Ganhos
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="mt-3.5 border-t border-slate-800/80 pt-2 flex items-center justify-between text-[11px] text-slate-400">
-          <span>Méd. Gain/Loss:</span>
-          <span className="font-mono text-slate-200">
-            {formatCurrency(metrics.avgWin)} / {formatCurrency(metrics.avgLoss)}
-          </span>
+        <div className="mt-2.5 border-t border-slate-800/80 pt-2 text-slate-400">
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-semibold text-slate-400 text-[10px] uppercase tracking-wider">Méd. Gain vs Loss</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1 font-mono text-[9px] sm:text-[10px]">
+            <div
+              className="flex items-center justify-center rounded-md px-1 py-0.5 bg-emerald-950/80 text-emerald-400 font-bold border border-emerald-800/60 shadow-sm text-center whitespace-nowrap overflow-hidden"
+              title="Média de lucro por trade vitorioso (Gain)"
+            >
+              +{formatCurrency(metrics.avgWin)}
+            </div>
+            <div
+              className="flex items-center justify-center rounded-md px-1 py-0.5 bg-rose-950/80 text-rose-400 font-bold border border-rose-800/60 shadow-sm text-center whitespace-nowrap overflow-hidden"
+              title="Média de prejuízo por trade perdedor (Loss)"
+            >
+              -{formatCurrency(metrics.avgLoss)}
+            </div>
+          </div>
         </div>
 
         {/* Click indicator note */}
-        <div className="mt-2 flex items-center justify-center gap-1 text-[10px] text-purple-400/80 group-hover:text-purple-300 transition-colors pt-1 border-t border-purple-500/10">
+        <div className={`mt-2 flex items-center justify-center gap-1 text-[10px] transition-colors pt-1 border-t ${
+          isPfLoss
+            ? 'text-rose-400/90 border-rose-500/20'
+            : 'text-purple-400/80 group-hover:text-purple-300 border-purple-500/10'
+        }`}>
           <Info className="w-3 h-3" />
           <span>Clique para ver referências de OB</span>
         </div>
