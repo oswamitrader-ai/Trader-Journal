@@ -101,6 +101,23 @@ ALTER TABLE public.risk_settings ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Risk Settings Access" ON public.risk_settings;
 CREATE POLICY "Risk Settings Access" ON public.risk_settings FOR ALL USING (true);
+
+-- 6. Tabela de Usuários Cadastrados
+CREATE TABLE IF NOT EXISTS public.system_users (
+  id TEXT PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'CLIENT',
+  active BOOLEAN NOT NULL DEFAULT true,
+  password TEXT NOT NULL DEFAULT 'cliente123',
+  "createdAt" TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+  "lastLoginAt" TIMESTAMPTZ
+);
+
+ALTER TABLE public.system_users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "System Users Access" ON public.system_users;
+CREATE POLICY "System Users Access" ON public.system_users FOR ALL USING (true);
 `;
 
 export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
