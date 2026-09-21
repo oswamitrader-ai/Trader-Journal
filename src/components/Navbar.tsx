@@ -94,10 +94,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 border-b border-slate-800 bg-black/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 gap-2">
-        {/* Brand & Logo (Apenas Ícone) */}
-        <div className="flex items-center shrink-0">
+        {/* Brand & Logo */}
+        <div className="flex items-center gap-2.5 shrink-0">
           <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 shadow-lg shadow-emerald-900/30 shrink-0">
             <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm sm:text-base font-black tracking-tight text-white font-mono leading-none">
+              TradeLock
+            </span>
+            <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold tracking-wider uppercase mt-0.5">
+              Gestão &amp; Capital
+            </span>
           </div>
         </div>
 

@@ -164,7 +164,7 @@ const TraderReportDocument: React.FC<{ data: ReportData }> = ({ data }) => {
       {/* PAGE 1: COVER */}
       <Page size="A4" style={s.coverPage}>
         <Text style={s.coverTitle}>Relatório Executivo</Text>
-        <Text style={s.coverSubtitle}>Trader Journal — Balanço Mensal</Text>
+        <Text style={s.coverSubtitle}>TradeLock — Gestão &amp; Capital</Text>
         <View style={{ width: 60, height: 2, backgroundColor: '#10b981', marginBottom: 30 }} />
         <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: '#334155', marginBottom: 4 }}>{monthLabel}</Text>
         <Text style={s.coverMeta}>Gerado em: {generatedAt}</Text>
@@ -173,7 +173,7 @@ const TraderReportDocument: React.FC<{ data: ReportData }> = ({ data }) => {
         <Text style={s.coverCapital}>{fmtCurrency(metrics.currentCapital)}</Text>
         <Text style={s.coverCapitalLabel}>Capital Atual</Text>
         <View style={s.footer}>
-          <Text>Gerado por Trader Journal — Confidencial</Text>
+          <Text>Gerado por TradeLock — Gestão &amp; Capital (Confidencial)</Text>
           <Text>Página 1 de 5</Text>
         </View>
       </Page>
