@@ -147,3 +147,33 @@ INSERT INTO public.risk_settings (
   5,
   true
 ) ON CONFLICT (id) DO NOTHING;
+
+-- 4. Criar tabela de Movimentações de Capital (Depósitos, Saques e Taxas)
+CREATE TABLE IF NOT EXISTS public.capital_transactions (
+  id TEXT PRIMARY KEY,
+  user_email TEXT NOT NULL,
+  date TEXT NOT NULL,
+  time TEXT,
+  type TEXT NOT NULL CHECK (type IN ('DEPOSIT', 'WITHDRAWAL')),
+  amount NUMERIC NOT NULL,
+  fee NUMERIC DEFAULT 0,
+  broker TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.capital_transactions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Permitir leitura de capital_transactions" ON public.capital_transactions;
+CREATE POLICY "Permitir leitura de capital_transactions" ON public.capital_transactions FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Permitir inserção de capital_transactions" ON public.capital_transactions;
+CREATE POLICY "Permitir inserção de capital_transactions" ON public.capital_transactions FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Permitir atualização de capital_transactions" ON public.capital_transactions;
+CREATE POLICY "Permitir atualização de capital_transactions" ON public.capital_transactions FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Permitir exclusão de capital_transactions" ON public.capital_transactions;
+CREATE POLICY "Permitir exclusão de capital_transactions" ON public.capital_transactions FOR DELETE USING (true);
+

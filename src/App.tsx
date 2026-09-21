@@ -53,10 +53,14 @@ import {
   checkSupabaseConnection,
   fetchTradesFromSupabase,
   fetchRiskSettingsFromSupabase,
+  fetchCapitalTransactionsFromSupabase,
   upsertTradeToSupabase,
+  upsertCapitalTransactionToSupabase,
   deleteTradeFromSupabase,
+  deleteCapitalTransactionFromSupabase,
   clearAllTradesFromSupabase,
   syncAllTradesToSupabase,
+  syncAllCapitalTransactionsToSupabase,
   saveRiskSettingsToSupabase,
   SupabaseHealthResult,
 } from './lib/supabase';
@@ -89,9 +93,13 @@ export default function App() {
   const [capitalTransactions, setCapitalTransactions] = useState<CapitalTransaction[]>([]);
   const [isCapitalModalOpen, setIsCapitalModalOpen] = useState(false);
 
+  // Flag para rastrear quando os dados iniciais foram hidratados
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
   // Re-hydrate user-isolated data whenever currentUser changes
   useEffect(() => {
     if (!currentUser) return;
+    setIsDataLoaded(false);
 
     // Load user's isolated trades
     try {
@@ -100,7 +108,7 @@ export default function App() {
 
       if (savedTrades && savedTrades !== 'undefined' && savedTrades !== 'null') {
         const parsed = JSON.parse(savedTrades);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           loadedTrades = parsed.filter((t) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
         }
       }
@@ -148,6 +156,8 @@ export default function App() {
     } catch {
       setCapitalTransactions([]);
     }
+
+    setIsDataLoaded(true);
   }, [currentUser?.email]);
 
   const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>([]);
@@ -161,33 +171,33 @@ export default function App() {
     setCurrency(newCurrency);
   };
 
-  // Save to LocalStorage whenever isolated states change
+  // Save to LocalStorage ONLY after data has been initial-loaded
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !isDataLoaded) return;
     try {
       localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(capitalTransactions));
     } catch (e) {
       console.error(e);
     }
-  }, [capitalTransactions, CAPITAL_STORAGE_KEY, currentUser]);
+  }, [capitalTransactions, CAPITAL_STORAGE_KEY, currentUser, isDataLoaded]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !isDataLoaded) return;
     try {
       localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(trades));
     } catch (e) {
       console.error(e);
     }
-  }, [trades, TRADES_STORAGE_KEY, currentUser]);
+  }, [trades, TRADES_STORAGE_KEY, currentUser, isDataLoaded]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !isDataLoaded) return;
     try {
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     } catch (e) {
       console.error(e);
     }
-  }, [settings, SETTINGS_STORAGE_KEY, currentUser]);
+  }, [settings, SETTINGS_STORAGE_KEY, currentUser, isDataLoaded]);
 
   // 3. Modals and Views
   const [activeView, setActiveView] = useState<ActiveView>('all');
@@ -225,19 +235,31 @@ export default function App() {
         setSupabaseHealth(health);
 
         if (health.status === 'connected' && currentUser?.email) {
-          // Carrega trades do Supabase para o usuário logado
+          // 1. Carrega trades do Supabase para o usuário logado
           const cloudTrades = await fetchTradesFromSupabase(currentUser.email);
           if (!isMounted) return;
+
           if (cloudTrades.data && cloudTrades.data.length > 0) {
             setTrades(cloudTrades.data);
+            localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(cloudTrades.data));
           } else {
-            // Se o cloud não retornar nada, busca trades locais e envia para o Supabase
-            const localSaved = localStorage.getItem(TRADES_STORAGE_KEY);
+            // 2. Se a nuvem ainda não tem os trades do usuário, faz upload dos trades locais existentes para o Supabase
+            const localSaved =
+              localStorage.getItem(TRADES_STORAGE_KEY) ||
+              (currentUser.email.toLowerCase() === 'oswamitrader@gmail.com'
+                ? localStorage.getItem('trader_journal_trades_v2') || localStorage.getItem('trader_journal_trades_v1')
+                : null);
+
             if (localSaved) {
               try {
                 const parsed = JSON.parse(localSaved);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                  syncAllTradesToSupabase(parsed, currentUser.email);
+                  const validLocal = parsed.filter((t) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
+                  if (validLocal.length > 0) {
+                    setTrades(validLocal);
+                    localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(validLocal));
+                    syncAllTradesToSupabase(validLocal, currentUser.email);
+                  }
                 }
               } catch (e) {}
             }
@@ -247,6 +269,16 @@ export default function App() {
           if (!isMounted) return;
           if (cloudSettings.data) {
             setSettings(cloudSettings.data);
+          }
+
+          // 3. Carrega movimentações de capital do Supabase
+          const cloudCapital = await fetchCapitalTransactionsFromSupabase(currentUser.email);
+          if (!isMounted) return;
+          if (cloudCapital.data && cloudCapital.data.length > 0) {
+            setCapitalTransactions(cloudCapital.data);
+            localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(cloudCapital.data));
+          } else if (capitalTransactions.length > 0) {
+            syncAllCapitalTransactionsToSupabase(capitalTransactions, currentUser.email);
           }
         }
       } catch (err) {
@@ -749,6 +781,24 @@ export default function App() {
 
   const handleClearNotifications = () => {
     setClearedNotificationIds(notifications.map((n) => n.id));
+  };
+
+  const handleAddCapitalTransaction = (tx: CapitalTransaction) => {
+    setCapitalTransactions((prev) => [tx, ...prev]);
+    if (currentUser?.email) {
+      upsertCapitalTransactionToSupabase(tx, currentUser.email).catch((err) => {
+        console.warn('Erro ao salvar movimentação de capital no Supabase:', err);
+      });
+    }
+  };
+
+  const handleDeleteCapitalTransaction = (id: string) => {
+    setCapitalTransactions((prev) => prev.filter((t) => t.id !== id));
+    if (currentUser?.email) {
+      deleteCapitalTransactionFromSupabase(id, currentUser.email).catch((err) => {
+        console.warn('Erro ao remover movimentação de capital no Supabase:', err);
+      });
+    }
   };
 
   const handleDismissAlert = (alertKey: string) => {

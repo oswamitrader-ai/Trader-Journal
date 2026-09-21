@@ -192,12 +192,13 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
               Plataforma de Origem
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {[
                 { key: 'AUTO', label: 'Auto-detectar', desc: 'Genérico CSV/PDF' },
+                { key: 'QUOTEX', label: 'Quotex', desc: 'Opções Binárias' },
+                { key: 'EXNOVA', label: 'Exnova / IQ', desc: 'Opções Binárias' },
                 { key: 'PROFITCHART', label: 'ProfitChart', desc: 'Nelogica B3' },
                 { key: 'METATRADER', label: 'MetaTrader 4/5', desc: 'B3 / Forex' },
-                { key: 'EXNOVA', label: 'Exnova / IQ', desc: 'Opções Binárias' },
               ].map((p) => (
                 <button
                   key={p.key}

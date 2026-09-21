@@ -33,13 +33,14 @@ export function setGlobalCurrency(code: CurrencyCode): void {
 
 /**
   Regra Anti-Burlar do Sistema Anti-Fúria:
-  Todas as operações da Conta Real capturadas ou registradas nas corretoras
+  Apenas operações da Conta Real capturadas ao vivo durante a sessão de trading
   são estritamente protegidas e IMUTÁVEIS contra exclusão para preservar a trava de risco.
+  Operações importadas via relatórios (CSV/PDF) ou da conta DEMO podem ser excluídas normalmente.
  */
 export function isTradeProtected(trade: Trade): boolean {
   if (!trade) return false;
 
-  // Se a operação for explicitamente da Conta DEMO / Simulador, PERMITE exclusão
+  // 1. Se a operação for explicitamente da Conta DEMO / Simulador, PERMITE exclusão
   if (
     trade.accountType === 'DEMO' ||
     trade.isReal === false ||
@@ -48,7 +49,17 @@ export function isTradeProtected(trade: Trade): boolean {
     return false;
   }
 
-  // Por padrão, todas as operações da Conta Real são 100% protegidas e imutáveis!
+  // 2. Se for uma operação IMPORTADA via relatório CSV/PDF, PERMITE exclusão
+  if (
+    (trade.id && trade.id.startsWith('imp-')) ||
+    (trade.strategy && trade.strategy.toLowerCase().includes('importad')) ||
+    (trade.notes && trade.notes.toLowerCase().includes('importad')) ||
+    (trade as any).isImported === true
+  ) {
+    return false;
+  }
+
+  // Por padrão, apenas operações da Conta Real capturadas ao vivo pela extensão são protegidas!
   return true;
 }
 

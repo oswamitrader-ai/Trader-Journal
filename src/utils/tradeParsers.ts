@@ -1,6 +1,6 @@
 import { Trade, TradeType, TradeResult } from '../types';
 
-export type PlatformPreset = 'AUTO' | 'PROFITCHART' | 'METATRADER' | 'EXNOVA';
+export type PlatformPreset = 'AUTO' | 'PROFITCHART' | 'METATRADER' | 'EXNOVA' | 'QUOTEX';
 
 export interface ParsedTradeItem extends Trade {
   selected: boolean;
@@ -36,6 +36,30 @@ function parseNumber(val: string | undefined): number {
   }
   const num = parseFloat(str);
   return isNaN(num) ? 0 : num;
+}
+
+/** Limpa e formata o nome do ativo mantendo o par e tag OTC intactos */
+function cleanAssetName(raw: string | undefined): string {
+  if (!raw || !raw.trim()) return 'OTC';
+  let str = raw.trim().toUpperCase();
+
+  // Remove aspas
+  str = str.replace(/^["']|["']$/g, '').trim();
+
+  // Se contém "OTC", preserva a tag formatada
+  const hasOtc = str.includes('OTC');
+
+  // Mantém letras, números, barras, traços, pontos, parênteses e espaços
+  str = str.replace(/[^A-Z0-9/._\-\(\)\s]/g, '');
+
+  if (hasOtc && !str.includes('(OTC)')) {
+    str = str.replace(/\bOTC\b|\(OTC\)/gi, '').trim() + ' (OTC)';
+  }
+
+  // Normaliza espaços múltiplos
+  str = str.replace(/\s+/g, ' ').trim();
+
+  return str || 'OTC';
 }
 
 /** Split CSV respeitando aspas */
@@ -74,6 +98,8 @@ function detectDelimiter(content: string): string {
 
 // ── Parser ISO datetime (Exnova usa "2026-09-16T08:41:27-03:00") ──
 
+// ── Parser ISO / BR / US datetime ────────────────────────────────
+
 function parseIsoDatetime(raw: string): { date: string; time: string } {
   const fallback = {
     date: new Date().toISOString().split('T')[0],
@@ -81,44 +107,54 @@ function parseIsoDatetime(raw: string): { date: string; time: string } {
   };
   if (!raw || !raw.trim()) return fallback;
 
-  const str = raw.trim();
+  let str = raw.trim().replace(/^["']|["']$/g, '').trim();
 
-  // ISO 8601 completo: "2026-09-16T08:41:27-03:00" ou "2026-09-16T08:41:27Z"
-  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-  if (isoMatch) {
+  // 1. ISO 8601 ou YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD (com ou sem hora)
+  const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[T\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (ymdMatch) {
+    const y = ymdMatch[1];
+    const m = String(parseInt(ymdMatch[2], 10)).padStart(2, '0');
+    const d = String(parseInt(ymdMatch[3], 10)).padStart(2, '0');
+    const hh = ymdMatch[4] ? String(parseInt(ymdMatch[4], 10)).padStart(2, '0') : '00';
+    const mm = ymdMatch[5] ? String(parseInt(ymdMatch[5], 10)).padStart(2, '0') : '00';
     return {
-      date: `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`,
-      time: `${isoMatch[4]}:${isoMatch[5]}`,
+      date: `${y}-${m}-${d}`,
+      time: `${hh}:${mm}`,
     };
   }
 
-  // YYYY-MM-DD HH:mm
-  const spaceMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
-  if (spaceMatch) {
-    return {
-      date: `${spaceMatch[1]}-${spaceMatch[2]}-${spaceMatch[3]}`,
-      time: `${spaceMatch[4]}:${spaceMatch[5]}`,
-    };
-  }
-
-  // DD/MM/YYYY HH:mm
-  const brMatch = str.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})\s*(\d{2})?:?(\d{2})?/);
-  if (brMatch) {
-    let p1 = parseInt(brMatch[1], 10);
-    let p2 = parseInt(brMatch[2], 10);
-    let p3 = brMatch[3];
+  // 2. DD/MM/YYYY ou DD.MM.YYYY ou DD-MM-YYYY (com ou sem hora)
+  const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})(?:[T\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (dmyMatch) {
+    let p1 = parseInt(dmyMatch[1], 10);
+    let p2 = parseInt(dmyMatch[2], 10);
+    let p3 = dmyMatch[3];
     if (p3.length === 2) p3 = '20' + p3;
-    let day = p1, month = p2;
-    if (p1 > 12) { day = p1; month = p2; }
-    else if (p2 > 12) { month = p1; day = p2; }
-    const time = brMatch[4] && brMatch[5] ? `${brMatch[4]}:${brMatch[5]}` : '00:00';
+
+    let day = p1;
+    let month = p2;
+
+    if (p1 > 12) {
+      day = p1;
+      month = p2;
+    } else if (p2 > 12) {
+      month = p1;
+      day = p2;
+    }
+
+    const y = p3;
+    const m = String(month).padStart(2, '0');
+    const d = String(day).padStart(2, '0');
+    const hh = dmyMatch[4] ? String(parseInt(dmyMatch[4], 10)).padStart(2, '0') : '00';
+    const mm = dmyMatch[5] ? String(parseInt(dmyMatch[5], 10)).padStart(2, '0') : '00';
+
     return {
-      date: `${p3}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      time,
+      date: `${y}-${m}-${d}`,
+      time: `${hh}:${mm}`,
     };
   }
 
-  // Unix timestamp
+  // 3. Unix Timestamp (10 dígitos = seg, 13 dígitos = ms)
   if (/^\d{10}$/.test(str)) {
     const dt = new Date(parseInt(str, 10) * 1000);
     if (!isNaN(dt.getTime())) {
@@ -138,12 +174,17 @@ function parseIsoDatetime(raw: string): { date: string; time: string } {
     }
   }
 
-  // Fallback: Date.parse nativo
+  // 4. Date.parse nativo
   const nativeDt = new Date(str);
   if (!isNaN(nativeDt.getTime())) {
+    const y = nativeDt.getFullYear();
+    const m = String(nativeDt.getMonth() + 1).padStart(2, '0');
+    const d = String(nativeDt.getDate()).padStart(2, '0');
+    const hh = String(nativeDt.getHours()).padStart(2, '0');
+    const mm = String(nativeDt.getMinutes()).padStart(2, '0');
     return {
-      date: nativeDt.toISOString().split('T')[0],
-      time: `${String(nativeDt.getHours()).padStart(2, '0')}:${String(nativeDt.getMinutes()).padStart(2, '0')}`,
+      date: `${y}-${m}-${d}`,
+      time: `${hh}:${mm}`,
     };
   }
 
@@ -273,6 +314,283 @@ function parseExnovaDedicated(
   };
 }
 
+// ── PARSER DEDICADO QUOTEX ────────────────────────────────────────
+
+function parseQuotexDedicated(
+  lines: string[],
+  delimiter: string,
+  header: string[]
+): ParseReportResult {
+  const errors: string[] = [];
+  const trades: ParsedTradeItem[] = [];
+
+  // Mapeamento exato de colunas por nome
+  const colMap: Record<string, number> = {};
+  header.forEach((h, idx) => {
+    colMap[h.trim().toLowerCase()] = idx;
+  });
+
+  // Mapeamento exato dos cabeçalhos do relatório em Português/Inglês da Quotex:
+  // "Informações" | "Lucro" (%) | "ID" | "Hora de abertura" | "Preço de abertura" | "Hora de fechamento" | "Preço de fechamento" | "Modelo" (Para cima / Para baixo) | "Valor" | "Renda"
+  const dateIdx = colMap['hora de abertura'] ?? colMap['opening date time'] ?? colMap['open time'] ?? colMap['date'] ?? colMap['data'] ?? colMap['time'] ?? colMap['created_at'] ?? -1;
+  const timeIdx = colMap['time'] ?? colMap['hora'] ?? colMap['horario'] ?? -1;
+  const assetIdx = colMap['informações'] ?? colMap['informacoes'] ?? colMap['asset'] ?? colMap['pair'] ?? colMap['ativo'] ?? colMap['par'] ?? colMap['symbol'] ?? -1;
+  const typeIdx = colMap['modelo'] ?? colMap['type'] ?? colMap['direction'] ?? colMap['tipo'] ?? colMap['direção'] ?? colMap['direcao'] ?? colMap['action'] ?? -1;
+  const investmentIdx = colMap['valor'] ?? colMap['investment'] ?? colMap['amount'] ?? colMap['investimento'] ?? colMap['aposta'] ?? colMap['sum'] ?? -1;
+  const rendaIdx = colMap['renda'] ?? colMap['income'] ?? colMap['gross pnl'] ?? colMap['retorno'] ?? colMap['pagamento'] ?? -1;
+  const profitIdx = colMap['lucro'] ?? colMap['profit'] ?? colMap['net pnl'] ?? colMap['rendimento'] ?? colMap['resultado'] ?? colMap['payout'] ?? -1;
+  const statusIdx = colMap['status'] ?? colMap['result'] ?? colMap['outcome'] ?? colMap['resultado da'] ?? -1;
+  const openPriceIdx = colMap['preço de abertura'] ?? colMap['preco de abertura'] ?? colMap['open price'] ?? colMap['opening price'] ?? colMap['abertura'] ?? -1;
+  const closePriceIdx = colMap['preço de fechamento'] ?? colMap['preco de fechamento'] ?? colMap['close price'] ?? colMap['closing price'] ?? colMap['fechamento'] ?? -1;
+
+  // Fallbacks de varredura se o cabeçalho não tiver correspondido exatamente
+  let resolvedDateIdx = dateIdx;
+  if (resolvedDateIdx === -1 && lines.length > 1) {
+    const firstRowCols = splitCsvLine(lines[1], delimiter);
+    for (let cIdx = 0; cIdx < firstRowCols.length; cIdx++) {
+      const val = firstRowCols[cIdx].trim();
+      if (
+        /\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(val) ||
+        /\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(val) ||
+        /^\d{10,13}$/.test(val)
+      ) {
+        resolvedDateIdx = cIdx;
+        break;
+      }
+    }
+  }
+
+  let resolvedAssetIdx = assetIdx;
+  if (resolvedAssetIdx === -1 && lines.length > 1) {
+    const firstRowCols = splitCsvLine(lines[1], delimiter);
+    for (let cIdx = 0; cIdx < firstRowCols.length; cIdx++) {
+      const val = firstRowCols[cIdx].trim().toUpperCase();
+      if (
+        /[A-Z]{3}\/[A-Z]{3}/.test(val) ||
+        val.includes('OTC') ||
+        /^(USD|EUR|GBP|JPY|CAD|AUD|NZD|CHF|BRL|BTC|ETH|GOLD|SILVER|WIN|WDO)/.test(val)
+      ) {
+        resolvedAssetIdx = cIdx;
+        break;
+      }
+    }
+  }
+
+  let resolvedTypeIdx = typeIdx;
+  if (resolvedTypeIdx === -1 && lines.length > 1) {
+    const firstRowCols = splitCsvLine(lines[1], delimiter);
+    for (let cIdx = 0; cIdx < firstRowCols.length; cIdx++) {
+      const val = firstRowCols[cIdx].trim().toLowerCase();
+      if (
+        val.includes('cima') || val.includes('baixo') || val === 'call' || val === 'put' ||
+        val === 'buy' || val === 'sell' || val === 'compra' || val === 'venda' ||
+        val === 'alta' || val === 'baixa' || val.includes('higher') || val.includes('lower')
+      ) {
+        resolvedTypeIdx = cIdx;
+        break;
+      }
+    }
+  }
+
+  for (let i = 1; i < lines.length; i++) {
+    const rowStr = lines[i];
+    const cols = splitCsvLine(rowStr, delimiter);
+    if (cols.length < 2) continue;
+
+    try {
+      // 1. Data e Hora
+      const rawDate = resolvedDateIdx !== -1 ? cols[resolvedDateIdx] : '';
+      const rawTime = (timeIdx !== -1 && timeIdx !== resolvedDateIdx) ? cols[timeIdx] : '';
+      const { date, time: parsedTime } = parseIsoDatetime(rawDate + (rawTime ? ' ' + rawTime : ''));
+      const time = rawTime && rawTime.includes(':') ? rawTime.substring(0, 5) : parsedTime;
+
+      // 2. Ativo
+      const asset = cleanAssetName(resolvedAssetIdx !== -1 ? cols[resolvedAssetIdx] : '');
+
+      // 3. Direção / Modelo ("Para cima" = CALL/BUY, "Para baixo" = PUT/SELL)
+      let type: TradeType = 'BUY';
+      const rawType = (resolvedTypeIdx !== -1 ? cols[resolvedTypeIdx] : '').toLowerCase().trim();
+      let typeFound = false;
+
+      if (
+        rawType.includes('baixo') || rawType.includes('baixa') || rawType.includes('put') ||
+        rawType.includes('sell') || rawType.includes('vend') || rawType.includes('down') ||
+        rawType.includes('lower') || rawType.includes('abaixo') || rawType === 'v' || rawType === 'p' || rawType.includes('↓')
+      ) {
+        type = 'SELL';
+        typeFound = true;
+      } else if (
+        rawType.includes('cima') || rawType.includes('alta') || rawType.includes('call') ||
+        rawType.includes('buy') || rawType.includes('compra') || rawType.includes('up') ||
+        rawType.includes('higher') || rawType.includes('acima') || rawType === 'c' || rawType === 'b' || rawType.includes('↑')
+      ) {
+        type = 'BUY';
+        typeFound = true;
+      }
+
+      // Varredura de segurança por toda a linha caso resolvedTypeIdx tenha falhado
+      if (!typeFound) {
+        for (const colVal of cols) {
+          const v = colVal.toLowerCase().trim();
+          if (
+            v.includes('baixo') || v.includes('baixa') || v.includes('put') ||
+            v.includes('sell') || v.includes('venda') || v.includes('down') ||
+            v.includes('lower') || v.includes('abaixo') || v === 'v' || v === 'p' || v.includes('↓')
+          ) {
+            type = 'SELL';
+            typeFound = true;
+            break;
+          } else if (
+            v.includes('cima') || v.includes('alta') || v.includes('call') ||
+            v.includes('buy') || v.includes('compra') || v.includes('up') ||
+            v.includes('higher') || v.includes('acima') || v === 'c' || v === 'b' || v.includes('↑')
+          ) {
+            type = 'BUY';
+            typeFound = true;
+            break;
+          }
+        }
+      }
+
+      // 4. Valor Investido ("Valor")
+      const rawInvestment = investmentIdx !== -1 ? cols[investmentIdx] : '0';
+      const investment = parseNumber(rawInvestment);
+
+      // 5. Determinação do Resultado (Win / Loss / Breakeven)
+      let isWin = false;
+      let isLoss = false;
+      let isBreakeven = false;
+
+      // A) Regra Mestra da Quotex via Coluna "Renda" (Retorno Bruto):
+      // Na Quotex: Renda === 0 significa LOSS absoluto! (perdeu o valor investido)
+      // Renda > 0 significa WIN! (Lucro líquido = Renda - Valor)
+      const rawRenda = rendaIdx !== -1 ? cols[rendaIdx] : undefined;
+      const hasRendaCol = rendaIdx !== -1 && rawRenda !== undefined;
+      const rendaNum = hasRendaCol ? parseNumber(rawRenda) : -1;
+
+      if (hasRendaCol) {
+        if (rendaNum <= 0.0001 && investment > 0) {
+          isLoss = true;
+        } else if (rendaNum > 0.0001) {
+          isWin = true;
+        }
+      }
+
+      // B) Via Preços de Abertura ("Preço de abertura") e Fechamento ("Preço de fechamento")
+      if (!isWin && !isLoss && !isBreakeven && openPriceIdx !== -1 && closePriceIdx !== -1) {
+        const openPrice = parseNumber(cols[openPriceIdx]);
+        const closePrice = parseNumber(cols[closePriceIdx]);
+        if (openPrice > 0 && closePrice > 0) {
+          if (closePrice === openPrice) {
+            isBreakeven = true;
+          } else if (type === 'BUY') { // Para cima (CALL)
+            isWin = closePrice > openPrice;
+            isLoss = closePrice < openPrice;
+          } else if (type === 'SELL') { // Para baixo (PUT)
+            isWin = closePrice < openPrice;
+            isLoss = closePrice > openPrice;
+          }
+        }
+      }
+
+      // C) Via texto explícito de Status / Resultado
+      if (!isWin && !isLoss && !isBreakeven) {
+        cols.forEach((colVal) => {
+          const cText = colVal.toLowerCase().trim();
+          if (
+            cText.includes('loss') || cText.includes('lost') || cText.includes('perd') ||
+            cText.includes('derr') || cText.includes('preju') || cText.includes('falha') ||
+            cText.includes('fail') || cText.includes('sem retorno') || cText.includes('zerado') ||
+            cText.includes('negativ') || cText === 'derrota' || cText === 'sem lucro'
+          ) {
+            isLoss = true;
+          } else if (
+            cText.includes('win') || cText.includes('won') || cText.includes('gain') ||
+            cText.includes('ganh') || cText.includes('venc') || cText.includes('lucro') ||
+            cText.includes('sucesso') || cText.includes('success') || cText === 'vitoria' || cText === 'vitória'
+          ) {
+            isWin = true;
+          } else if (cText.includes('equal') || cText.includes('empate') || cText.includes('draw') || cText === '0x0') {
+            isBreakeven = true;
+          }
+        });
+      }
+
+      // D) Via coluna de Profit / Retorno numérico
+      const rawProfit = profitIdx !== -1 ? cols[profitIdx] : '';
+      const profitNum = parseNumber(rawProfit);
+
+      if (!isWin && !isLoss && !isBreakeven) {
+        if (profitNum < -0.001) {
+          isLoss = true;
+        } else if (profitNum === 0 && investment > 0) {
+          isLoss = true;
+        }
+      }
+
+      // E) Cálculo Final do Net PnL Líquido (Lucro/Prejuízo Líquido R$)
+      let netPnl = 0;
+      let result: TradeResult = 'BREAKEVEN';
+
+      if (isLoss) {
+        result = 'LOSS';
+        netPnl = -Math.abs(investment > 0 ? investment : 10);
+      } else if (isWin) {
+        result = 'GAIN';
+        if (hasRendaCol && rendaNum > 0) {
+          if (rendaNum > investment) {
+            netPnl = rendaNum - investment; // ex: Renda 95.5 - Valor 50 = +45.50
+          } else {
+            netPnl = rendaNum;
+          }
+        } else {
+          // Fallback via % da coluna Lucro (ex: 91%)
+          const rawLucro = profitIdx !== -1 ? cols[profitIdx] : '';
+          const payoutPct = parseNumber(rawLucro);
+          if (payoutPct > 0) {
+            const pct = payoutPct > 1 ? payoutPct / 100 : payoutPct;
+            netPnl = investment * pct;
+          } else {
+            netPnl = investment * 0.85;
+          }
+        }
+      } else {
+        result = 'BREAKEVEN';
+        netPnl = 0;
+      }
+
+      trades.push({
+        id: `imp-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+        date,
+        time,
+        asset,
+        type,
+        strategy: 'Importado via Quotex',
+        result,
+        pnl: Math.round(netPnl * 100) / 100,
+        contractsOrQuantity: Math.round((investment || 10) * 100) / 100,
+        notes: `Opção Digital Quotex | Investimento: R$ ${investment.toFixed(2)}`,
+        selected: true,
+        rawRow: rowStr,
+        accountType: 'REAL',
+        isReal: true,
+        isAutoCaptured: true,
+      });
+    } catch (err: any) {
+      errors.push(`Linha ${i + 1}: ${err?.message || 'Erro de leitura Quotex'}`);
+    }
+  }
+
+  const totalPnl = trades.reduce((acc, t) => acc + t.pnl, 0);
+
+  return {
+    trades,
+    errors,
+    platformDetected: 'Quotex (Digital Options)',
+    totalPnl,
+  };
+}
+
 // ── PARSER GENÉRICO (ProfitChart, MetaTrader, fallback) ──────────
 
 function parseGeneric(
@@ -343,7 +661,53 @@ function parseGeneric(
     }
   });
 
-  // Fallbacks
+  // Fallbacks para ativo e data caso o header não tenha correspondido
+  if (assetIdx === -1 && lines.length > 1) {
+    const firstRowCols = splitCsvLine(lines[1], delimiter);
+    for (let cIdx = 0; cIdx < firstRowCols.length; cIdx++) {
+      const val = firstRowCols[cIdx].trim().toUpperCase();
+      if (
+        /[A-Z]{3}\/[A-Z]{3}/.test(val) ||
+        val.includes('OTC') ||
+        /^(USD|EUR|GBP|JPY|CAD|AUD|NZD|CHF|BRL|BTC|ETH|GOLD|SILVER|WIN|WDO)/.test(val)
+      ) {
+        assetIdx = cIdx;
+        break;
+      }
+    }
+  }
+
+  if (dateIdx === -1 && lines.length > 1) {
+    const firstRowCols = splitCsvLine(lines[1], delimiter);
+    for (let cIdx = 0; cIdx < firstRowCols.length; cIdx++) {
+      const val = firstRowCols[cIdx].trim();
+      if (
+        /\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(val) ||
+        /\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(val) ||
+        /^\d{10,13}$/.test(val)
+      ) {
+        dateIdx = cIdx;
+        break;
+      }
+    }
+  }
+
+  if (typeIdx === -1 && lines.length > 1) {
+    const firstRowCols = splitCsvLine(lines[1], delimiter);
+    for (let cIdx = 0; cIdx < firstRowCols.length; cIdx++) {
+      const val = firstRowCols[cIdx].trim().toLowerCase();
+      if (
+        val === 'call' || val === 'put' || val === 'buy' || val === 'sell' ||
+        val === 'compra' || val === 'venda' || val === 'alta' || val === 'baixa' ||
+        val.includes('call') || val.includes('put') || val.includes('compra') || val.includes('venda') ||
+        val.includes('higher') || val.includes('lower') || val.includes('abaixo') || val.includes('acima')
+      ) {
+        typeIdx = cIdx;
+        break;
+      }
+    }
+  }
+
   if (assetIdx === -1) assetIdx = 0;
   if (dateIdx === -1) dateIdx = 1;
   if (pnlIdx === -1) pnlIdx = header.length - 1;
@@ -354,8 +718,7 @@ function parseGeneric(
     if (cols.length < 2) continue;
 
     try {
-      const rawAsset = (cols[assetIdx] || 'WIN').trim().toUpperCase();
-      let asset = rawAsset.replace(/[^A-Z0-9/._-]/g, '') || 'WIN';
+      const asset = cleanAssetName(assetIdx !== -1 ? cols[assetIdx] : '');
 
       // Data e hora
       const rawDateStr = dateIdx !== -1 ? cols[dateIdx] : '';
@@ -385,11 +748,20 @@ function parseGeneric(
       else if (netPnl < -0.001) result = 'LOSS';
 
       // Tipo
-      const rawType = (typeIdx !== -1 ? cols[typeIdx] : '').toUpperCase();
+      const rawType = (typeIdx !== -1 ? cols[typeIdx] : '').toLowerCase().trim();
       let type: TradeType = 'BUY';
-      if (rawType.includes('V') || rawType.includes('SELL') || rawType.includes('PUT') ||
-          rawType.includes('SHORT') || rawType.includes('BAIXA') || rawType.includes('LOW') || rawType.includes('DOWN')) {
+      if (
+        rawType.includes('put') || rawType.includes('sell') || rawType.includes('vend') ||
+        rawType.includes('baixa') || rawType.includes('down') || rawType.includes('lower') ||
+        rawType.includes('abaixo') || rawType === 'v' || rawType === 'p'
+      ) {
         type = 'SELL';
+      } else if (
+        rawType.includes('call') || rawType.includes('buy') || rawType.includes('compra') ||
+        rawType.includes('alta') || rawType.includes('up') || rawType.includes('higher') ||
+        rawType.includes('acima') || rawType === 'c' || rawType === 'b'
+      ) {
+        type = 'BUY';
       }
 
       const strategy = strategyIdx !== -1 && cols[strategyIdx]
@@ -433,6 +805,23 @@ function parseGeneric(
 
 function detectPlatform(headerLine: string): PlatformPreset {
   const h = headerLine.toLowerCase();
+
+  // Quotex
+  if (
+    h.includes('quotex') ||
+    (h.includes('pair') && h.includes('payout')) ||
+    (h.includes('open price') && h.includes('close price')) ||
+    (h.includes('preço de abertura') && h.includes('preço de fechamento')) ||
+    (h.includes('preco de abertura') && h.includes('preco de fechamento')) ||
+    (h.includes('hora de abertura') && h.includes('hora de fechamento')) ||
+    h.includes('informações') || h.includes('informacoes') ||
+    (h.includes('modelo') && (h.includes('renda') || h.includes('lucro') || h.includes('valor'))) ||
+    (h.includes('ativo') && h.includes('otc')) ||
+    (h.includes('pair') && h.includes('amount')) ||
+    (h.includes('asset') && h.includes('otc'))
+  ) {
+    return 'QUOTEX';
+  }
 
   // Exnova: headers exatos
   if (
@@ -489,6 +878,11 @@ export function parseTradeFile(
   let detected = preset;
   if (preset === 'AUTO') {
     detected = detectPlatform(lines[0]);
+  }
+
+  // ── Quotex: parser dedicado ──
+  if (detected === 'QUOTEX') {
+    return parseQuotexDedicated(lines, delimiter, header);
   }
 
   // ── Exnova: parser dedicado com mapeamento exato de colunas ──

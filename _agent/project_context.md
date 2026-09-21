@@ -92,7 +92,47 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
 17. **Ícone de Favicon SVG (`/favicon.svg`)**:
     - **Correção de Erro 404**: Criado o arquivo [favicon.svg](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/public/favicon.svg) na pasta `public/` com o escudo oficial verde/preto do sistema e adicionada a tag `<link rel="icon" type="image/svg+xml" href="/favicon.svg" />` em [index.html](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/index.html).
 
+18. **Parser Dedicado e Correção de Importação de Operações Quotex**:
+    - **Motivo do Problema Identificado**: O arquivo da Quotex não era reconhecido pela auto-detecção de formato e caía no fallback `PROFITCHART`. Como a Quotex exporta pares OTC e Payout % (ex: `93%` ou `93`), o parser antigo lia `93` como lucro em R$. Como `93 > 0`, todos os trades (ganhos e perdas) eram classificados erroneamente como **WIN** (GAIN).
+    - **Solução Implementada**:
+      - Criada a plataforma `'QUOTEX'` em `PlatformPreset` e a função dedicada `parseQuotexDedicated` em [tradeParsers.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/tradeParsers.ts#L276-L440).
+      - Adicionada detecção automática de relatórios da Quotex em `detectPlatform`.
+      - Identificação precisa de **Loss**: quando a coluna de retorno é `0` ou `$0.00`, quando o status é "Perda/Sem retorno/Prejuízo/Loss", ou quando o preço de fechamento é desfavorável. Para perdas, o PnL é calculado como `-investimento` (LOSS).
+      - Identificação de **Win**: converte a taxa de payout (ex: 93%) sobre o valor investido para calcular o lucro líquido real em R$.
+      - Adicionado botão seletor da **Quotex** no modal de importação ([ImportTradesModal.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/ImportTradesModal.tsx#L198)).
+
+19. **Liberação da Exclusão em Massa de Trades Importados**:
+    - **Motivo do Problema**: A trava Anti-Fúria de `isTradeProtected(trade)` considerava *todas* as operações da Conta Real (`isReal === true`) imutáveis, bloqueando a exclusão dos trades importados via relatório CSV/PDF no Diário de Operações.
+    - **Solução**: Atualizada a função `isTradeProtected` em [calculations.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/calculations.ts#L39-L55) para verificar se a operação foi importada (`id.startsWith('imp-')` ou estratégia/notas contendo "Importado"). Operações importadas são liberadas para exclusão individual e em massa. Operações capturadas ao vivo pela extensão continuam 100% protegidas 🔒.
+
+20. **Leitura Universal de Nomes de Ativos e Datas de Relatórios**:
+    - **Motivos Identificados**: 
+      1. **Nomes de Ativos**: A regex antiga removia parênteses e espaços, transformando `USD/MXN (OTC)` em `USD/MXNOTC`.
+      2. **Datas com Data Atual**: Se o nome da coluna no cabeçalho estivesse em outro formato (ex: `Open time` ou `Timestamp`), o sistema não encontrava o índice e utilizava o fallback com a data de hoje.
+    - **Solução Implementada**:
+      - Criada a função `cleanAssetName` em [tradeParsers.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/tradeParsers.ts#L41-L65) que limpa o nome sem corromper o par de moedas e mantendo a tag `(OTC)` formatada (ex: `USD/MXN (OTC)`).
+      - Atualizada a função `parseIsoDatetime` para aceitar qualquer padrão ISO, BR (`DD/MM/YYYY`), US (`MM/DD/YYYY`), pontos (`21.06.2026`) ou Timestamps Unix.
+      - Implementada a varredura automática de linha (row scanning fallback): caso a coluna não seja achada pelo nome no cabeçalho, o sistema analisa os valores da 1ª linha do arquivo para identificar automaticamente qual coluna contém os nomes dos ativos e qual contém a data real da operação.
+
+21. **Correção na Identificação de Direção (PUT / VENDA) & Regra de Win/Loss Invertida**:
+    - **Causa Raiz do Bug**: Quando a coluna de direção no relatório da Quotex possuía um nome não-padrão (ex: `Call/Put`, `Trade Type` ou `Action`), o índice `typeIdx` não era encontrado e todas as operações eram forçadas como `BUY` (CALL/COMPRA). Em uma operação de **PUT/VENDA que foi LOSS** (preço subiu, `closePrice > openPrice`), como o sistema achava que a ordem era de `BUY`, a regra `closePrice > openPrice` classificava o trade erroneamente como **WIN**.
+    - **Solução**:
+      - Ampliada a busca do cabeçalho de tipo/direção em `parseQuotexDedicated` e `parseGeneric` ([tradeParsers.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/tradeParsers.ts#L400-L450)).
+      - Adicionada a varredura de linha (row scanning): caso a coluna não seja achada pelo nome do cabeçalho, o sistema inspeciona a 1ª linha procurando por palavras como `call`, `put`, `buy`, `sell`, `compra`, `venda`, `alta`, `baixa`, `higher`, `lower`.
+      - Garantido o mapeamento correto de `SELL` (PUT/VENDA) para todas as ordens de venda, corrigindo a regra de preços de abertura vs fechamento (`closePrice < openPrice` = WIN para PUT, `closePrice > openPrice` = LOSS para PUT).
+
+22. **Varredura Omni-Coluna por Linha para Direção e Resultado de Risco (Loss)**:
+    - **Causa Raiz Identificada no Fallback de PnL**: Se a coluna de retorno contivesse a taxa de Payout (ex: `93%` ou `93`), a verificação secundária `profitNum > 0.001` transformava a linha em **GAIN** mesmo quando o status continha palavras de perda ou quando a ordem era de Venda/PUT.
+    - **Solução Definitiva Implementada em `parseQuotexDedicated`**:
+      - **Varredura Omni-Coluna por Linha**: Para CADA linha de trade individual, o sistema varre **todas as células da linha** procurando termos explícitos de direção (`put`, `sell`, `venda`, `baixa`, `down`, `lower`, `abaixo`, `↓`, `▼`) para garantir que ordens de venda **nunca fiquem como BUY**.
+      - **Bloqueio Absoluto de Payout como Win para Loss**: Varre todas as células da linha procurando termos de perda (`loss`, `lost`, `perda`, `perdeu`, `prejuízo`, `sem retorno`, `zerado`, `negativ`, `falha`). Se identificado como Loss, o PnL é travado em **`-investimento`** e o resultado em **`LOSS`**, impedindo que a taxa de payout (93) force o resultado como GAIN.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
 - Português do Brasil (PT-BR).
+
+
+
+
+

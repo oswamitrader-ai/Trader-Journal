@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Trade, RiskSettings, SystemUser } from '../types';
+import { Trade, RiskSettings, SystemUser, CapitalTransaction } from '../types';
 import { isTradeProtected } from '../utils/calculations';
 
 // Default configuration provided by the user
@@ -385,6 +385,132 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao salvar configurações de risco.' };
+  }
+}
+
+/**
+ * Fetch Capital Transactions (Deposits, Withdrawals, Fees) from Supabase
+ */
+export async function fetchCapitalTransactionsFromSupabase(userEmail?: string): Promise<{ data: CapitalTransaction[] | null; error: string | null }> {
+  try {
+    const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
+    if (!cleanEmail) return { data: null, error: null };
+
+    // 1. Tenta buscar da tabela principal capital_transactions
+    const { data, error } = await supabase
+      .from('capital_transactions')
+      .select('*')
+      .eq('user_email', cleanEmail)
+      .order('date', { ascending: false });
+
+    if (!error && data) {
+      const txs: CapitalTransaction[] = data.map((row: any) => ({
+        id: String(row.id),
+        type: row.type === 'DEPOSIT' ? 'DEPOSIT' : 'WITHDRAWAL',
+        amount: Number(row.amount) || 0,
+        fee: Number(row.fee) || 0,
+        date: String(row.date),
+        time: row.time ? String(row.time) : undefined,
+        broker: row.broker ? String(row.broker) : undefined,
+        notes: row.notes ? String(row.notes) : undefined,
+      }));
+      return { data: txs, error: null };
+    }
+
+    // 2. Backup fallback: busca em risk_settings com id captx_*
+    const prefix = `captx_${cleanEmail}_`;
+    const { data: backupRows } = await supabase.from('risk_settings').select('*').like('id', `${prefix}%`);
+    if (backupRows && backupRows.length > 0) {
+      const txs: CapitalTransaction[] = backupRows.map((row: any) => ({
+        id: String(row.id.replace(prefix, '')),
+        type: row.monthlyProfitTarget === 1 ? 'DEPOSIT' : 'WITHDRAWAL',
+        amount: Number(row.initialCapital) || 0,
+        fee: Number(row.dailyProfitTarget) || 0,
+        date: String(row.antiFuriaStartTime || new Date().toISOString().split('T')[0]),
+        broker: row.notes || undefined,
+      }));
+      return { data: txs, error: null };
+    }
+
+    return { data: null, error: error?.message || null };
+  } catch (err: any) {
+    return { data: null, error: err?.message || 'Erro ao carregar movimentações de capital.' };
+  }
+}
+
+/**
+ * Upsert a single Capital Transaction in Supabase
+ */
+export async function upsertCapitalTransactionToSupabase(tx: CapitalTransaction, userEmail?: string): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
+    if (!cleanEmail) return { success: false, error: 'User email required' };
+
+    const payload = {
+      id: tx.id,
+      user_email: cleanEmail,
+      date: tx.date,
+      time: tx.time ?? null,
+      type: tx.type,
+      amount: tx.amount,
+      fee: tx.fee ?? 0,
+      broker: tx.broker ?? null,
+      notes: tx.notes ?? null,
+      updated_at: new Date().toISOString(),
+    };
+
+    let { error } = await supabase.from('capital_transactions').upsert(payload);
+
+    // Backup em risk_settings
+    const backupId = `captx_${cleanEmail}_${tx.id}`;
+    const backupPayload: any = {
+      id: backupId,
+      initialCapital: tx.amount,
+      dailyProfitTarget: tx.fee ?? 0,
+      dailyLossLimit: 0,
+      monthlyProfitTarget: tx.type === 'DEPOSIT' ? 1 : 2,
+      monthlyLossLimit: 0,
+      maxTradesPerDay: 0,
+      alertSoundEnabled: true,
+      antiFuriaCustomWindowEnabled: false,
+      antiFuriaStartTime: tx.date,
+      notes: tx.broker ?? 'Movimentação',
+      updated_at: new Date().toISOString(),
+    };
+    await supabase.from('risk_settings').upsert(backupPayload);
+
+    if (error && !error.message.includes('relation "capital_transactions" does not exist')) {
+      return { success: false, error: error.message };
+    }
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro ao salvar movimentação no Supabase.' };
+  }
+}
+
+/**
+ * Delete a Capital Transaction from Supabase
+ */
+export async function deleteCapitalTransactionFromSupabase(txId: string, userEmail?: string): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
+    await supabase.from('capital_transactions').delete().eq('id', txId);
+    if (cleanEmail) {
+      await supabase.from('risk_settings').delete().eq('id', `captx_${cleanEmail}_${txId}`);
+    }
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro ao excluir movimentação.' };
+  }
+}
+
+/**
+ * Sync batch of capital transactions to Supabase
+ */
+export async function syncAllCapitalTransactionsToSupabase(txs: CapitalTransaction[], userEmail?: string): Promise<void> {
+  if (!txs || txs.length === 0 || !userEmail) return;
+  for (const tx of txs) {
+    await upsertCapitalTransactionToSupabase(tx, userEmail);
   }
 }
 
