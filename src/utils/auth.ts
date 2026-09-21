@@ -4,6 +4,7 @@ import {
   upsertUserToSupabase,
   deleteUserFromSupabase,
   syncAllUsersToSupabase,
+  clearAllTradesFromSupabase,
 } from '../lib/supabase';
 
 const USERS_STORAGE_KEY = 'trader_journal_users_v1';
@@ -19,6 +20,21 @@ export const INITIAL_ADMIN_USER: SystemUser = {
   createdAt: '2026-01-01T00:00:00.000Z',
   password: 'admin123',
 };
+
+// Limpar dados e operações de um cliente específico (local e Supabase)
+export function cleanClientData(email: string): void {
+  const cleanEmail = email.toLowerCase().trim();
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem(`trader_journal_trades_${cleanEmail}`);
+      localStorage.removeItem(`trader_journal_settings_${cleanEmail}`);
+      localStorage.removeItem(`trader_journal_capital_txs_${cleanEmail}`);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  clearAllTradesFromSupabase(cleanEmail).catch(() => {});
+}
 
 // Obter todos os usuários pré-cadastrados (com fallback para o Admin padrão)
 export function getSavedUsers(): SystemUser[] {
@@ -57,6 +73,10 @@ export function getSavedUsers(): SystemUser[] {
 
 // Sincronizar usuários com o Supabase em segundo plano
 export async function syncUsersWithSupabase(): Promise<SystemUser[]> {
+  // Limpeza preventiva de dados legados dos clientes
+  cleanClientData('ariereproinuj@trader.com');
+  cleanClientData('imawssevlacnog@trader.com');
+
   const localUsers = getSavedUsers();
   try {
     const remoteUsers = await fetchUsersFromSupabase();

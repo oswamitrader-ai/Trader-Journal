@@ -13,7 +13,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Trade, TradeType, TradeResult } from '../types';
-import { isTradeProtected } from '../utils/calculations';
+import { isTradeProtected, getLocalDateStr } from '../utils/calculations';
 
 interface TradeFormModalProps {
   isOpen: boolean;
@@ -292,7 +292,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   useEffect(() => {
     if (editingTrade) {
-      setDate(editingTrade.date || new Date().toISOString().split('T')[0]);
+      setDate(editingTrade.date || getLocalDateStr());
       setTime(editingTrade.time || '');
       setAsset(editingTrade.asset || savedAssets[0] || 'WIN');
       setType(editingTrade.type || 'BUY');
@@ -308,7 +308,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     } else {
       // Default new trade: real today's date and clean values
       const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
+      const todayStr = getLocalDateStr(now);
       setDate(todayStr);
       setTime(
         `${now.getHours().toString().padStart(2, '0')}:${now

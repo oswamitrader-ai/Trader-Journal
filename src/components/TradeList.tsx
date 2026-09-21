@@ -20,7 +20,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Trade } from '../types';
-import { formatCurrency, formatDate, isTradeProtected } from '../utils/calculations';
+import { formatCurrency, formatDate, isTradeProtected, getLocalDateStr } from '../utils/calculations';
 
 interface TradeListProps {
   trades: Trade[];
@@ -63,7 +63,7 @@ export const TradeList: React.FC<TradeListProps> = ({
       const sorted = [...trades].sort((a, b) => b.date.localeCompare(a.date));
       return sorted[0].date;
     }
-    return new Date().toISOString().split('T')[0];
+    return getLocalDateStr();
   }, [trades]);
 
   // Filtered trades list

@@ -89,41 +89,32 @@ export async function checkSupabaseConnection(): Promise<SupabaseHealthResult> {
   }
 }
 
-/**
- * Load all trades from Supabase (Isolated per device/user)
- */
 export async function fetchTradesFromSupabase(userEmail?: string): Promise<{ data: Trade[] | null; error: string | null }> {
   try {
-    const deviceId = getClientDeviceId();
-    let query = supabase.from('trades').select('*');
-
-    if (userEmail) {
-      query = query.eq('user_email', userEmail);
-    } else {
-      query = query.eq('device_id', deviceId);
-    }
-
-    let { data, error } = await query
+    const { data, error } = await supabase
+      .from('trades')
+      .select('*')
       .order('date', { ascending: false })
       .order('time', { ascending: false });
-
-    // Fallback se colunas ainda não existirem no schema do Supabase
-    if (error && (error.code === 'PGRST204' || error.message.includes('column'))) {
-      const fallback = await supabase
-        .from('trades')
-        .select('*')
-        .order('date', { ascending: false })
-        .order('time', { ascending: false });
-      data = fallback.data;
-      error = fallback.error;
-    }
 
     if (error) {
       return { data: null, error: error.message };
     }
 
+    const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
+
     const trades: Trade[] = (data || [])
       .filter((row: any) => !/^tr-0\d{2}$/.test(String(row.id)) && String(row.id) !== 'tr-024')
+      .filter((row: any) => {
+        if (!cleanEmail) return true;
+        const rowUserEmail = row.user_email ? String(row.user_email).toLowerCase().trim() : '';
+        if (cleanEmail === 'oswamitrader@gmail.com') {
+          // Para o Admin principal, inclui operações dele E operações sem e-mail atrelado
+          return !rowUserEmail || rowUserEmail === 'oswamitrader@gmail.com';
+        }
+        // Para clientes, inclui apenas operações vinculadas estritamente ao seu e-mail
+        return rowUserEmail === cleanEmail;
+      })
       .map((row: any) => ({
       id: String(row.id),
       date: String(row.date),

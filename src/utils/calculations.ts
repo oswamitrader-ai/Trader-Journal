@@ -96,6 +96,18 @@ export function formatDate(dateString: string): string {
   return `${day}/${month}/${year}`;
 }
 
+export function getLocalDateStr(dateInput: Date | string | number = new Date()): string {
+  const d = typeof dateInput === 'string' || typeof dateInput === 'number' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function formatShortDate(dateString: string): string {
   if (!dateString) return '';
   const parts = dateString.split('-');

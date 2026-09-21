@@ -7,6 +7,9 @@ interface RiskSettingsModalProps {
   onClose: () => void;
   settings: RiskSettings;
   onSave: (newSettings: RiskSettings) => void;
+  isStopHit?: boolean;
+  isMaxTradesHit?: boolean;
+  isAntiFuriaActive?: boolean;
 }
 
 export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
@@ -14,6 +17,9 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
   onClose,
   settings,
   onSave,
+  isStopHit = false,
+  isMaxTradesHit = false,
+  isAntiFuriaActive = false,
 }) => {
   const [initialCapital, setInitialCapital] = useState<number>(settings.initialCapital);
   const [dailyProfitTarget, setDailyProfitTarget] = useState<number>(settings.dailyProfitTarget);
@@ -52,13 +58,22 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // 🔒 Proteção Anti-Fúria: Se a trava foi ativada (Stop ou Max Trades), NÃO permite alterar/aumentar os limites
+    const finalDailyLossLimit = (isStopHit || isAntiFuriaActive)
+      ? settings.dailyLossLimit
+      : Math.max(0, Number(dailyLossLimit) || 0);
+
+    const finalMaxTradesPerDay = (isMaxTradesHit || isAntiFuriaActive)
+      ? settings.maxTradesPerDay
+      : Math.max(1, Number(maxTradesPerDay) || 5);
+
     onSave({
       initialCapital: Number(initialCapital) || 0,
       dailyProfitTarget: Math.max(0, Number(dailyProfitTarget) || 0),
-      dailyLossLimit: Math.max(0, Number(dailyLossLimit) || 0),
+      dailyLossLimit: finalDailyLossLimit,
       monthlyProfitTarget: Math.max(0, Number(monthlyProfitTarget) || 0),
       monthlyLossLimit: Math.max(0, Number(monthlyLossLimit) || 0),
-      maxTradesPerDay: Math.max(1, Number(maxTradesPerDay) || 5),
+      maxTradesPerDay: finalMaxTradesPerDay,
       alertSoundEnabled: true,
       antiFuriaCustomWindowEnabled,
       antiFuriaStartTime: antiFuriaStartTime || '07:00',
@@ -127,23 +142,36 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
               </div>
 
               <div>
-                <label className="mb-1 block font-semibold text-rose-300">
-                  Limite de Perda Diário (R$)
+                <label className="mb-1 block font-semibold text-rose-300 flex items-center justify-between">
+                  <span>Limite de Perda Diário (R$)</span>
+                  {isStopHit && <span className="text-[10px] text-red-400 font-bold">🔒 BLOQUEADO</span>}
                 </label>
                 <input
                   type="number"
                   min="10"
                   step="any"
                   required
+                  disabled={isStopHit}
                   value={dailyLossLimit}
                   onChange={(e) => setDailyLossLimit(Number(e.target.value))}
-                  className="w-full rounded-xl border border-rose-500/30 bg-black px-3 py-2 font-mono font-bold text-rose-400 focus:border-rose-500 focus:outline-none"
+                  className={`w-full rounded-xl border px-3 py-2 font-mono font-bold text-rose-400 focus:outline-none ${
+                    isStopHit
+                      ? 'border-red-500/60 bg-red-950/30 cursor-not-allowed opacity-80'
+                      : 'border-rose-500/30 bg-black focus:border-rose-500'
+                  }`}
                 />
               </div>
             </div>
-            <p className="text-[10px] text-slate-400">
-              Ao atingir a meta ou o stop, o painel emitirá alertas imediatos para você proteger seu lucro ou evitar o tilt.
-            </p>
+            {isStopHit ? (
+              <p className="text-[10px] text-red-300 font-bold flex items-center gap-1 bg-red-950/40 p-2 rounded-lg border border-red-500/30">
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-red-400" />
+                Stop Loss diário atingido hoje. O limite de perda não pode ser alterado para burlar o controle de risco.
+              </p>
+            ) : (
+              <p className="text-[10px] text-slate-400">
+                Ao atingir a meta ou o stop, o painel emitirá alertas imediatos para você proteger seu lucro ou evitar o tilt.
+              </p>
+            )}
           </div>
 
           {/* Área Dedicada: Trava Anti-Fúria & Janela de Operações */}
@@ -250,21 +278,34 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
 
           {/* Overtrading limit */}
           <div>
-            <label className="mb-1 block font-semibold text-slate-300">
-              Limite Máximo de Operações por Dia
+            <label className="mb-1 block font-semibold text-slate-300 flex items-center justify-between">
+              <span>Limite Máximo de Operações por Dia</span>
+              {(isMaxTradesHit || isAntiFuriaActive) && <span className="text-[10px] text-red-400 font-bold">🔒 BLOQUEADO</span>}
             </label>
             <input
               type="number"
               min="1"
               max="50"
               required
+              disabled={isMaxTradesHit || isAntiFuriaActive}
               value={maxTradesPerDay}
               onChange={(e) => setMaxTradesPerDay(Number(e.target.value))}
-              className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 font-mono text-white focus:border-emerald-500 focus:outline-none"
+              className={`w-full rounded-xl border px-3 py-2 font-mono font-bold text-white focus:outline-none ${
+                isMaxTradesHit || isAntiFuriaActive
+                  ? 'border-red-500/60 bg-red-950/30 cursor-not-allowed opacity-80 text-red-400'
+                  : 'border-slate-800 bg-black focus:border-emerald-500'
+              }`}
             />
-            <p className="mt-1 text-[11px] text-slate-400">
-              Ajuda a combater o overtrading emitindo alertas quando o limite for excedido.
-            </p>
+            {(isMaxTradesHit || isAntiFuriaActive) ? (
+              <p className="mt-1 text-[10px] text-red-300 font-bold flex items-center gap-1 bg-red-950/40 p-2 rounded-lg border border-red-500/30">
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-red-400" />
+                Limite de operações atingido hoje. O número máximo não pode ser aumentado para burlar a trava.
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] text-slate-400">
+                Ajuda a combater o overtrading bloqueando novas operações quando o limite for excedido.
+              </p>
+            )}
           </div>
 
           {/* Action buttons */}

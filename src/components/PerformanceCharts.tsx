@@ -39,6 +39,7 @@ import {
   getStatsByAsset,
   getStatsByStrategy,
   getStatsByEmotion,
+  getLocalDateStr,
 } from '../utils/calculations';
 
 interface PerformanceChartsProps {
@@ -86,7 +87,7 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
       return selectedCandleDate;
     }
     if (availableDates.length > 0) return availableDates[0];
-    return new Date().toISOString().split('T')[0];
+    return getLocalDateStr();
   }, [selectedCandleDate, availableDates]);
 
   // Filter and sort trades chronologically

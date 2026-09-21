@@ -16,7 +16,7 @@ import {
   Receipt,
 } from 'lucide-react';
 import { CapitalTransaction, CapitalTransactionType } from '../types';
-import { formatCurrency, formatDate } from '../utils/calculations';
+import { formatCurrency, formatDate, getLocalDateStr } from '../utils/calculations';
 
 interface CapitalHistoryModalProps {
   isOpen: boolean;
@@ -43,7 +43,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
   const [amount, setAmount] = useState<string>('');
   const [fee, setFee] = useState<string>('');
   const [showFeeInput, setShowFeeInput] = useState<boolean>(false);
-  const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<string>(() => getLocalDateStr());
   const [broker, setBroker] = useState<string>('Exnova');
   const [customBroker, setCustomBroker] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
@@ -77,7 +77,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
       type: activeType,
       amount: numAmount,
       fee: !isNaN(numFee) && numFee > 0 ? numFee : undefined,
-      date: date || new Date().toISOString().split('T')[0],
+      date: date || getLocalDateStr(),
       time: timeStr,
       broker: finalBroker,
       notes: notes.trim(),

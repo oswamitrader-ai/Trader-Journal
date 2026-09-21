@@ -79,10 +79,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Safe defaults for risk settings
   const dailyProfitTarget = settings?.dailyProfitTarget ?? 500;
   const dailyLossLimit = settings?.dailyLossLimit ?? 300;
+  const maxTradesPerDay = settings?.maxTradesPerDay ?? 5;
 
   // Status for today
   const isTargetHit = todayPnl >= dailyProfitTarget;
   const isStopHit = todayPnl <= -dailyLossLimit;
+  const isMaxTradesHit = maxTradesPerDay > 0 && todayTradesCount >= maxTradesPerDay;
+  const isAntiFuriaActive = isStopHit || isMaxTradesHit;
   const isNearStop = todayPnl < 0 && Math.abs(todayPnl) >= dailyLossLimit * 0.75;
   const safeNotifList = notifications || [];
   const displayCapital = metrics?.currentCapital ?? currentCapital ?? 10000;
@@ -205,14 +208,25 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5 shrink-0 pb-1 sm:pb-0 max-w-full">
-          {/* New Trade Button */}
+          {/* New Trade Button — 🔒 Bloqueado quando a Trava Anti-Fúria (Stop Loss ou Max Trades) é atingida */}
           <button
             id="btn-nova-operacao"
             onClick={onOpenNewTrade}
-            title="Nova Operação"
-            className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-900/30 transition-all hover:bg-emerald-500 active:scale-95 shrink-0"
+            disabled={isAntiFuriaActive}
+            title={
+              isStopHit
+                ? '🔒 Stop Loss Diário Atingido — Operações Bloqueadas'
+                : isMaxTradesHit
+                ? `🔒 Limite Máximo de Operações Atingido (${todayTradesCount}/${maxTradesPerDay}) — Bloqueado`
+                : 'Nova Operação'
+            }
+            className={`flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl shadow-md transition-all shrink-0 ${
+              isAntiFuriaActive
+                ? 'bg-red-900/60 text-red-400 border border-red-500/40 cursor-not-allowed opacity-60'
+                : 'bg-emerald-600 text-white shadow-emerald-900/30 hover:bg-emerald-500 active:scale-95'
+            }`}
           >
-            <PlusCircle className="h-4 w-4" />
+            {isAntiFuriaActive ? <Shield className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
           </button>
 
           {/* AI Mentor Button */}
@@ -225,13 +239,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Brain className="h-4 w-4" />
           </button>
 
-          {/* Import CSV Button */}
+          {/* Import CSV Button — 🔒 Bloqueado quando Trava Anti-Fúria ativa */}
           {onOpenImportModal && (
             <button
               id="btn-importar-csv"
               onClick={onOpenImportModal}
-              title="Importar Relatório de Performance (ProfitChart, MT4/MT5, Exnova)"
-              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md transition-all hover:bg-blue-500 active:scale-95 shrink-0"
+              disabled={isAntiFuriaActive}
+              title={
+                isStopHit
+                  ? '🔒 Stop Loss Atingido — Importação Bloqueada'
+                  : isMaxTradesHit
+                  ? `🔒 Limite de Operações Atingido (${todayTradesCount}/${maxTradesPerDay}) — Importação Bloqueada`
+                  : 'Importar Relatório de Performance (ProfitChart, MT4/MT5, Exnova)'
+              }
+              className={`flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl shadow-md transition-all shrink-0 ${
+                isAntiFuriaActive
+                  ? 'bg-red-900/60 text-red-400 border border-red-500/40 cursor-not-allowed opacity-60'
+                  : 'bg-blue-600 text-white hover:bg-blue-500 active:scale-95'
+              }`}
             >
               <Upload className="h-4 w-4" />
             </button>

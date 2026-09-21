@@ -24,6 +24,7 @@ import {
   getGlobalCurrency,
   setGlobalCurrency,
   isTradeProtected,
+  getLocalDateStr,
 } from './utils/calculations';
 import { Navbar } from './components/Navbar';
 import { RiskAlertBanner } from './components/RiskAlertBanner';
@@ -72,52 +73,82 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  // 1. Persistent Trades State (100% Real - sem dados mockados)
-  const [trades, setTrades] = useState<Trade[]>(() => {
+  // User-Scoped LocalStorage Keys
+  const userEmailKey = currentUser?.email?.toLowerCase().trim() || 'default';
+  const TRADES_STORAGE_KEY = `trader_journal_trades_${userEmailKey}`;
+  const SETTINGS_STORAGE_KEY = `trader_journal_settings_${userEmailKey}`;
+  const CAPITAL_STORAGE_KEY = `trader_journal_capital_txs_${userEmailKey}`;
+
+  // 1. Trades State
+  const [trades, setTrades] = useState<Trade[]>([]);
+
+  // 2. Risk Settings State
+  const [settings, setSettings] = useState<RiskSettings>(DEFAULT_RISK_SETTINGS);
+
+  // 3. Capital Transactions State
+  const [capitalTransactions, setCapitalTransactions] = useState<CapitalTransaction[]>([]);
+  const [isCapitalModalOpen, setIsCapitalModalOpen] = useState(false);
+
+  // Re-hydrate user-isolated data whenever currentUser changes
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Load user's isolated trades
     try {
-      const saved = localStorage.getItem('trader_journal_trades_v2') || localStorage.getItem('trader_journal_trades_v1');
-      if (saved && saved !== 'undefined' && saved !== 'null') {
-        const parsed = JSON.parse(saved);
+      const savedTrades = localStorage.getItem(TRADES_STORAGE_KEY);
+      let loadedTrades: Trade[] = [];
+
+      if (savedTrades && savedTrades !== 'undefined' && savedTrades !== 'null') {
+        const parsed = JSON.parse(savedTrades);
         if (Array.isArray(parsed)) {
-          // Filtra qualquer mock legado anterior (ex: tr-001 a tr-024)
-          const cleanRealTrades = parsed.filter(
-            (t) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024'
-          );
-          return cleanRealTrades;
+          loadedTrades = parsed.filter((t) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
         }
       }
-    } catch (e) {
-      console.warn('Failed to load saved trades from storage', e);
-    }
-    return [];
-  });
 
-  // 2. Persistent Risk Settings
-  const [settings, setSettings] = useState<RiskSettings>(() => {
-    try {
-      const saved = localStorage.getItem('trader_journal_settings_v1');
-      if (saved && saved !== 'undefined' && saved !== 'null') {
-        const parsed = JSON.parse(saved);
-          const parseVal = (v: any, fallback: number) => {
-            const num = Number(v);
-            return isNaN(num) || v === null || v === undefined ? fallback : num;
-          };
-          return {
-            ...DEFAULT_RISK_SETTINGS,
-            ...parsed,
-            initialCapital: parseVal(parsed.initialCapital, DEFAULT_RISK_SETTINGS.initialCapital),
-            dailyProfitTarget: parseVal(parsed.dailyProfitTarget, DEFAULT_RISK_SETTINGS.dailyProfitTarget),
-            dailyLossLimit: parseVal(parsed.dailyLossLimit, DEFAULT_RISK_SETTINGS.dailyLossLimit),
-            monthlyProfitTarget: parseVal(parsed.monthlyProfitTarget, DEFAULT_RISK_SETTINGS.monthlyProfitTarget),
-            monthlyLossLimit: parseVal(parsed.monthlyLossLimit, DEFAULT_RISK_SETTINGS.monthlyLossLimit),
-            maxTradesPerDay: parseVal(parsed.maxTradesPerDay, DEFAULT_RISK_SETTINGS.maxTradesPerDay),
-          };
+      // Se for o Admin e o storage escopado estiver vazio, resgata do armazenamento legado
+      if (loadedTrades.length === 0 && currentUser.email.toLowerCase() === 'oswamitrader@gmail.com') {
+        const legacySaved = localStorage.getItem('trader_journal_trades_v2') || localStorage.getItem('trader_journal_trades_v1');
+        if (legacySaved && legacySaved !== 'undefined' && legacySaved !== 'null') {
+          const parsed = JSON.parse(legacySaved);
+          if (Array.isArray(parsed)) {
+            loadedTrades = parsed.filter((t) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
+          }
+        }
       }
-    } catch (e) {
-      console.warn('Failed to load saved settings from storage', e);
+
+      setTrades(loadedTrades);
+    } catch {
+      setTrades([]);
     }
-    return DEFAULT_RISK_SETTINGS;
-  });
+
+    // Load user's isolated risk settings
+    try {
+      const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (savedSettings && savedSettings !== 'undefined' && savedSettings !== 'null') {
+        setSettings({ ...DEFAULT_RISK_SETTINGS, ...JSON.parse(savedSettings) });
+      } else if (currentUser.email.toLowerCase() === 'oswamitrader@gmail.com') {
+        const legacySettings = localStorage.getItem('trader_journal_settings_v1');
+        if (legacySettings) setSettings({ ...DEFAULT_RISK_SETTINGS, ...JSON.parse(legacySettings) });
+        else setSettings(DEFAULT_RISK_SETTINGS);
+      } else {
+        setSettings(DEFAULT_RISK_SETTINGS);
+      }
+    } catch {
+      setSettings(DEFAULT_RISK_SETTINGS);
+    }
+
+    // Load user's isolated capital transactions
+    try {
+      const savedTxs = localStorage.getItem(CAPITAL_STORAGE_KEY);
+      if (savedTxs && savedTxs !== 'undefined' && savedTxs !== 'null') {
+        setCapitalTransactions(JSON.parse(savedTxs));
+      } else {
+        setCapitalTransactions([]);
+      }
+    } catch {
+      setCapitalTransactions([]);
+    }
+  }, [currentUser?.email]);
 
   const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>([]);
   const [dismissedAlerts, setDismissedAlerts] = useState<Record<string, boolean>>({});
@@ -130,47 +161,33 @@ export default function App() {
     setCurrency(newCurrency);
   };
 
-  // 3. Persistent Capital Transactions (Depósitos e Saques)
-  const [capitalTransactions, setCapitalTransactions] = useState<CapitalTransaction[]>(() => {
-    try {
-      const saved = localStorage.getItem('trader_journal_capital_txs_v1');
-      if (saved && saved !== 'undefined' && saved !== 'null') {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.warn('Failed to load capital transactions from storage', e);
-    }
-    return [];
-  });
-  const [isCapitalModalOpen, setIsCapitalModalOpen] = useState(false);
-
-  // Save capital transactions to LocalStorage
+  // Save to LocalStorage whenever isolated states change
   useEffect(() => {
+    if (!currentUser) return;
     try {
-      localStorage.setItem('trader_journal_capital_txs_v1', JSON.stringify(capitalTransactions));
+      localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(capitalTransactions));
     } catch (e) {
       console.error(e);
     }
-  }, [capitalTransactions]);
+  }, [capitalTransactions, CAPITAL_STORAGE_KEY, currentUser]);
 
-  // Save to LocalStorage whenever trades or settings change
   useEffect(() => {
+    if (!currentUser) return;
     try {
-      localStorage.setItem('trader_journal_trades_v2', JSON.stringify(trades));
-      localStorage.removeItem('trader_journal_trades_v1'); // Remove storage antigo com mocks
+      localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(trades));
     } catch (e) {
       console.error(e);
     }
-  }, [trades]);
+  }, [trades, TRADES_STORAGE_KEY, currentUser]);
 
   useEffect(() => {
+    if (!currentUser) return;
     try {
-      localStorage.setItem('trader_journal_settings_v1', JSON.stringify(settings));
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     } catch (e) {
       console.error(e);
     }
-  }, [settings]);
+  }, [settings, SETTINGS_STORAGE_KEY, currentUser]);
 
   // 3. Modals and Views
   const [activeView, setActiveView] = useState<ActiveView>('all');
@@ -197,7 +214,7 @@ export default function App() {
     return health;
   };
 
-  // Initial Supabase connection check & load data
+  // Initial Supabase connection check & load data per currentUser
   useEffect(() => {
     let isMounted = true;
 
@@ -207,15 +224,15 @@ export default function App() {
         if (!isMounted) return;
         setSupabaseHealth(health);
 
-        if (health.status === 'connected') {
-          // If table exists, load real trades from Supabase
-          const cloudTrades = await fetchTradesFromSupabase(currentUser?.email);
+        if (health.status === 'connected' && currentUser?.email) {
+          // If table exists, load real trades from Supabase for this user
+          const cloudTrades = await fetchTradesFromSupabase(currentUser.email);
           if (!isMounted) return;
           if (cloudTrades.data && cloudTrades.data.length > 0) {
             setTrades(cloudTrades.data);
           } else if (trades.length > 0) {
-            // Se localmente temos trades mas no cloud ainda não, faz push automático das locais!
-            syncAllTradesToSupabase(trades, currentUser?.email);
+            // Se localmente temos trades mas no cloud ainda não, faz push automático das do usuário!
+            syncAllTradesToSupabase(trades, currentUser.email);
           }
 
           const cloudSettings = await fetchRiskSettingsFromSupabase();
@@ -240,9 +257,11 @@ export default function App() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'trades' },
         async () => {
-          const res = await fetchTradesFromSupabase(currentUser?.email);
-          if (res.data) {
-            setTrades(res.data);
+          if (currentUser?.email) {
+            const res = await fetchTradesFromSupabase(currentUser.email);
+            if (res.data) {
+              setTrades(res.data);
+            }
           }
         }
       )
@@ -252,7 +271,7 @@ export default function App() {
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [currentUser]);
+  }, [currentUser?.email]);
 
   // 4. Computed Analytics Engine
   const netCapitalTransactions = useMemo(() => {
@@ -290,20 +309,43 @@ export default function App() {
     [trades]
   );
 
-  // Today's stats — must match the ACTUAL calendar date, not just the last trading day
+  // Today's stats — must match the ACTUAL calendar date in local timezone
+  const todayStr = getLocalDateStr();
+
   const todayPerformance = useMemo<DayPerformance | undefined>(() => {
     if (dailyPerformance.length === 0) return undefined;
-    const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     return dailyPerformance.find((d) => d.date === todayStr);
-  }, [dailyPerformance]);
+  }, [dailyPerformance, todayStr]);
 
   const selectedDayPerformance = useMemo<DayPerformance | undefined>(() => {
     if (!selectedDayDate) return undefined;
     return dailyPerformance.find((d) => d.date === selectedDayDate);
   }, [selectedDayDate, dailyPerformance]);
 
+  // Daily PnL calculation for Real Account (Anti-Fúria protection)
+  const todayRealPnl = useMemo(() => {
+    const todayRealTrades = trades.filter((t) => {
+      const isToday = t.date === todayStr;
+      const isReal = t.accountType !== 'DEMO' && t.isReal !== false;
+      return isToday && isReal;
+    });
+    return todayRealTrades.reduce((acc, t) => acc + (Number(t.pnl) || 0), 0);
+  }, [trades, todayStr]);
+
   const todayPnl = todayPerformance?.pnl || 0;
-  const isStopHit = todayPnl <= -settings.dailyLossLimit;
+  const todayTradesCount = todayPerformance?.tradesCount || 0;
+  
+  // Anti-Fúria lock triggers if REAL account daily loss or total daily loss reaches limit
+  const isStopHit =
+    settings.dailyLossLimit > 0 &&
+    (todayRealPnl <= -settings.dailyLossLimit + 0.001 || todayPnl <= -settings.dailyLossLimit + 0.001);
+
+  // Overtrading lock triggers if daily trades count reaches maxTradesPerDay limit
+  const isMaxTradesHit =
+    settings.maxTradesPerDay > 0 && todayTradesCount >= settings.maxTradesPerDay;
+
+  // Combined Anti-Fúria Lock State
+  const isAntiFuriaActive = isStopHit || isMaxTradesHit;
 
   // Real-time synchronization bridge with the Anti-Fúria Chrome Extension
   useEffect(() => {
@@ -311,12 +353,12 @@ export default function App() {
       window.postMessage(
         {
           type: 'ANTI_FURIA_SYNC',
-          isStopHit,
+          isStopHit: isAntiFuriaActive,
           todayPnl,
           dailyLossLimit: settings.dailyLossLimit,
           winRate: metrics.winRate,
           profitFactor: metrics.profitFactor,
-          todayTradesCount: todayPerformance?.tradesCount || 0,
+          todayTradesCount,
           currentCapital: metrics.currentCapital,
           maxDrawdownPercent: metrics.maxDrawdownPercent,
         },
@@ -325,12 +367,12 @@ export default function App() {
       localStorage.setItem(
         'trader_anti_furia_state_v1',
         JSON.stringify({
-          isStopHit,
+          isStopHit: isAntiFuriaActive,
           todayPnl,
           dailyLossLimit: settings.dailyLossLimit,
           winRate: metrics.winRate,
           profitFactor: metrics.profitFactor,
-          todayTradesCount: todayPerformance?.tradesCount || 0,
+          todayTradesCount,
           currentCapital: metrics.currentCapital,
           updatedAt: Date.now(),
         })
@@ -340,12 +382,12 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          isStopHit,
+          isStopHit: isAntiFuriaActive,
           todayPnl,
           dailyLossLimit: settings.dailyLossLimit,
           winRate: metrics.winRate,
           profitFactor: metrics.profitFactor,
-          todayTradesCount: todayPerformance?.tradesCount || 0,
+          todayTradesCount,
           currentCapital: metrics.currentCapital,
         }),
       }).catch(() => {});
@@ -353,11 +395,11 @@ export default function App() {
       console.warn('Falha ao sincronizar ponte Anti-Fúria:', e);
     }
   }, [
-    isStopHit,
+    isAntiFuriaActive,
     todayPnl,
     settings.dailyLossLimit,
     metrics.winRate,
-    todayPerformance?.tradesCount,
+    todayTradesCount,
   ]);
 
   // Ouvinte de trades capturados automaticamente pela Extensão Chrome em tempo real
@@ -378,7 +420,22 @@ export default function App() {
   }, []);
 
   // Handlers for CRUD
-  const handleSaveTrade = (tradeData: Trade) => {
+  const handleSaveTrade = (tradeData: Trade, bypassStopCheck = false) => {
+    // 🔒 Anti-Fúria: Bloquear adição de NOVAS operações de Conta Real quando o Stop Loss ou Limite de Trades foi atingido
+    const isNewTrade = !trades.some((t) => t.id === tradeData.id);
+    const isRealAccount = tradeData.accountType !== 'DEMO' && tradeData.isReal !== false;
+    if (isNewTrade && isRealAccount && isAntiFuriaActive && !bypassStopCheck) {
+      const reason = isStopHit
+        ? 'Seu Stop Loss diário de ' + formatCurrency(settings.dailyLossLimit) + ' foi atingido (P&L atual: ' + formatCurrency(todayPnl) + ').'
+        : 'Você atingiu seu limite máximo de ' + settings.maxTradesPerDay + ' operações configuradas para hoje.';
+      alert(
+        '🔒 Trava Anti-Fúria ATIVADA!\n\n' +
+        reason +
+        '\n\nVocê NÃO pode registrar novas operações de Conta Real até o próximo dia. Encerre o dia e proteja seu capital!'
+      );
+      return;
+    }
+
     setTrades((prev) => {
       const existsIndex = prev.findIndex((t) => t.id === tradeData.id);
       if (existsIndex >= 0) {
@@ -389,8 +446,8 @@ export default function App() {
       return [tradeData, ...prev];
     });
 
-    // Sync to Supabase in background
-    upsertTradeToSupabase(tradeData).then((res) => {
+    // Sync to Supabase in background with userEmail scope
+    upsertTradeToSupabase(tradeData, currentUser?.email).then((res) => {
       if (res.error) {
         console.warn('Erro ao salvar no Supabase:', res.error);
       }
@@ -399,10 +456,24 @@ export default function App() {
 
   const handleImportTrades = (importedTrades: Trade[]) => {
     if (!importedTrades || importedTrades.length === 0) return;
+
+    // 🔒 Anti-Fúria: Bloquear importação quando Trava Anti-Fúria estiver ativa
+    if (isAntiFuriaActive) {
+      const reason = isStopHit
+        ? 'Seu Stop Loss diário foi atingido.'
+        : 'Seu limite máximo de operações por dia foi atingido.';
+      alert(
+        '🔒 Trava Anti-Fúria ATIVADA!\n\n' +
+        reason +
+        ' A importação de novas operações está bloqueada até o próximo dia para proteger seu capital.'
+      );
+      return;
+    }
+
     setTrades((prev) => [...importedTrades, ...prev]);
-    // Sync each imported trade to Supabase in background
+    // Sync each imported trade to Supabase in background with userEmail scope
     importedTrades.forEach((trade) => {
-      upsertTradeToSupabase(trade).catch((err) => {
+      upsertTradeToSupabase(trade, currentUser?.email).catch((err) => {
         console.warn('Erro ao sincronizar trade importado:', err);
       });
     });
@@ -454,6 +525,22 @@ export default function App() {
   };
 
   const handleSaveSettings = (newSettings: RiskSettings) => {
+    // 🔒 Proteção Anti-Fúria: Se a trava foi ativada (Stop Loss ou Max Trades), bloqueia aumento de limites
+    if (isAntiFuriaActive) {
+      if (newSettings.dailyLossLimit > settings.dailyLossLimit || (isStopHit && newSettings.dailyLossLimit !== settings.dailyLossLimit)) {
+        alert(
+          '🔒 Proteção Anti-Fúria ATIVADA!\n\nSeu Stop Loss diário foi atingido. O limite de perda não pode ser alterado para um valor maior enquanto a trava estiver ativa.'
+        );
+        newSettings.dailyLossLimit = settings.dailyLossLimit;
+      }
+      if (newSettings.maxTradesPerDay > settings.maxTradesPerDay || (isMaxTradesHit && newSettings.maxTradesPerDay !== settings.maxTradesPerDay)) {
+        alert(
+          '🔒 Proteção Anti-Fúria ATIVADA!\n\nSeu limite diário de operações foi atingido. O número máximo de operações não pode ser aumentado enquanto a trava estiver ativa.'
+        );
+        newSettings.maxTradesPerDay = settings.maxTradesPerDay;
+      }
+    }
+
     setSettings(newSettings);
     // Save to Supabase in background
     saveRiskSettingsToSupabase(newSettings).then((res) => {
@@ -469,11 +556,34 @@ export default function App() {
   };
 
   const handleOpenNewTrade = () => {
+    // 🔒 Anti-Fúria: Bloquear abertura do modal de nova operação quando Stop Loss ou Limite de Trades foi atingido
+    if (isAntiFuriaActive) {
+      const reason = isStopHit
+        ? 'Seu Stop Loss diário de ' + formatCurrency(settings.dailyLossLimit) + ' foi atingido (P&L atual: ' + formatCurrency(todayPnl) + ').'
+        : 'Você atingiu seu limite máximo de ' + settings.maxTradesPerDay + ' operações configuradas para hoje.';
+      alert(
+        '🔒 Trava Anti-Fúria ATIVADA!\n\n' +
+        reason +
+        '\n\nVocê NÃO pode registrar novas operações até o próximo dia. Encerre o dia e proteja seu capital!'
+      );
+      return;
+    }
     setEditingTrade(null);
     setIsTradeModalOpen(true);
   };
 
   const handleOpenNewTradeForDate = (targetDate: string) => {
+    // 🔒 Anti-Fúria: Bloquear também para data específica usando fuso local
+    const todayStr = getLocalDateStr();
+    if (targetDate === todayStr && isAntiFuriaActive) {
+      const reason = isStopHit
+        ? 'Seu Stop Loss diário foi atingido.'
+        : 'Seu limite diário de operações foi atingido.';
+      alert(
+        '🔒 Trava Anti-Fúria ATIVADA!\n\n' + reason + ' Você NÃO pode adicionar novas operações para hoje.'
+      );
+      return;
+    }
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     setEditingTrade({
@@ -956,6 +1066,9 @@ export default function App() {
         onClose={() => setIsSettingsModalOpen(false)}
         settings={settings}
         onSave={handleSaveSettings}
+        isStopHit={isStopHit}
+        isMaxTradesHit={isMaxTradesHit}
+        isAntiFuriaActive={isAntiFuriaActive}
       />
 
       <DayDetailModal
