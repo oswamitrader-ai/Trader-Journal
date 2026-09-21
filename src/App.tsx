@@ -419,13 +419,36 @@ export default function App() {
         event.data.trade
       ) {
         const capturedTrade: Trade = event.data.trade;
-        handleSaveTrade(capturedTrade);
+        // Ignora capturas de DOM imprecisas geradas por mutação visual da página da corretora
+        if (
+          capturedTrade.strategy?.includes('DOM') ||
+          capturedTrade.notes?.includes('DOM') ||
+          capturedTrade.id?.startsWith('dom-')
+        ) {
+          return;
+        }
+
+        setTrades((prev) => {
+          const isDuplicate = prev.some(
+            (t) =>
+              t.id === capturedTrade.id ||
+              (t.date === capturedTrade.date &&
+                t.time === capturedTrade.time &&
+                t.asset === capturedTrade.asset &&
+                t.pnl === capturedTrade.pnl &&
+                t.type === capturedTrade.type)
+          );
+          if (isDuplicate) return prev;
+          return [capturedTrade, ...prev];
+        });
+
+        upsertTradeToSupabase(capturedTrade, currentUser?.email).catch(() => {});
       }
     };
 
     window.addEventListener('message', handleAutoCapturedMessage);
     return () => window.removeEventListener('message', handleAutoCapturedMessage);
-  }, []);
+  }, [currentUser?.email]);
 
   // Handlers for CRUD
   const handleSaveTrade = (tradeData: Trade, bypassStopCheck = false) => {
@@ -533,20 +556,19 @@ export default function App() {
   };
 
   const handleSaveSettings = (newSettings: RiskSettings) => {
-    // 🔒 Proteção Anti-Fúria: Se a trava foi ativada (Stop Loss ou Max Trades), bloqueia aumento de limites
-    if (isAntiFuriaActive) {
-      if (newSettings.dailyLossLimit > settings.dailyLossLimit || (isStopHit && newSettings.dailyLossLimit !== settings.dailyLossLimit)) {
-        alert(
-          '🔒 Proteção Anti-Fúria ATIVADA!\n\nSeu Stop Loss diário foi atingido. O limite de perda não pode ser alterado para um valor maior enquanto a trava estiver ativa.'
-        );
-        newSettings.dailyLossLimit = settings.dailyLossLimit;
-      }
-      if (newSettings.maxTradesPerDay > settings.maxTradesPerDay || (isMaxTradesHit && newSettings.maxTradesPerDay !== settings.maxTradesPerDay)) {
-        alert(
-          '🔒 Proteção Anti-Fúria ATIVADA!\n\nSeu limite diário de operações foi atingido. O número máximo de operações não pode ser aumentado enquanto a trava estiver ativa.'
-        );
-        newSettings.maxTradesPerDay = settings.maxTradesPerDay;
-      }
+    // 🔒 Proteção Anti-Fúria: Apenas impede AUMENTAR os limites se a respectiva trava foi atingida no dia
+    if (isStopHit && newSettings.dailyLossLimit > settings.dailyLossLimit) {
+      alert(
+        '🔒 Proteção Anti-Fúria ATIVADA!\n\nSeu Stop Loss diário foi atingido. O limite de perda não pode ser alterado para um valor maior enquanto a trava estiver ativa.'
+      );
+      newSettings.dailyLossLimit = settings.dailyLossLimit;
+    }
+
+    if (isMaxTradesHit && newSettings.maxTradesPerDay > settings.maxTradesPerDay) {
+      alert(
+        '🔒 Proteção Anti-Fúria ATIVADA!\n\nSeu limite diário de operações foi atingido. O número máximo de operações não pode ser aumentado enquanto a trava estiver ativa.'
+      );
+      newSettings.maxTradesPerDay = settings.maxTradesPerDay;
     }
 
     setSettings(newSettings);

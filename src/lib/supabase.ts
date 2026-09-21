@@ -334,11 +334,11 @@ export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise
 
     const settings: RiskSettings = {
       initialCapital: data.initialCapital != null ? Number(data.initialCapital) : 0,
-      dailyProfitTarget: Number(data.dailyProfitTarget) || 500,
-      dailyLossLimit: Number(data.dailyLossLimit) || 300,
-      monthlyProfitTarget: Number(data.monthlyProfitTarget) || 5000,
-      monthlyLossLimit: Number(data.monthlyLossLimit) || 3000,
-      maxTradesPerDay: Number(data.maxTradesPerDay) || 5,
+      dailyProfitTarget: data.dailyProfitTarget != null ? Number(data.dailyProfitTarget) : 500,
+      dailyLossLimit: data.dailyLossLimit != null ? Number(data.dailyLossLimit) : 300,
+      monthlyProfitTarget: data.monthlyProfitTarget != null ? Number(data.monthlyProfitTarget) : 5000,
+      monthlyLossLimit: data.monthlyLossLimit != null ? Number(data.monthlyLossLimit) : 3000,
+      maxTradesPerDay: data.maxTradesPerDay != null ? Number(data.maxTradesPerDay) : 5,
       alertSoundEnabled: Boolean(data.alertSoundEnabled),
       antiFuriaCustomWindowEnabled: Boolean(data.antiFuriaCustomWindowEnabled),
       antiFuriaStartTime: data.antiFuriaStartTime || '07:00',

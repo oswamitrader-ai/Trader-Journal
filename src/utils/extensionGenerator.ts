@@ -673,64 +673,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return promise;
   };
 
-  // ─── 4. DOM MUTATION OBSERVER (visual fallback) ──────────────────
-  let lastDomTradeTime = 0;
-  const observer = new MutationObserver((mutations) => {
-    const now = Date.now();
-    if (now - lastDomTradeTime < 3000) return; // Throttle: 3s between DOM captures
-
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
-        if (node.nodeType !== 1) continue;
-        const el = node;
-        const text = (el.innerText || el.textContent || '').trim();
-        if (text.length < 3 || text.length > 500) continue;
-
-        // Look for trade result patterns
-        const hasCurrency = /[R$€\\$]/.test(text);
-        const hasResult = /(resultado|result|lucro|profit|perda|loss|ganho|win|payout)/i.test(text);
-        const hasAmount = /[+-]?\\s*[\\d.,]+/.test(text);
-
-        if (hasCurrency && hasResult && hasAmount) {
-          const pnlMatch = text.match(/([+-]?)\\s*[R$€\\$\\s]*([\\d]+[.,]?[\\d]*)/);
-          if (pnlMatch) {
-            const sign = pnlMatch[1] === '-' ? -1 : 1;
-            const rawNum = pnlMatch[2].replace(',', '.');
-            let pnlVal = parseFloat(rawNum) * sign;
-            // If text contains loss/perda keywords, force negative
-            if (/(loss|perda|perdeu)/i.test(text) && pnlVal > 0) pnlVal = -pnlVal;
-
-            if (!isNaN(pnlVal) && pnlVal !== 0) {
-              lastDomTradeTime = now;
-              const d = new Date();
-              broadcastTrade({
-                id: 'dom-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-                date: d.toISOString().split('T')[0],
-                time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'),
-                asset: 'DIGITAL',
-                type: 'BUY',
-                strategy: 'Captura DOM (' + HOST + ')',
-                result: pnlVal > 0 ? 'GAIN' : 'LOSS',
-                pnl: Math.round(pnlVal * 100) / 100,
-                contractsOrQuantity: Math.abs(Math.round(pnlVal * 100) / 100),
-                notes: 'Capturado via DOM em ' + HOST,
-              });
-            }
-          }
-        }
-      }
-    }
-  });
-
-  if (document.body) {
-    observer.observe(document.body, { childList: true, subtree: true });
-  } else {
-    document.addEventListener('DOMContentLoaded', () => {
-      if (document.body) observer.observe(document.body, { childList: true, subtree: true });
-    });
-  }
-
-  console.log('✅ [Anti-Fúria Auto-Capture v2] WebSocket Proxy + XHR + Fetch + DOM interceptors ativos.');
+  console.log('✅ [Anti-Fúria Auto-Capture v2] WebSocket Proxy + XHR + Fetch interceptors ativos.');
 })();
 `;
 

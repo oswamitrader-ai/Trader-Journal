@@ -58,14 +58,18 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // 🔒 Proteção Anti-Fúria: Se a trava foi ativada (Stop ou Max Trades), NÃO permite alterar/aumentar os limites
-    const finalDailyLossLimit = (isStopHit || isAntiFuriaActive)
-      ? settings.dailyLossLimit
-      : Math.max(0, Number(dailyLossLimit) || 0);
+    // 🔒 Proteção Anti-Fúria: Apenas bloqueia se o Stop Loss foi atingido HOJE e o usuário tentou AUMENTAR o limite
+    let finalDailyLossLimit = Math.max(0, Number(dailyLossLimit) || 0);
+    if (isStopHit && finalDailyLossLimit > settings.dailyLossLimit) {
+      alert('🔒 Stop Loss diário atingido hoje! O limite de perda não pode ser aumentado enquanto a trava estiver ativa.');
+      finalDailyLossLimit = settings.dailyLossLimit;
+    }
 
-    const finalMaxTradesPerDay = (isMaxTradesHit || isAntiFuriaActive)
-      ? settings.maxTradesPerDay
-      : Math.max(1, Number(maxTradesPerDay) || 5);
+    let finalMaxTradesPerDay = Math.max(1, Number(maxTradesPerDay) || 5);
+    if (isMaxTradesHit && finalMaxTradesPerDay > settings.maxTradesPerDay) {
+      alert('🔒 Limite máximo de operações atingido hoje! O número de trades não pode ser aumentado enquanto a trava estiver ativa.');
+      finalMaxTradesPerDay = settings.maxTradesPerDay;
+    }
 
     onSave({
       initialCapital: Number(initialCapital) || 0,
