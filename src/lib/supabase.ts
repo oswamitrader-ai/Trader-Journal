@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Trade, RiskSettings } from '../types';
+import { Trade, RiskSettings, SystemUser } from '../types';
 import { isTradeProtected } from '../utils/calculations';
 
 // Default configuration provided by the user
@@ -382,5 +382,92 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings): Promis
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao salvar configurações de risco.' };
+  }
+}
+
+/**
+ * Fetch all registered system users from Supabase
+ */
+export async function fetchUsersFromSupabase(): Promise<SystemUser[] | null> {
+  try {
+    const { data, error } = await supabase.from('system_users').select('*');
+    if (error || !data) return null;
+
+    return data.map((u: any) => ({
+      id: String(u.id),
+      email: String(u.email),
+      name: String(u.name),
+      role: u.role === 'ADMIN' ? 'ADMIN' : 'CLIENT',
+      active: Boolean(u.active),
+      createdAt: u.createdAt || new Date().toISOString(),
+      lastLoginAt: u.lastLoginAt || undefined,
+      password: u.password || 'cliente123',
+    }));
+  } catch (err) {
+    console.warn('Erro ao carregar usuários do Supabase:', err);
+    return null;
+  }
+}
+
+/**
+ * Insert or update a system user in Supabase
+ */
+export async function upsertUserToSupabase(user: SystemUser): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const payload = {
+      id: user.id,
+      email: user.email.toLowerCase().trim(),
+      name: user.name.trim(),
+      role: user.role,
+      active: user.active,
+      password: user.password || 'cliente123',
+      createdAt: user.createdAt,
+      lastLoginAt: user.lastLoginAt ?? null,
+    };
+
+    const { error } = await supabase.from('system_users').upsert(payload);
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro ao salvar usuário no Supabase.' };
+  }
+}
+
+/**
+ * Delete a user from Supabase
+ */
+export async function deleteUserFromSupabase(userId: string): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { error } = await supabase.from('system_users').delete().eq('id', userId);
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro ao deletar usuário do Supabase.' };
+  }
+}
+
+/**
+ * Sync batch of users to Supabase
+ */
+export async function syncAllUsersToSupabase(users: SystemUser[]): Promise<void> {
+  if (!users || users.length === 0) return;
+  try {
+    const payload = users.map((u) => ({
+      id: u.id,
+      email: u.email.toLowerCase().trim(),
+      name: u.name.trim(),
+      role: u.role,
+      active: u.active,
+      password: u.password || 'cliente123',
+      createdAt: u.createdAt,
+      lastLoginAt: u.lastLoginAt ?? null,
+    }));
+    await supabase.from('system_users').upsert(payload);
+  } catch (e) {
+    console.warn('Erro ao sincronizar usuários no Supabase:', e);
   }
 }

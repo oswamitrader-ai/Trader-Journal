@@ -22,6 +22,7 @@ import {
   resetUserPassword,
   deleteUserByAdmin,
   INITIAL_ADMIN_USER,
+  syncUsersWithSupabase,
 } from '../utils/auth';
 
 interface AdminUserManagementModalProps {
@@ -50,8 +51,8 @@ export const AdminUserManagementModal: React.FC<AdminUserManagementModalProps> =
   const [newPasswordVal, setNewPasswordVal] = useState('123456');
 
   // Load users list
-  const loadUsers = () => {
-    const list = getSavedUsers();
+  const loadUsers = async () => {
+    const list = await syncUsersWithSupabase();
     setUsers(list);
   };
 

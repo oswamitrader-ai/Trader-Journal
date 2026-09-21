@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, Mail, ShieldAlert, ArrowRight, Activity, Eye, EyeOff } from 'lucide-react';
-import { authenticateUser } from '../utils/auth';
+import { authenticateUser, syncUsersWithSupabase } from '../utils/auth';
 import { SystemUser } from '../types';
 
 interface LoginScreenProps {
@@ -13,6 +13,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    // Sincroniza a lista de usuários cadastrados do Supabase na inicialização
+    syncUsersWithSupabase();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

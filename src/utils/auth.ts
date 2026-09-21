@@ -1,4 +1,10 @@
 import { SystemUser } from '../types';
+import {
+  fetchUsersFromSupabase,
+  upsertUserToSupabase,
+  deleteUserFromSupabase,
+  syncAllUsersToSupabase,
+} from '../lib/supabase';
 
 const USERS_STORAGE_KEY = 'trader_journal_users_v1';
 const SESSION_STORAGE_KEY = 'trader_journal_session_v1';
@@ -49,6 +55,29 @@ export function getSavedUsers(): SystemUser[] {
   return defaultList;
 }
 
+// Sincronizar usuários com o Supabase em segundo plano
+export async function syncUsersWithSupabase(): Promise<SystemUser[]> {
+  const localUsers = getSavedUsers();
+  try {
+    const remoteUsers = await fetchUsersFromSupabase();
+
+    if (remoteUsers && remoteUsers.length > 0) {
+      const hasAdmin = remoteUsers.some(
+        (u) => u.email.toLowerCase() === INITIAL_ADMIN_USER.email.toLowerCase()
+      );
+      const merged = hasAdmin ? remoteUsers : [INITIAL_ADMIN_USER, ...remoteUsers];
+      saveUsersList(merged);
+      return merged;
+    } else if (localUsers.length > 0) {
+      // Faz o upload dos usuários locais para o Supabase
+      syncAllUsersToSupabase(localUsers);
+    }
+  } catch (e) {
+    console.warn('Erro na sincronização remota de usuários:', e);
+  }
+  return localUsers;
+}
+
 // Salvar a lista atualizada de usuários no localStorage
 export function saveUsersList(users: SystemUser[]): void {
   if (typeof window === 'undefined') return;
@@ -73,7 +102,7 @@ export function getCurrentSession(): SystemUser | null {
         (u) => u.email.toLowerCase() === user.email.toLowerCase() && u.active
       );
       if (validUser) {
-        return validUser;
+        return Object.freeze({ ...validUser });
       }
     }
   } catch (e) {
@@ -131,7 +160,7 @@ export function authenticateUser(
     };
   }
 
-  // Verifica senha (se não houver senha definida, aceita admin123 como padrão para o admin)
+  // Verifica senha
   const expectedPass = foundUser.password || 'admin123';
   if (cleanPass !== expectedPass) {
     return {
@@ -148,6 +177,7 @@ export function authenticateUser(
 
   const updatedList = allUsers.map((u) => (u.id === foundUser.id ? updatedUser : u));
   saveUsersList(updatedList);
+  upsertUserToSupabase(updatedUser);
   setCurrentSession(updatedUser);
 
   return {
@@ -189,6 +219,7 @@ export function createNewUserByAdmin(newUser: {
 
   const updatedList = [userObj, ...allUsers];
   saveUsersList(updatedList);
+  upsertUserToSupabase(userObj);
 
   return {
     success: true,
@@ -207,6 +238,8 @@ export function toggleUserStatus(userId: string): SystemUser[] {
     return u;
   });
   saveUsersList(updated);
+  const target = updated.find((u) => u.id === userId);
+  if (target) upsertUserToSupabase(target);
   return updated;
 }
 
@@ -220,6 +253,8 @@ export function resetUserPassword(userId: string, newPassword: string): SystemUs
     return u;
   });
   saveUsersList(updated);
+  const target = updated.find((u) => u.id === userId);
+  if (target) upsertUserToSupabase(target);
   return updated;
 }
 
@@ -231,5 +266,6 @@ export function deleteUserByAdmin(userId: string): SystemUser[] {
     (u) => !(u.id === userId && u.email.toLowerCase() === INITIAL_ADMIN_USER.email.toLowerCase())
   );
   saveUsersList(updated);
+  deleteUserFromSupabase(userId);
   return updated;
 }
