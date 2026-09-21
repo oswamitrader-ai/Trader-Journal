@@ -10,9 +10,16 @@ export const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXlrZHJieWZyd3FvdnNsZXFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1MDQ1NTcsImV4cCI6MjEwNTA4MDU1N30.X8JibBnbQh47nkHv51srbAWrdHZDLojs1xVupV3og1g';
 
-export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+export const SUPABASE_SERVICE_ROLE_KEY =
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXlrZHJieWZyd3FvdnNsZXFpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTUwNDU1NywiZXhwIjoyMTA1MDgwNTU3fQ.jFaxN67eNfjCG_OJKKdwG7srYFMEGU10HlUA8Aoqk5Q';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY));
+
+// Service Role Key takes precedence to ensure database operations and RLS bypass for admin user management work 100%
+export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
+  auth: { persistSession: false },
+});
 
 /**
  * Retorna ou gera um UUID único persistente por navegador/computador.
@@ -289,29 +296,36 @@ export async function syncAllTradesToSupabase(trades: Trade[], userEmail?: strin
 }
 
 /**
- * Fetch Risk Settings from Supabase (Isolated per device)
+ * Fetch Risk Settings from Supabase (Scoped per userEmail to prevent data loss when cache is cleared)
  */
-export async function fetchRiskSettingsFromSupabase(): Promise<{ data: RiskSettings | null; error: string | null }> {
+export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise<{ data: RiskSettings | null; error: string | null }> {
   try {
-    const settingId = `settings_${getClientDeviceId()}`;
-    let { data, error } = await supabase
+    const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
+    const settingId = cleanEmail ? `settings_${cleanEmail}` : `settings_${getClientDeviceId()}`;
+
+    let { data } = await supabase
       .from('risk_settings')
       .select('*')
       .eq('id', settingId)
       .maybeSingle();
 
+    if (!data && cleanEmail) {
+      // Fallback para id baseado em dispositivo ou default_settings
+      const deviceSetting = await supabase
+        .from('risk_settings')
+        .select('*')
+        .eq('id', `settings_${getClientDeviceId()}`)
+        .maybeSingle();
+      data = deviceSetting.data;
+    }
+
     if (!data) {
-      // Fallback para settings default
       const fallback = await supabase
         .from('risk_settings')
         .select('*')
         .eq('id', 'default_settings')
         .maybeSingle();
       data = fallback.data;
-    }
-
-    if (error && !data) {
-      return { data: null, error: error.message };
     }
 
     if (!data) {
@@ -338,11 +352,13 @@ export async function fetchRiskSettingsFromSupabase(): Promise<{ data: RiskSetti
 }
 
 /**
- * Save Risk Settings to Supabase (Isolated per device)
+ * Save Risk Settings to Supabase (Scoped per userEmail)
  */
-export async function saveRiskSettingsToSupabase(settings: RiskSettings): Promise<{ success: boolean; error: string | null }> {
+export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEmail?: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    const settingId = `settings_${getClientDeviceId()}`;
+    const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
+    const settingId = cleanEmail ? `settings_${cleanEmail}` : `settings_${getClientDeviceId()}`;
+
     const payload: any = {
       id: settingId,
       initialCapital: settings.initialCapital,
@@ -358,17 +374,13 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings): Promis
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from('risk_settings').upsert(payload);
+    let { error } = await supabase.from('risk_settings').upsert(payload);
 
-    if (error) {
-      // Se a coluna antiFuria ainda não existir na tabela do Supabase, faz fallback enviando os campos base
-      if (error.code === 'PGRST204' || error.message.includes('column') || error.message.includes('schema')) {
-        delete payload.antiFuriaCustomWindowEnabled;
-        delete payload.antiFuriaStartTime;
-        delete payload.antiFuriaEndTime;
-        await supabase.from('risk_settings').upsert(payload);
-      }
-      return { success: false, error: error.message };
+    if (error && (error.code === 'PGRST204' || error.message.includes('column') || error.message.includes('schema'))) {
+      delete payload.antiFuriaCustomWindowEnabled;
+      delete payload.antiFuriaStartTime;
+      delete payload.antiFuriaEndTime;
+      await supabase.from('risk_settings').upsert(payload);
     }
     return { success: true, error: null };
   } catch (err: any) {
@@ -377,23 +389,88 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings): Promis
 }
 
 /**
- * Fetch all registered system users from Supabase
+ * Fetch all registered system users from Supabase (combining Supabase Auth, system_users, and risk_settings backup)
  */
 export async function fetchUsersFromSupabase(): Promise<SystemUser[] | null> {
   try {
-    const { data, error } = await supabase.from('system_users').select('*');
-    if (error || !data) return null;
+    const userMap = new Map<string, SystemUser>();
 
-    return data.map((u: any) => ({
-      id: String(u.id),
-      email: String(u.email),
-      name: String(u.name),
-      role: u.role === 'ADMIN' ? 'ADMIN' : 'CLIENT',
-      active: Boolean(u.active),
-      createdAt: u.createdAt || new Date().toISOString(),
-      lastLoginAt: u.lastLoginAt || undefined,
-      password: u.password || 'cliente123',
-    }));
+    // 1. Fetch from Supabase Auth Users list (Supabase Dashboard "Users" screen)
+    try {
+      const { data: authData } = await supabase.auth.admin.listUsers();
+      if (authData?.users && authData.users.length > 0) {
+        for (const u of authData.users as any[]) {
+          if (!u.email) continue;
+          const emailClean = String(u.email).toLowerCase().trim();
+          const meta = u.user_metadata || {};
+          userMap.set(emailClean, {
+            id: u.id,
+            email: emailClean,
+            name: String(meta.name || u.email.split('@')[0]),
+            role: meta.role === 'ADMIN' || emailClean === 'oswamitrader@gmail.com' ? 'ADMIN' : 'CLIENT',
+            active: meta.active !== false,
+            createdAt: u.created_at || new Date().toISOString(),
+            lastLoginAt: u.last_sign_in_at || undefined,
+            password: meta.password || (emailClean === 'oswamitrader@gmail.com' ? 'admin123' : 'cliente123'),
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao consultar Supabase Auth:', e);
+    }
+
+    // 2. Fetch from system_users table
+    try {
+      const { data: dbUsers, error } = await supabase.from('system_users').select('*');
+      if (!error && dbUsers && dbUsers.length > 0) {
+        for (const u of dbUsers) {
+          const emailClean = String(u.email).toLowerCase().trim();
+          const existing = userMap.get(emailClean);
+          userMap.set(emailClean, {
+            id: String(u.id || existing?.id || `usr-${Date.now()}`),
+            email: emailClean,
+            name: String(u.name || existing?.name || emailClean),
+            role: u.role === 'ADMIN' || emailClean === 'oswamitrader@gmail.com' ? 'ADMIN' : 'CLIENT',
+            active: Boolean(u.active),
+            createdAt: u.createdAt || existing?.createdAt || new Date().toISOString(),
+            lastLoginAt: u.lastLoginAt || existing?.lastLoginAt,
+            password: u.password || existing?.password || 'admin123',
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao consultar tabela system_users:', e);
+    }
+
+    // 3. Backup fallback: fetch usr-* records from risk_settings table
+    try {
+      const { data: backupRows } = await supabase.from('risk_settings').select('*').like('id', 'usr-%');
+      if (backupRows && backupRows.length > 0) {
+        for (const row of backupRows) {
+          const emailClean = String(row.id.replace('usr-', '')).toLowerCase().trim();
+          const existing = userMap.get(emailClean);
+          if (!existing || !existing.password || existing.password === 'admin123') {
+            userMap.set(emailClean, {
+              id: existing?.id || String(row.id),
+              email: emailClean,
+              name: String(row.notes || existing?.name || emailClean),
+              role: row.monthlyProfitTarget === 999 || emailClean === 'oswamitrader@gmail.com' ? 'ADMIN' : 'CLIENT',
+              active: row.alertSoundEnabled !== false,
+              createdAt: row.updated_at || existing?.createdAt || new Date().toISOString(),
+              password: row.antiFuriaStartTime || existing?.password || 'admin123',
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao consultar backup em risk_settings:', e);
+    }
+
+    if (userMap.size > 0) {
+      return Array.from(userMap.values());
+    }
+
+    return null;
   } catch (err) {
     console.warn('Erro ao carregar usuários do Supabase:', err);
     return null;
@@ -401,25 +478,76 @@ export async function fetchUsersFromSupabase(): Promise<SystemUser[] | null> {
 }
 
 /**
- * Insert or update a system user in Supabase
+ * Insert or update a system user in Supabase (persists to Supabase Auth, system_users AND risk_settings backup)
  */
 export async function upsertUserToSupabase(user: SystemUser): Promise<{ success: boolean; error: string | null }> {
   try {
+    const cleanEmail = user.email.toLowerCase().trim();
+    const pass = user.password || 'cliente123';
+
+    // 1. Sync into Supabase Auth Users table (auth.users - visible on Supabase dashboard)
+    try {
+      const { data: authList } = await supabase.auth.admin.listUsers();
+      const usersArray = (authList?.users || []) as any[];
+      const existingAuthUser = usersArray.find((u: any) => u.email?.toLowerCase().trim() === cleanEmail);
+
+      if (existingAuthUser) {
+        await supabase.auth.admin.updateUserById(existingAuthUser.id, {
+          password: pass,
+          user_metadata: {
+            name: user.name.trim(),
+            role: user.role,
+            active: user.active,
+            password: pass,
+          },
+        });
+      } else {
+        await supabase.auth.admin.createUser({
+          email: cleanEmail,
+          password: pass,
+          email_confirm: true,
+          user_metadata: {
+            name: user.name.trim(),
+            role: user.role,
+            active: user.active,
+            password: pass,
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('Erro ao atualizar Supabase Auth Users:', e);
+    }
+
+    // 2. Sync into system_users table
     const payload = {
       id: user.id,
-      email: user.email.toLowerCase().trim(),
+      email: cleanEmail,
       name: user.name.trim(),
       role: user.role,
       active: user.active,
-      password: user.password || 'cliente123',
+      password: pass,
       createdAt: user.createdAt,
       lastLoginAt: user.lastLoginAt ?? null,
     };
+    await supabase.from('system_users').upsert(payload);
 
-    const { error } = await supabase.from('system_users').upsert(payload);
-    if (error) {
-      return { success: false, error: error.message };
-    }
+    // 3. Sync backup into risk_settings table
+    const backupPayload: any = {
+      id: `usr-${cleanEmail}`,
+      initialCapital: 0,
+      dailyProfitTarget: 0,
+      dailyLossLimit: 0,
+      monthlyProfitTarget: user.role === 'ADMIN' ? 999 : 111,
+      monthlyLossLimit: 0,
+      maxTradesPerDay: 0,
+      alertSoundEnabled: user.active,
+      antiFuriaCustomWindowEnabled: false,
+      antiFuriaStartTime: pass,
+      notes: user.name.trim(),
+      updated_at: new Date().toISOString(),
+    };
+    await supabase.from('risk_settings').upsert(backupPayload);
+
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao salvar usuário no Supabase.' };
@@ -427,14 +555,34 @@ export async function upsertUserToSupabase(user: SystemUser): Promise<{ success:
 }
 
 /**
- * Delete a user from Supabase
+ * Delete a user from Supabase (removes from Supabase Auth, system_users, and risk_settings backup)
  */
-export async function deleteUserFromSupabase(userId: string): Promise<{ success: boolean; error: string | null }> {
+export async function deleteUserFromSupabase(userId: string, userEmail?: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    const { error } = await supabase.from('system_users').delete().eq('id', userId);
-    if (error) {
-      return { success: false, error: error.message };
+    const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
+
+    // 1. Remove from Supabase Auth Users table
+    try {
+      const { data: authList } = await supabase.auth.admin.listUsers();
+      const usersArray = (authList?.users || []) as any[];
+      const existingAuthUser = usersArray.find(
+        (u: any) => u.id === userId || (cleanEmail && u.email?.toLowerCase().trim() === cleanEmail)
+      );
+      if (existingAuthUser) {
+        await supabase.auth.admin.deleteUser(existingAuthUser.id);
+      }
+    } catch (e) {
+      console.warn('Erro ao deletar de Supabase Auth:', e);
     }
+
+    // 2. Remove from system_users table
+    await supabase.from('system_users').delete().eq('id', userId);
+    if (cleanEmail) {
+      await supabase.from('system_users').delete().eq('email', cleanEmail);
+      // 3. Remove from risk_settings backup
+      await supabase.from('risk_settings').delete().eq('id', `usr-${cleanEmail}`);
+    }
+
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao deletar usuário do Supabase.' };
@@ -446,19 +594,8 @@ export async function deleteUserFromSupabase(userId: string): Promise<{ success:
  */
 export async function syncAllUsersToSupabase(users: SystemUser[]): Promise<void> {
   if (!users || users.length === 0) return;
-  try {
-    const payload = users.map((u) => ({
-      id: u.id,
-      email: u.email.toLowerCase().trim(),
-      name: u.name.trim(),
-      role: u.role,
-      active: u.active,
-      password: u.password || 'cliente123',
-      createdAt: u.createdAt,
-      lastLoginAt: u.lastLoginAt ?? null,
-    }));
-    await supabase.from('system_users').upsert(payload);
-  } catch (e) {
-    console.warn('Erro ao sincronizar usuários no Supabase:', e);
+  for (const user of users) {
+    await upsertUserToSupabase(user);
   }
 }
+

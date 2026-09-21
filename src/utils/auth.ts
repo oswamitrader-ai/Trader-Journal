@@ -82,12 +82,28 @@ export async function syncUsersWithSupabase(): Promise<SystemUser[]> {
     const remoteUsers = await fetchUsersFromSupabase();
 
     if (remoteUsers && remoteUsers.length > 0) {
-      const hasAdmin = remoteUsers.some(
-        (u) => u.email.toLowerCase() === INITIAL_ADMIN_USER.email.toLowerCase()
-      );
-      const merged = hasAdmin ? remoteUsers : [INITIAL_ADMIN_USER, ...remoteUsers];
-      saveUsersList(merged);
-      return merged;
+      // Mescla remotos com locais mantendo alterações de senha remotas
+      const mergedMap = new Map<string, SystemUser>();
+      
+      // Insere locais primeiro
+      for (const u of localUsers) {
+        mergedMap.set(u.email.toLowerCase().trim(), u);
+      }
+
+      // Sobrescreve com remotos (já que Supabase é a fonte da verdade!)
+      for (const u of remoteUsers) {
+        mergedMap.set(u.email.toLowerCase().trim(), u);
+      }
+
+      // Garante admin principal
+      if (!mergedMap.has(INITIAL_ADMIN_USER.email.toLowerCase())) {
+        mergedMap.set(INITIAL_ADMIN_USER.email.toLowerCase(), INITIAL_ADMIN_USER);
+        upsertUserToSupabase(INITIAL_ADMIN_USER);
+      }
+
+      const mergedList = Array.from(mergedMap.values());
+      saveUsersList(mergedList);
+      return mergedList;
     } else if (localUsers.length > 0) {
       // Faz o upload dos usuários locais para o Supabase
       syncAllUsersToSupabase(localUsers);
@@ -151,11 +167,11 @@ export function logoutUser(): void {
   setCurrentSession(null);
 }
 
-// Autenticar usuário por e-mail e senha
-export function authenticateUser(
+// Autenticar usuário por e-mail e senha (assíncrono com busca em tempo real no Supabase)
+export async function authenticateUser(
   emailInput: string,
   passwordInput: string
-): { success: boolean; user?: SystemUser; message?: string } {
+): Promise<{ success: boolean; user?: SystemUser; message?: string }> {
   const cleanEmail = emailInput.trim().toLowerCase();
   const cleanPass = passwordInput.trim();
 
@@ -163,7 +179,9 @@ export function authenticateUser(
     return { success: false, message: 'Por favor, preencha o e-mail e a senha.' };
   }
 
-  const allUsers = getSavedUsers();
+  // Sincroniza obrigatoriamente com o Supabase ANTES de validar as credenciais
+  // Isso garante que se o cache foi limpo, a nova senha é buscada do banco em tempo real!
+  const allUsers = await syncUsersWithSupabase();
   const foundUser = allUsers.find((u) => u.email.toLowerCase() === cleanEmail);
 
   if (!foundUser) {
@@ -197,7 +215,7 @@ export function authenticateUser(
 
   const updatedList = allUsers.map((u) => (u.id === foundUser.id ? updatedUser : u));
   saveUsersList(updatedList);
-  upsertUserToSupabase(updatedUser);
+  await upsertUserToSupabase(updatedUser);
   setCurrentSession(updatedUser);
 
   return {
@@ -207,12 +225,12 @@ export function authenticateUser(
 }
 
 // Cadastrar novo cliente pelo Admin
-export function createNewUserByAdmin(newUser: {
+export async function createNewUserByAdmin(newUser: {
   name: string;
   email: string;
   password?: string;
   role?: 'ADMIN' | 'CLIENT';
-}): { success: boolean; user?: SystemUser; message?: string } {
+}): Promise<{ success: boolean; user?: SystemUser; message?: string }> {
   const cleanEmail = newUser.email.trim().toLowerCase();
   const cleanName = newUser.name.trim();
 
@@ -220,7 +238,7 @@ export function createNewUserByAdmin(newUser: {
     return { success: false, message: 'Preencha o nome e o e-mail do cliente.' };
   }
 
-  const allUsers = getSavedUsers();
+  const allUsers = await syncUsersWithSupabase();
   const exists = allUsers.some((u) => u.email.toLowerCase() === cleanEmail);
 
   if (exists) {
@@ -239,7 +257,7 @@ export function createNewUserByAdmin(newUser: {
 
   const updatedList = [userObj, ...allUsers];
   saveUsersList(updatedList);
-  upsertUserToSupabase(userObj);
+  await upsertUserToSupabase(userObj);
 
   return {
     success: true,
@@ -249,7 +267,7 @@ export function createNewUserByAdmin(newUser: {
 }
 
 // Alternar status ativo/inativo do usuário
-export function toggleUserStatus(userId: string): SystemUser[] {
+export async function toggleUserStatus(userId: string): Promise<SystemUser[]> {
   const allUsers = getSavedUsers();
   const updated = allUsers.map((u) => {
     if (u.id === userId && u.email.toLowerCase() !== INITIAL_ADMIN_USER.email.toLowerCase()) {
@@ -259,12 +277,12 @@ export function toggleUserStatus(userId: string): SystemUser[] {
   });
   saveUsersList(updated);
   const target = updated.find((u) => u.id === userId);
-  if (target) upsertUserToSupabase(target);
+  if (target) await upsertUserToSupabase(target);
   return updated;
 }
 
 // Redefinir senha de um usuário
-export function resetUserPassword(userId: string, newPassword: string): SystemUser[] {
+export async function resetUserPassword(userId: string, newPassword: string): Promise<SystemUser[]> {
   const allUsers = getSavedUsers();
   const updated = allUsers.map((u) => {
     if (u.id === userId) {
@@ -274,18 +292,19 @@ export function resetUserPassword(userId: string, newPassword: string): SystemUs
   });
   saveUsersList(updated);
   const target = updated.find((u) => u.id === userId);
-  if (target) upsertUserToSupabase(target);
+  if (target) await upsertUserToSupabase(target);
   return updated;
 }
 
 // Excluir um cliente pelo Admin
-export function deleteUserByAdmin(userId: string): SystemUser[] {
+export async function deleteUserByAdmin(userId: string): Promise<SystemUser[]> {
   const allUsers = getSavedUsers();
+  const targetUser = allUsers.find((u) => u.id === userId);
   // Não permite apagar o admin principal
   const updated = allUsers.filter(
     (u) => !(u.id === userId && u.email.toLowerCase() === INITIAL_ADMIN_USER.email.toLowerCase())
   );
   saveUsersList(updated);
-  deleteUserFromSupabase(userId);
+  await deleteUserFromSupabase(userId, targetUser?.email);
   return updated;
 }

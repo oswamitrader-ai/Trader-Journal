@@ -86,11 +86,11 @@ export const AdminUserManagementModal: React.FC<AdminUserManagementModalProps> =
     );
   }
 
-  const handleCreateUser = (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedbackMsg(null);
 
-    const res = createNewUserByAdmin({
+    const res = await createNewUserByAdmin({
       name: nameInput,
       email: emailInput,
       password: passwordInput,
@@ -103,39 +103,39 @@ export const AdminUserManagementModal: React.FC<AdminUserManagementModalProps> =
       setEmailInput('');
       setPasswordInput('cliente123');
       setRoleInput('CLIENT');
-      loadUsers();
+      await loadUsers();
     } else {
       setFeedbackMsg({ type: 'error', text: res.message || 'Erro ao cadastrar cliente.' });
     }
   };
 
-  const handleToggleStatus = (targetUser: SystemUser) => {
+  const handleToggleStatus = async (targetUser: SystemUser) => {
     if (targetUser.email.toLowerCase() === INITIAL_ADMIN_USER.email.toLowerCase()) {
       alert('Não é possível desativar a conta do Administrador Principal.');
       return;
     }
-    const updated = toggleUserStatus(targetUser.id);
+    const updated = await toggleUserStatus(targetUser.id);
     setUsers(updated);
   };
 
-  const handleDeleteUser = (targetUser: SystemUser) => {
+  const handleDeleteUser = async (targetUser: SystemUser) => {
     if (targetUser.email.toLowerCase() === INITIAL_ADMIN_USER.email.toLowerCase()) {
       alert('Não é possível excluir a conta do Administrador Principal.');
       return;
     }
     if (window.confirm(`Deseja realmente remover o acesso do cliente ${targetUser.name} (${targetUser.email})?`)) {
-      const updated = deleteUserByAdmin(targetUser.id);
+      const updated = await deleteUserByAdmin(targetUser.id);
       setUsers(updated);
     }
   };
 
-  const handleConfirmResetPassword = () => {
+  const handleConfirmResetPassword = async () => {
     if (!resetModalUserId || !newPasswordVal.trim()) return;
-    const updated = resetUserPassword(resetModalUserId, newPasswordVal.trim());
+    const updated = await resetUserPassword(resetModalUserId, newPasswordVal.trim());
     setUsers(updated);
     setResetModalUserId(null);
     setNewPasswordVal('123456');
-    alert('Senha redefinida com sucesso!');
+    alert('Senha redefinida com sucesso no banco de dados!');
   };
 
   const filteredUsers = users.filter(

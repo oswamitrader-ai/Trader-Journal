@@ -19,13 +19,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     syncUsersWithSupabase();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      const res = authenticateUser(email, password);
+    try {
+      const res = await authenticateUser(email, password);
 
       if (res.success && res.user) {
         onLoginSuccess(res.user);
@@ -33,7 +33,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         setErrorMessage(res.message || 'Erro ao realizar login.');
         setIsSubmitting(false);
       }
-    }, 250);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Erro inesperado ao realizar login.');
+      setIsSubmitting(false);
+    }
   };
 
   return (

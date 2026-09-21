@@ -225,17 +225,25 @@ export default function App() {
         setSupabaseHealth(health);
 
         if (health.status === 'connected' && currentUser?.email) {
-          // If table exists, load real trades from Supabase for this user
+          // Carrega trades do Supabase para o usuário logado
           const cloudTrades = await fetchTradesFromSupabase(currentUser.email);
           if (!isMounted) return;
           if (cloudTrades.data && cloudTrades.data.length > 0) {
             setTrades(cloudTrades.data);
-          } else if (trades.length > 0) {
-            // Se localmente temos trades mas no cloud ainda não, faz push automático das do usuário!
-            syncAllTradesToSupabase(trades, currentUser.email);
+          } else {
+            // Se o cloud não retornar nada, busca trades locais e envia para o Supabase
+            const localSaved = localStorage.getItem(TRADES_STORAGE_KEY);
+            if (localSaved) {
+              try {
+                const parsed = JSON.parse(localSaved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  syncAllTradesToSupabase(parsed, currentUser.email);
+                }
+              } catch (e) {}
+            }
           }
 
-          const cloudSettings = await fetchRiskSettingsFromSupabase();
+          const cloudSettings = await fetchRiskSettingsFromSupabase(currentUser.email);
           if (!isMounted) return;
           if (cloudSettings.data) {
             setSettings(cloudSettings.data);
@@ -250,8 +258,8 @@ export default function App() {
       initSupabase();
     }
 
-    // Subscribe to real-time changes on public.trades
-    const channel = supabase
+    // Inscreve em tempo real nas alterações da tabela public.trades e system_users
+    const tradesChannel = supabase
       .channel('realtime:public:trades')
       .on(
         'postgres_changes',
@@ -269,7 +277,7 @@ export default function App() {
 
     return () => {
       isMounted = false;
-      supabase.removeChannel(channel);
+      supabase.removeChannel(tradesChannel);
     };
   }, [currentUser?.email]);
 
@@ -543,7 +551,7 @@ export default function App() {
 
     setSettings(newSettings);
     // Save to Supabase in background
-    saveRiskSettingsToSupabase(newSettings).then((res) => {
+    saveRiskSettingsToSupabase(newSettings, currentUser?.email).then((res) => {
       if (res.error) {
         console.warn('Erro ao salvar configurações no Supabase:', res.error);
       }
