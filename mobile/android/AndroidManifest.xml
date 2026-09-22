@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.tradelock.shield">
+
+    <!-- Permissões de Rede e Conectividade -->
+    <uses-permission android.permission.INTERNET />
+    <uses-permission android.permission.ACCESS_NETWORK_STATE />
+    <uses-permission android.permission.FOREGROUND_SERVICE />
+    <uses-permission android.permission.RECEIVE_BOOT_COMPLETED />
+
+    <!-- Permissões Especiais de Blindagem Nativa -->
+    <uses-permission android.permission.SYSTEM_ALERT_WINDOW />
+    <uses-permission android.permission.BIND_VPN_SERVICE />
+    <uses-permission android.permission.BIND_ACCESSIBILITY_SERVICE />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="TradeLock Mobile"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+        android:usesCleartextTraffic="true">
+
+        <!-- Activity Principal Web/Capacitor -->
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:exported="true"
+            android:label="TradeLock Mobile"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 1. Serviço de VPN Local para Bloqueio de Domínios -->
+        <service
+            android:name=".TradeLockVpnService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+        <!-- 2. Serviço de Acessibilidade para Detecção dos Apps das Corretoras -->
+        <service
+            android:name=".TradeLockAccessibilityService"
+            android:exported="true"
+            android:label="TradeLock Anti-Fúria Monitor"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- 3. Overlay em Tela Cheia Nativo (Touro vs Urso) -->
+        <activity
+            android:name=".OverlayBlockActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showOnLockScreen="true"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+
+    </application>
+
+</manifest>

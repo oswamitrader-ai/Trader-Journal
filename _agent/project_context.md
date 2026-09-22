@@ -26,7 +26,9 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
 6. **Motor de Captura Automática de Ordens em Tempo Real na Extensão (`injected.js`)**:
    - Injetado motor de interceptação de WebSocket no pacote ZIP gerado da extensão (`extensionGenerator.ts`).
    - Resolvido bloqueio de CSP (Content Security Policy) da Exnova utilizando o recurso nativo `world: 'MAIN'` do Manifest V3, garantindo execução com privilégios do Chrome sem injeção inline de DOM.
-   - Captura automaticamente ordens encerradas (Demo e Real) na Exnova, IQ Option e Quotex, registrando o trade no diário e disparando o bloqueio da Trava Anti-Fúria instantaneamente no Stop Loss.
+   - Captura automaticamente ordens encerradas na Exnova, IQ Option e Quotex, classificando com precisão **Conta DEMO (Prática)** (`user_balance_type = 4`) vs **Conta REAL** (`user_balance_type = 1`).
+   - **Liberação de Exclusão para DEMO**: Operações de Conta DEMO são marcadas com `accountType: 'DEMO'`, `isReal: false` e `tags: ['DEMO']`, ficando **completamente liberadas para exclusão no diário**, sem afetar o Stop Loss nem ser bloqueadas pela regra Anti-Burlar da Conta Real.
+   - **Manual Técnico Completo**: Consulte [_agent/auto_capture_manual.md](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/_agent/auto_capture_manual.md) para o guia detalhado de arquitetura, fluxo de dados e troubleshooting.
 
 7. **Overlays e Notificações**:
    - Mantidos intocados conforme regras globais.
@@ -179,6 +181,11 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - Utiliza `FamilyControls` e `ManagedSettings` (Screen Time API) do iOS 15+ para ocultar/bloquear aplicativos de corretoras e domínios web no Safari quando a trava estiver ativa.
     - **Sincronização em Tempo Real (`mobileSyncService.ts` + `mobile/src/App.tsx`)**:
       - Conecta com a base Supabase em tempo real acionando e desligando as blindagens nativas móveis instantaneamente.
+    - **Versão Web Independente (`mobile.html` + `src/mobileMain.tsx`)**:
+      - Entrada Web independente compilada via Vite (`dist/mobile.html`) para execução direta do app móvel em qualquer navegador desktop ou celular (`http://localhost:5173/mobile.html`).
+    - **Configuração Capacitor APK (`capacitor.config.json` + `mobile/android/AndroidManifest.xml`)**:
+      - Projeto estruturado para compilação nativa de APK Android (`com.tradelock.shield`) com suporte completo a VpnService e AccessibilityService.
+
 
 
 

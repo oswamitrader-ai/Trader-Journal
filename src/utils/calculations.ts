@@ -40,26 +40,36 @@ export function setGlobalCurrency(code: CurrencyCode): void {
 export function isTradeProtected(trade: Trade): boolean {
   if (!trade) return false;
 
-  // 1. Se a operação for explicitamente da Conta DEMO / Simulador, PERMITE exclusão
+  const strat = (trade.strategy || '').toLowerCase();
+  const notes = (trade.notes || '').toLowerCase();
+  const hasDemoTag = Array.isArray(trade.tags) && trade.tags.some(t => t.toUpperCase().includes('DEMO'));
+
+  // 1. Se a operação for da Conta DEMO / Prática / Simulador, PERMITE EXCLUSÃO
   if (
     trade.accountType === 'DEMO' ||
     trade.isReal === false ||
-    (Array.isArray(trade.tags) && trade.tags.includes('DEMO'))
+    hasDemoTag ||
+    strat.includes('demo') ||
+    strat.includes('pratic') ||
+    strat.includes('prátic') ||
+    notes.includes('demo') ||
+    notes.includes('pratic') ||
+    notes.includes('prátic')
   ) {
     return false;
   }
 
-  // 2. Se for uma operação IMPORTADA via relatório CSV/PDF, PERMITE exclusão
+  // 2. Se for uma operação IMPORTADA via relatório CSV/PDF, PERMITE EXCLUSÃO
   if (
     (trade.id && trade.id.startsWith('imp-')) ||
-    (trade.strategy && trade.strategy.toLowerCase().includes('importad')) ||
-    (trade.notes && trade.notes.toLowerCase().includes('importad')) ||
+    strat.includes('importad') ||
+    notes.includes('importad') ||
     (trade as any).isImported === true
   ) {
     return false;
   }
 
-  // Por padrão, apenas operações da Conta Real capturadas ao vivo pela extensão são protegidas!
+  // Por padrão, APENAS operações da Conta Real capturadas ao vivo pela extensão são protegidas!
   return true;
 }
 

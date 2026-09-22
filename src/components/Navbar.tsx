@@ -17,6 +17,7 @@ import {
   FileText,
   Users,
   LogOut,
+  Smartphone,
 } from 'lucide-react';
 import { OverallMetrics, RiskSettings, NotificationAlert, SystemUser } from '../types';
 import { formatCurrency, formatPercent, CurrencyCode, CURRENCIES, getGlobalCurrency } from '../utils/calculations';
@@ -69,6 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAntiFuria,
   onOpenPdfReport,
   onOpenAdminManagement,
+  onOpenMobileApp,
   onLogout,
   onClearNotifications = () => {},
   onResetData = () => {},

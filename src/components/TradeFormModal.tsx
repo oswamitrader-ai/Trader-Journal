@@ -453,8 +453,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   type="button"
+                  disabled={isEditingProtected}
                   onClick={() => setAccountType('REAL')}
                   className={`flex items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-bold transition ${
+                    isEditingProtected ? 'cursor-not-allowed opacity-60' : ''
+                  } ${
                     accountType === 'REAL'
                       ? 'bg-rose-950/80 border border-rose-500/60 text-rose-200 shadow-sm'
                       : 'border border-slate-800 bg-black text-slate-400 hover:text-white'
@@ -465,8 +468,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </button>
                 <button
                   type="button"
+                  disabled={isEditingProtected}
                   onClick={() => setAccountType('DEMO')}
                   className={`flex items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-bold transition ${
+                    isEditingProtected ? 'cursor-not-allowed opacity-60' : ''
+                  } ${
                     accountType === 'DEMO'
                       ? 'bg-slate-800 border border-slate-700 text-white shadow-sm'
                       : 'border border-slate-800 bg-black text-slate-400 hover:text-white'

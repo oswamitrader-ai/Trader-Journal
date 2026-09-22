@@ -416,30 +416,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     console.log('🔧 [Anti-Fúria] buildTrade raw data:', JSON.stringify(raw).substring(0, 500));
 
-    // --- CRITICAL: Only process CLOSED trades with a definitive result ---
-    // Exnova fires position-changed on OPEN and CLOSE. We MUST filter out opens.
+    // --- CRITICAL: Process CLOSED trades with a definitive result ---
     const resultField = String(raw.result || '').toLowerCase();
     const winField = String(raw.win || '').toLowerCase();
+    const statusField = String(raw.status || raw.state || raw.close_reason || '').toLowerCase();
+    
     const closedResults = ['win', 'loose', 'loss', 'equal', 'draw'];
-    const isClosed = closedResults.includes(resultField) || closedResults.includes(winField);
+    const isClosed =
+      closedResults.includes(resultField) ||
+      closedResults.includes(winField) ||
+      winField === 'true' ||
+      winField === 'false' ||
+      raw.win === true ||
+      raw.win === false ||
+      statusField === 'closed' ||
+      statusField === 'finished' ||
+      raw.closed === true ||
+      raw.close_time != null ||
+      raw.close_reason != null ||
+      raw.close_quote != null ||
+      raw.win_amount != null;
 
     if (!isClosed) {
-      console.log('⏩ [Anti-Fúria] Ignorando: sem resultado definitivo (result=' + resultField + ', win=' + winField + ')');
+      console.log('⏩ [Anti-Fúria] Ignorando evento de abertura de ordem (status=' + statusField + ', win=' + winField + ')');
       return null;
     }
 
-    // --- Dedup by option_id ---
-    const optionId = raw.option_id || raw.id || raw.deal_id || '';
+    // --- Dedup by option_id / deal_id ---
+    const optionId = raw.option_id || raw.id || raw.deal_id || raw.position_id || '';
     if (optionId && processedIds.has('oid-' + optionId)) {
-      console.log('⏩ [Anti-Fúria] Ignorando trade duplicado, option_id:', optionId);
+      console.log('⏩ [Anti-Fúria] Ignorando trade duplicado, id:', optionId);
       return null;
     }
     if (optionId) processedIds.add('oid-' + optionId);
-
-    // --- Win/Loss detection ---
-    const isWin = resultField === 'win' || winField === 'win';
-    const isEqual = resultField === 'equal' || resultField === 'draw' || winField === 'equal';
-    const isLoss = resultField === 'loose' || resultField === 'loss' || winField === 'loose' || winField === 'loss';
 
     // --- Amount invested ---
     const amount = Math.abs(Number(raw.amount || raw.enrolled_amount || raw.investment || raw.stake || raw.buy_amount) || 0);
@@ -448,6 +457,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const profitAmount = Number(raw.profit_amount) || 0;
     const winEnrolled = Number(raw.win_enrolled_amount || raw.win_amount) || 0;
     let pnl = Number(raw.pnl || raw.profit || raw.net_pnl) || 0;
+
+    // --- Win/Loss detection ---
+    const isWin =
+      resultField === 'win' ||
+      winField === 'win' ||
+      winField === 'true' ||
+      raw.win === true ||
+      (pnl > 0) ||
+      (profitAmount > 0) ||
+      (winEnrolled > amount && amount > 0);
+
+    const isEqual =
+      resultField === 'equal' ||
+      resultField === 'draw' ||
+      winField === 'equal' ||
+      (pnl === 0 && winEnrolled === amount && amount > 0);
+
+    const isLoss =
+      !isWin &&
+      !isEqual &&
+      (resultField === 'loose' ||
+        resultField === 'loss' ||
+        winField === 'loose' ||
+        winField === 'loss' ||
+        winField === 'false' ||
+        raw.win === false ||
+        (winEnrolled === 0 && isClosed));
 
     if (pnl === 0 && profitAmount > 0) {
       // Exnova WIN: profit_amount IS the net profit
@@ -460,27 +496,45 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       pnl = -Math.abs(amount);
     } else if (pnl === 0 && isWin && amount > 0) {
       // WIN without explicit profit data: use profit_percent
-      // Exnova profit_percent=188 means TOTAL payout is 188% of amount (net profit = 88%)
       const profitPct = Number(raw.profit_percent) || 185;
       pnl = Math.abs(amount * ((profitPct - 100) / 100));
     } else if (isEqual) {
       pnl = 0;
     }
 
-    // Asset - use active_id as fallback since Exnova uses numeric IDs
+    // Asset mapping (Exnova uses active_id for pairs)
+    const activeMap = { 1: 'EUR/USD', 2: 'EUR/GBP', 4: 'GBP/USD', 5: 'USD/JPY', 76: 'AUD/CAD', 81: 'EUR/JPY' };
     const activeId = raw.active_id || raw.act || '';
-    const asset = String(raw.active || raw.asset || raw.instrument || raw.active_name || (activeId ? 'ID_' + activeId : 'DIGITAL')).toUpperCase();
+    const rawAsset = String(raw.active || raw.asset || raw.instrument || raw.active_name || '').toUpperCase();
+    const asset = rawAsset || (activeMap[activeId] || (activeId ? 'ID_' + activeId : 'DIGITAL'));
 
     // Direction
-    const dir = String(raw.dir || raw.direction || '').toLowerCase();
+    const dir = String(raw.dir || raw.direction || raw.type || '').toLowerCase();
     const type = (dir === 'put' || dir.includes('sell') || dir.includes('baixa')) ? 'SELL' : 'BUY';
+
+    // Account Type Detection (DEMO vs REAL)
+    const userBalanceType = Number(raw.user_balance_type || raw.balance_type_id || raw.balance_type || raw.account_type_id) || 0;
+    const isDemoFlag = raw.is_demo === true || raw.demo === true || raw.isDemo === true || raw.is_demo === 1 || raw.demo === 1;
+    const accountTypeStr = String(raw.account_type || raw.accountType || raw.type_name || raw.account || raw.balance_name || '').toLowerCase();
+    
+    const isDemo = 
+      userBalanceType === 4 ||
+      isDemoFlag ||
+      accountTypeStr.includes('demo') ||
+      accountTypeStr.includes('practic') ||
+      accountTypeStr.includes('simulat') ||
+      accountTypeStr.includes('prática') ||
+      accountTypeStr.includes('pratica');
+
+    const accountType = isDemo ? 'DEMO' : 'REAL';
+    const isReal = !isDemo;
 
     const now = new Date();
     const roundedPnl = Math.round(pnl * 100) / 100;
     const result = isWin ? 'GAIN' : (isLoss ? 'LOSS' : 'BREAKEVEN');
     const tradeId = optionId || Date.now();
 
-    console.log('✅ [Anti-Fúria] Trade FECHADO:', result, 'PnL:', roundedPnl, 'Amount:', amount, 'Asset:', asset, 'Dir:', type);
+    console.log('✅ [Anti-Fúria] Trade FECHADO (' + (isDemo ? 'DEMO 🧪' : 'REAL 💵') + '):', result, 'PnL:', roundedPnl, 'Amount:', amount, 'Asset:', asset, 'Dir:', type);
 
     return {
       id: 'auto-' + tradeId + '-' + Math.random().toString(36).substring(2, 6),
@@ -488,11 +542,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
       asset: asset.replace(/[^A-Z0-9/._-]/g, '') || 'DIGITAL',
       type: type,
-      strategy: 'Captura Automática (' + source + ')',
+      strategy: 'Captura Automática (' + source + (isDemo ? ' - Conta DEMO 🧪' : ' - Conta REAL 💵') + ')',
       result: result,
       pnl: roundedPnl,
       contractsOrQuantity: amount > 0 ? Math.round(amount * 100) / 100 : Math.abs(roundedPnl),
-      notes: 'Capturado automaticamente em ' + HOST,
+      accountType: accountType,
+      isReal: isReal,
+      notes: (isDemo ? '[CONTA DEMO 🧪] ' : '[CONTA REAL 💵] ') + 'Capturado automaticamente em ' + HOST,
+      tags: isDemo ? ['DEMO', 'Auto-Capturado'] : ['REAL', 'Auto-Capturado'],
     };
   }
 
@@ -508,13 +565,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       name === 'position-changed' ||
       name === 'deal-closed' ||
       name === 'option' ||
-      name === 'result'
+      name === 'result' ||
+      name === 'order-changed' ||
+      name === 'position-state-changed'
     ) return true;
 
     // Quotex / generic format: look for keywords in stringified JSON
     const str = JSON.stringify(parsed).toLowerCase();
     if (
-      (str.includes('"option-closed"') || str.includes('"deal-closed"')) ||
+      (str.includes('"option-closed"') || str.includes('"deal-closed"') || str.includes('"digital-option-closed"')) ||
       (str.includes('"win"') && str.includes('"amount"') && (str.includes('"win_amount"') || str.includes('"profit"'))) ||
       (str.includes('"close_quote"') && str.includes('"buy_amount"'))
     ) return true;
@@ -524,27 +583,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // ─── Extract raw trade data from various message structures ──────
   function extractRawTrade(parsed) {
-    // Exnova/IQ Option: { name: "position-changed", msg: { raw_event: { binary_options_option_changed1: { ...tradeData } } } }
     if (parsed.msg && typeof parsed.msg === 'object') {
-      // Deep nested: msg.raw_event.binary_options_option_changed1 (or similar key)
       if (parsed.msg.raw_event && typeof parsed.msg.raw_event === 'object') {
         const keys = Object.keys(parsed.msg.raw_event);
         for (const key of keys) {
           const candidate = parsed.msg.raw_event[key];
-          if (candidate && typeof candidate === 'object' && (candidate.amount !== undefined || candidate.result !== undefined || candidate.win !== undefined)) {
-            console.log('🔍 [Anti-Fúria] Dados extraídos de msg.raw_event.' + key);
+          if (candidate && typeof candidate === 'object' && (candidate.amount !== undefined || candidate.result !== undefined || candidate.win !== undefined || candidate.status !== undefined)) {
             return candidate;
           }
         }
       }
-      // msg.result (some brokers)
       if (parsed.msg.result && typeof parsed.msg.result === 'object') return parsed.msg.result;
-      // msg is the trade directly
-      if (parsed.msg.win !== undefined || parsed.msg.win_amount !== undefined || parsed.msg.amount !== undefined) return parsed.msg;
+      if (parsed.msg.win !== undefined || parsed.msg.win_amount !== undefined || parsed.msg.amount !== undefined || parsed.msg.status !== undefined) return parsed.msg;
     }
-    // Nested data
     if (parsed.data && typeof parsed.data === 'object') return parsed.data;
-    // Top-level
     return parsed;
   }
 
@@ -591,26 +643,54 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     let parsed = null;
     try { parsed = JSON.parse(msgStr); } catch(e) { return; }
+    if (!parsed) return;
 
-    if (!parsed || typeof parsed !== 'object') return;
+    // Support Array of WS items or single object
+    const items = Array.isArray(parsed) ? parsed : [parsed];
 
-    // Debug: log every meaningful WS message name
-    if (DEBUG && parsed.name) {
-      console.log('📡 [Anti-Fúria WS msg]', parsed.name, parsed.msg ? '(has msg)' : '');
-    }
+    for (const item of items) {
+      if (!item || typeof item !== 'object') continue;
 
-    if (isTradeCloseEvent(parsed)) {
-      console.log('🎯 [Anti-Fúria WS] TRADE CLOSE detectado:', JSON.stringify(parsed).substring(0, 500));
+      const IGNORED_NAMES = ['quote-generated', 'candle-generated', 'heartbeat', 'timesync', 'instrument-quotes-generated', 'front-ping', 'live-deal-binary-option-placed-quote'];
+      const msgName = (item.name || '').toLowerCase();
 
-      const raw = extractRawTrade(parsed);
-      const trade = buildTrade(raw, 'WebSocket');
-      if (trade) {
-        broadcastTrade(trade);
-      } else {
-        console.warn('⚠️ [Anti-Fúria WS] Trade detectado mas não foi possível extrair dados válidos:', raw);
+      if (DEBUG && msgName && !IGNORED_NAMES.includes(msgName)) {
+        console.log('📡 [Anti-Fúria WS msg]', item.name, item.msg ? '(has msg)' : '');
+        window.__antiFuriaLastRawMessages = window.__antiFuriaLastRawMessages || [];
+        window.__antiFuriaLastRawMessages.unshift(item);
+        if (window.__antiFuriaLastRawMessages.length > 20) window.__antiFuriaLastRawMessages.pop();
+      }
+
+      if (isTradeCloseEvent(item)) {
+        console.log('🎯 [Anti-Fúria WS] TRADE CLOSE detectado:', JSON.stringify(item).substring(0, 500));
+
+        const raw = extractRawTrade(item);
+        const trade = buildTrade(raw, 'WebSocket');
+        if (trade) {
+          broadcastTrade(trade);
+        } else {
+          console.warn('⚠️ [Anti-Fúria WS] Trade detectado mas não foi possível extrair dados válidos:', raw);
+        }
       }
     }
   }
+
+  // ─── WebSocket Prototype Message Listener (Catches pre-existing & worker WebSockets) ───
+  try {
+    const origAddEv = WebSocket.prototype.addEventListener;
+    WebSocket.prototype.addEventListener = function(type, listener, options) {
+      if (type === 'message' && typeof listener === 'function') {
+        const wrapped = function(event) {
+          try {
+            if (typeof event.data === 'string') processWsMessage(event.data);
+          } catch(e) {}
+          return listener.apply(this, arguments);
+        };
+        return origAddEv.call(this, type, wrapped, options);
+      }
+      return origAddEv.apply(this, arguments);
+    };
+  } catch(e) {}
 
   // ─── 2. XHR INTERCEPTOR (fallback for HTTP-based results) ────────
   const OrigXHROpen = XMLHttpRequest.prototype.open;
