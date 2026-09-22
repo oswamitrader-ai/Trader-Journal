@@ -82,9 +82,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const maxTradesPerDay = settings?.maxTradesPerDay ?? 5;
 
   // Status for today
-  const isTargetHit = todayPnl >= dailyProfitTarget;
-  const isStopHit = todayPnl <= -dailyLossLimit;
-  const isMaxTradesHit = maxTradesPerDay > 0 && todayTradesCount >= maxTradesPerDay;
+  const isTargetHit = dailyProfitTarget > 0 && todayPnl > 0 && todayPnl >= dailyProfitTarget;
+  const isStopHit = dailyLossLimit > 0 && todayPnl < 0 && todayPnl <= -dailyLossLimit;
+  const isMaxTradesHit = maxTradesPerDay > 0 && todayTradesCount > 0 && todayTradesCount >= maxTradesPerDay;
   const isAntiFuriaActive = isStopHit || isMaxTradesHit;
   const isNearStop = todayPnl < 0 && Math.abs(todayPnl) >= dailyLossLimit * 0.75;
   const safeNotifList = notifications || [];
@@ -304,12 +304,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* PDF Report Button */}
-          {onOpenPdfReport && (
+          {/* PDF Report Button (Visível Apenas para Administradores) */}
+          {currentUser?.role === 'ADMIN' && onOpenPdfReport && (
             <button
               id="btn-relatorio-pdf"
               onClick={onOpenPdfReport}
-              title="Exportar Relatório Executivo em PDF"
+              title="Exportar Relatório Executivo em PDF (Exclusivo Admin)"
               className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md transition-all hover:bg-violet-500 active:scale-95 shrink-0"
             >
               <FileText className="h-4 w-4" />
@@ -488,17 +488,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             {currentUser && (
               <div
                 title={`${currentUser.name} (${currentUser.email})`}
-                className="hidden xl:flex flex-col items-end text-[11px]"
+                className="hidden xl:flex items-center text-[11px]"
               >
-                <span className="font-bold text-slate-200 leading-tight max-w-[120px] truncate">
+                <span className="font-bold text-slate-200 leading-tight max-w-[140px] truncate">
                   {currentUser.name || currentUser.email.split('@')[0]}
-                </span>
-                <span
-                  className={`text-[9px] font-mono font-bold uppercase tracking-wider ${
-                    currentUser.role === 'ADMIN' ? 'text-violet-400' : 'text-emerald-400'
-                  }`}
-                >
-                  {currentUser.role === 'ADMIN' ? '[ADMIN]' : '[CLIENTE]'}
                 </span>
               </div>
             )}

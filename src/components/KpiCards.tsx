@@ -80,9 +80,9 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
   const isDrawdownWarning = maxDdPercent >= 6 && maxDdPercent <= 12;
 
   // Calculations for Meta Diária Card (Target)
-  const targetProgressPct = Math.min(100, Math.max(0, (todayPnl / (targetVal || 1)) * 100));
-  const isNearTarget80 = todayPnl >= targetVal * 0.8 && todayPnl < targetVal;
-  const isTargetAchieved = todayPnl >= targetVal;
+  const targetProgressPct = targetVal > 0 && todayPnl > 0 ? Math.min(100, Math.max(0, (todayPnl / targetVal) * 100)) : 0;
+  const isNearTarget80 = targetVal > 0 && todayPnl > 0 && todayPnl >= targetVal * 0.8 && todayPnl < targetVal;
+  const isTargetAchieved = targetVal > 0 && todayPnl > 0 && todayPnl >= targetVal;
 
   // Profit Factor Status Diagnostics
   const hasTrades = (metrics?.totalTrades ?? 0) > 0;
@@ -91,9 +91,9 @@ export const KpiCards: React.FC<KpiCardsProps> = ({
 
   // Calculations for Limite de Perda Card (Stop)
   const currentLossAbs = Math.abs(Math.min(0, todayPnl));
-  const lossProgressPct = Math.min(100, Math.max(0, (currentLossAbs / (lossVal || 1)) * 100));
-  const isNearStop80 = todayPnl <= -lossVal * 0.8 && todayPnl > -lossVal;
-  const isStopLossReached = todayPnl <= -lossVal;
+  const lossProgressPct = lossVal > 0 && todayPnl < 0 ? Math.min(100, Math.max(0, (currentLossAbs / lossVal) * 100)) : 0;
+  const isNearStop80 = lossVal > 0 && todayPnl < 0 && todayPnl <= -lossVal * 0.8 && todayPnl > -lossVal;
+  const isStopLossReached = lossVal > 0 && todayPnl < 0 && todayPnl <= -lossVal;
 
   // Weekly Drawdown points calculation (for the current operating week / last 7 operating days)
   const weeklyDays = (dailyPerformance || []).slice(-7);

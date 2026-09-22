@@ -38,7 +38,7 @@ import { RiskSettingsModal } from './components/RiskSettingsModal';
 import { DayDetailModal } from './components/DayDetailModal';
 import { AiTraderMentorModal } from './components/AiTraderMentorModal';
 import { SupabaseSyncModal } from './components/SupabaseSyncModal';
-import { AntiFuriaExtensionModal } from './components/AntiFuriaExtensionModal';
+import { AntiFuriaExtensionPage } from './components/AntiFuriaExtensionPage';
 import { CapitalHistoryModal } from './components/CapitalHistoryModal';
 import { KellyCalculatorModal } from './components/KellyCalculatorModal';
 import { StakePlannerModal } from './components/StakePlannerModal';
@@ -70,7 +70,7 @@ type ActiveView = 'all' | 'charts' | 'calendar' | 'weekly' | 'trades';
 export default function App() {
   // 0. Auth State
   const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => getCurrentSession());
-  const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS'>('JOURNAL');
+  const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS' | 'ANTI_FURIA'>('JOURNAL');
 
   const handleLogout = () => {
     logoutUser();
@@ -378,11 +378,12 @@ export default function App() {
   // Anti-Fúria lock triggers if REAL account daily loss or total daily loss reaches limit
   const isStopHit =
     settings.dailyLossLimit > 0 &&
-    (todayRealPnl <= -settings.dailyLossLimit + 0.001 || todayPnl <= -settings.dailyLossLimit + 0.001);
+    ((todayRealPnl < 0 && todayRealPnl <= -settings.dailyLossLimit + 0.001) ||
+     (todayPnl < 0 && todayPnl <= -settings.dailyLossLimit + 0.001));
 
   // Overtrading lock triggers if daily trades count reaches maxTradesPerDay limit
   const isMaxTradesHit =
-    settings.maxTradesPerDay > 0 && todayTradesCount >= settings.maxTradesPerDay;
+    settings.maxTradesPerDay > 0 && todayTradesCount > 0 && todayTradesCount >= settings.maxTradesPerDay;
 
   // Combined Anti-Fúria Lock State
   const isAntiFuriaActive = isStopHit || isMaxTradesHit;
@@ -708,7 +709,7 @@ export default function App() {
     const dailyLoss = settings?.dailyLossLimit ?? 300;
     const maxTrades = settings?.maxTradesPerDay ?? 5;
 
-    if (todayPnl >= dailyTarget) {
+    if (dailyTarget > 0 && todayPnl > 0 && todayPnl >= dailyTarget) {
       list.push({
         id: 'notif-target-hit',
         type: 'TARGET_REACHED',
@@ -718,7 +719,7 @@ export default function App() {
         date: todayPerformance?.date || '',
         severity: 'success',
       });
-    } else if (todayPnl >= dailyTarget * 0.8) {
+    } else if (dailyTarget > 0 && todayPnl > 0 && todayPnl >= dailyTarget * 0.8) {
       list.push({
         id: 'notif-target-80',
         type: 'INFO',
@@ -730,7 +731,7 @@ export default function App() {
       });
     }
 
-    if (todayPnl <= -dailyLoss) {
+    if (dailyLoss > 0 && todayPnl < 0 && todayPnl <= -dailyLoss) {
       list.push({
         id: 'notif-loss-limit',
         type: 'LOSS_LIMIT_REACHED',
@@ -740,7 +741,7 @@ export default function App() {
         date: todayPerformance?.date || '',
         severity: 'error',
       });
-    } else if (todayPnl <= -dailyLoss * 0.8) {
+    } else if (dailyLoss > 0 && todayPnl < 0 && todayPnl <= -dailyLoss * 0.8) {
       list.push({
         id: 'notif-loss-80',
         type: 'WARNING_NEAR_STOP',
@@ -752,7 +753,7 @@ export default function App() {
       });
     }
 
-    if (tradesCount >= maxTrades) {
+    if (maxTrades > 0 && tradesCount > 0 && tradesCount >= maxTrades) {
       list.push({
         id: 'notif-overtrading',
         type: 'WARNING_NEAR_STOP',
@@ -818,6 +819,21 @@ export default function App() {
     );
   }
 
+  if (currentView === 'ANTI_FURIA' && currentUser) {
+    return (
+      <AntiFuriaExtensionPage
+        onBackToDashboard={() => setCurrentView('JOURNAL')}
+        isStopHit={isStopHit}
+        todayPnl={todayPnl}
+        dailyLossLimit={settings.dailyLossLimit}
+        winRate={metrics.winRate}
+        profitFactor={metrics.profitFactor}
+        todayTradesCount={todayPerformance?.tradesCount || 0}
+        currentCapital={metrics.currentCapital}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-slate-100 selection:bg-emerald-500 selection:text-white pb-16">
       {/* Top Navigation */}
@@ -839,7 +855,7 @@ export default function App() {
         onOpenKellyCalculator={() => setIsKellyCalculatorOpen(true)}
         onOpenStakePlanner={() => setIsStakePlannerOpen(true)}
         onOpenSupabase={() => setIsSupabaseModalOpen(true)}
-        onOpenAntiFuria={() => setIsAntiFuriaModalOpen(true)}
+        onOpenAntiFuria={() => setCurrentView('ANTI_FURIA')}
         onOpenPdfReport={() => setIsPdfReportOpen(true)}
         onOpenAdminManagement={() => setCurrentView('ADMIN_CLIENTS')}
         onLogout={handleLogout}
@@ -888,7 +904,7 @@ export default function App() {
           dismissedAlerts={dismissedAlerts}
           onDismiss={handleDismissAlert}
           onOpenSettings={() => setIsSettingsModalOpen(true)}
-          onOpenAntiFuria={() => setIsAntiFuriaModalOpen(true)}
+          onOpenAntiFuria={() => setCurrentView('ANTI_FURIA')}
         />
 
         {/* View Switcher Bar */}
@@ -1205,18 +1221,6 @@ export default function App() {
         trades={trades}
         settings={settings}
         onTradesLoadedFromCloud={(cloudTrades) => setTrades(cloudTrades)}
-      />
-
-      <AntiFuriaExtensionModal
-        isOpen={isAntiFuriaModalOpen}
-        onClose={() => setIsAntiFuriaModalOpen(false)}
-        isStopHit={isStopHit}
-        todayPnl={todayPnl}
-        dailyLossLimit={settings.dailyLossLimit}
-        winRate={metrics.winRate}
-        profitFactor={metrics.profitFactor}
-        todayTradesCount={todayPerformance?.tradesCount || 0}
-        currentCapital={metrics.currentCapital}
       />
 
       <KellyCalculatorModal

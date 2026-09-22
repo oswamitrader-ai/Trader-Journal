@@ -27,9 +27,9 @@ export const RiskAlertBanner: React.FC<RiskAlertBannerProps> = ({
   const dailyLossLimit = settings?.dailyLossLimit ?? 300;
   const maxTradesPerDay = settings?.maxTradesPerDay ?? 5;
 
-  const isTargetHit = todayPnl >= dailyProfitTarget;
-  const isStopHit = todayPnl <= -dailyLossLimit;
-  const isTradesLimitHit = todayTradesCount >= maxTradesPerDay;
+  const isTargetHit = dailyProfitTarget > 0 && todayPnl > 0 && todayPnl >= dailyProfitTarget;
+  const isStopHit = dailyLossLimit > 0 && todayPnl < 0 && todayPnl <= -dailyLossLimit;
+  const isTradesLimitHit = maxTradesPerDay > 0 && todayTradesCount > 0 && todayTradesCount >= maxTradesPerDay;
 
   // Fire confetti when target is hit and not dismissed
   useEffect(() => {

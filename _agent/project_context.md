@@ -133,7 +133,21 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - **Controle de Adimplência (1-Click)**: Botão de toggle rápido "Bloquear Inadimplente" / "Ativar Acesso" para suspender ou reativar clientes sem pagamento.
       - **Renovação Rápida & Cobrança WhatsApp**: Botão `+30 dias` para renovação expressa e link direto `Cobrar` que gera mensagem formatada no WhatsApp Web/App com data de vencimento.
       - **Modal Interno de Edição de Assinatura & Reset de Senha**: Permite alterar o plano, mensalidade, data de vencimento e redefinir senhas.
-      - **Navegação Integrada**: Botão "Voltar ao Diário de Trade" na barra superior para alternar fluidamente entre o diário de operações e o painel admin.
+24. **Correção do Gatilho de Meta Batida e Stop Loss com Saldo Zerado (R$ 0,00)**:
+    - **Causa Raiz Identificada**: A condição de Meta Batida (`isTargetHit`) e de Stop Loss (`isStopHit`) verificava apenas `todayPnl >= dailyProfitTarget` e `todayPnl <= -dailyLossLimit`. Caso a meta ou stop limite estivessem com valor 0, ou se o usuário fosse novo (saldo R$ 0,00 e 0 trades), `0 >= 0` e `0 <= 0` eram avaliados como `true`, exibindo indevidamente o card/selo de "Meta Batida" e "Stop Atingido".
+    - **Solução Implementada**:
+      - **Meta Batida**: Exige obrigatoriamente que a meta seja maior que 0 (`dailyProfitTarget > 0`) **E que o trader tenha obtido lucro real no dia (`todayPnl > 0`)**.
+      - **Stop Loss**: Exige obrigatoriamente que o limite seja maior que 0 (`dailyLossLimit > 0`) **E que o resultado do dia seja efetivamente negativo (`todayPnl < 0`)**.
+25. **Restrição de Acesso ao Botão "Exportar Relatório Executivo PDF" (Exclusivo Admin)**:
+    - O botão de exportação em PDF na `Navbar` foi atualizado com a verificação de permissão `currentUser?.role === 'ADMIN'`.
+27. **Página Própria de Configuração da Trava Anti-Fúria (`AntiFuriaExtensionPage.tsx`)**:
+    - **Substituição do Modal Flutuante**: O antigo modal flutuante de extensão foi removido e transformado em uma tela inteira e dedicada (`AntiFuriaExtensionPage.tsx`).
+    - **Recursos da Tela**:
+      - **Navegação & Top Bar**: Botão "← Voltar ao Diário de Trade" e indicadores em tempo real (Status da Trava Hoje, Limite de Stop Loss, PnL Hoje, Assertividade/PF e Contagem Regressiva até 00:00).
+      - **3 Abas Principais**:
+        1. **Instalação no Navegador & Guia**: Botão de Download do pacote ZIP pré-configurado e passo a passo visual em 4 passos.
+        2. **Corretoras Bloqueadas**: Lista interativa para adicionar e remover domínios personalizados (Exnova, Quotex, IQ Option, etc.).
+        3. **Prévia Interativa da Intervenção**: Interface idêntica à que é exibida no navegador com o diagnóstico do Mentor IA e botão para simulação do sinal de stop.
 
 ## Regras Importantes
 - Ambiente: Windows.
