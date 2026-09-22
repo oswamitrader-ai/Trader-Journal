@@ -125,12 +125,21 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Causa Raiz Identificada no Fallback de PnL**: Se a coluna de retorno contivesse a taxa de Payout (ex: `93%` ou `93`), a verificação secundária `profitNum > 0.001` transformava a linha em **GAIN** mesmo quando o status continha palavras de perda ou quando a ordem era de Venda/PUT.
     - **Solução Definitiva Implementada em `parseQuotexDedicated`**:
       - **Varredura Omni-Coluna por Linha**: Para CADA linha de trade individual, o sistema varre **todas as células da linha** procurando termos explícitos de direção (`put`, `sell`, `venda`, `baixa`, `down`, `lower`, `abaixo`, `↓`, `▼`) para garantir que ordens de venda **nunca fiquem como BUY**.
-      - **Bloqueio Absoluto de Payout como Win para Loss**: Varre todas as células da linha procurando termos de perda (`loss`, `lost`, `perda`, `perdeu`, `prejuízo`, `sem retorno`, `zerado`, `negativ`, `falha`). Se identificado como Loss, o PnL é travado em **`-investimento`** e o resultado em **`LOSS`**, impedindo que a taxa de payout (93) force o resultado como GAIN.
+23. **Página Própria de Gestão de Clientes & Assinaturas SaaS (`AdminUserManagementPage.tsx`)**:
+    - **Substituição do Modal Flutuante**: O antigo modal compacto e flutuante foi removido e substituído por uma tela inteira e dedicada de Gestão de Clientes e Assinaturas SaaS (`AdminUserManagementPage.tsx`).
+    - **Recursos da Nova Tela**:
+      - **4 Cards de KPIs SaaS & Receita**: Total de Clientes, Assinaturas Ativas (Adimplentes), Inadimplentes/Suspensos e MRR Recorrente Estimado (R$).
+      - **Formulário Completo de Cadastro de Cliente**: Suporte a Nome, E-mail, WhatsApp (com DDD), Senha Inicial, Perfil (Cliente/Admin), Plano (`MENSAL`, `TRIMESTRAL`, `ANUAL`, `TRIAL`), Valor da Mensalidade (R$) e Data de Vencimento.
+      - **Controle de Adimplência (1-Click)**: Botão de toggle rápido "Bloquear Inadimplente" / "Ativar Acesso" para suspender ou reativar clientes sem pagamento.
+      - **Renovação Rápida & Cobrança WhatsApp**: Botão `+30 dias` para renovação expressa e link direto `Cobrar` que gera mensagem formatada no WhatsApp Web/App com data de vencimento.
+      - **Modal Interno de Edição de Assinatura & Reset de Senha**: Permite alterar o plano, mensalidade, data de vencimento e redefinir senhas.
+      - **Navegação Integrada**: Botão "Voltar ao Diário de Trade" na barra superior para alternar fluidamente entre o diário de operações e o painel admin.
 
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
 - Português do Brasil (PT-BR).
+
 
 
 

@@ -93,22 +93,32 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-800 bg-black/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 gap-2">
-        {/* Brand & Logo */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 shadow-lg shadow-emerald-900/30 shrink-0">
-            <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+      {/* Top Layer: Dedicated Brand Header */}
+      <div className="border-b border-slate-800/80 bg-black/90 py-1.5 px-3 sm:px-6">
+        <div className="mx-auto flex max-w-7xl items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-emerald-500 to-teal-700 shadow-sm shrink-0">
+              <TrendingUp className="h-3.5 w-3.5 text-white" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs sm:text-sm font-black tracking-tight text-white font-mono">
+                TradeLock
+              </span>
+              <span className="text-slate-600 font-bold select-none text-xs">-</span>
+              <span className="text-[10px] sm:text-xs font-bold text-emerald-400 tracking-wider uppercase">
+                Gestão &amp; Capital
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm sm:text-base font-black tracking-tight text-white font-mono leading-none">
-              TradeLock
-            </span>
-            <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold tracking-wider uppercase mt-0.5">
-              Gestão &amp; Capital
-            </span>
+          <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+            <span className="hidden sm:inline-block text-slate-500">Sistema de Gestão &amp; Trava de Risco</span>
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" title="Plataforma Conectada" />
           </div>
         </div>
+      </div>
 
+      {/* Main Layer: Result Cards & Action Buttons */}
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 gap-2">
         {/* Highlighted Today Result Badge (Mobile & Tablet) */}
         <div className="flex lg:hidden items-center shrink-0">
           <div
@@ -474,8 +484,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Current User Badge & Logout */}
-          {currentUser && (
-            <div className="flex items-center gap-1.5 border-l border-slate-800 pl-2 ml-1">
+          <div className="flex items-center gap-1.5 border-l border-slate-800 pl-2 ml-1">
+            {currentUser && (
               <div
                 title={`${currentUser.name} (${currentUser.email})`}
                 className="hidden xl:flex flex-col items-end text-[11px]"
@@ -491,19 +501,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {currentUser.role === 'ADMIN' ? '[ADMIN]' : '[CLIENTE]'}
                 </span>
               </div>
+            )}
 
-              {onLogout && (
-                <button
-                  id="btn-logout"
-                  onClick={onLogout}
-                  title="Sair da Conta"
-                  className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-rose-950/40 border border-rose-900/50 text-rose-300 hover:bg-rose-900/60 hover:text-white shadow-md transition active:scale-95 shrink-0"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          )}
+            {onLogout && (
+              <button
+                id="btn-logout"
+                onClick={onLogout}
+                title="Sair da Conta / Desconectar"
+                className="flex h-8 sm:h-9 items-center gap-1.5 px-2.5 rounded-xl bg-rose-950/50 border border-rose-800/60 text-rose-300 hover:bg-rose-900 hover:text-white shadow-md transition active:scale-95 shrink-0 text-xs font-bold"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Sair</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </header>

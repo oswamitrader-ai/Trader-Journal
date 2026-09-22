@@ -3,6 +3,9 @@ export type TradeType = 'BUY' | 'SELL';
 
 export type UserRole = 'ADMIN' | 'CLIENT';
 
+export type SubscriptionStatus = 'ACTIVE' | 'OVERDUE' | 'INACTIVE' | 'TRIAL';
+export type SubscriptionPlan = 'MENSAL' | 'TRIMESTRAL' | 'ANUAL' | 'TRIAL';
+
 export interface SystemUser {
   id: string;
   email: string;
@@ -12,6 +15,12 @@ export interface SystemUser {
   createdAt: string;
   lastLoginAt?: string;
   password?: string;
+  // Assinatura & Cobrança SaaS
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionPlan?: SubscriptionPlan;
+  subscriptionExpiresAt?: string; // YYYY-MM-DD
+  monthlyPrice?: number; // R$
+  whatsapp?: string; // Somente números com DDD
 }
 
 export interface Trade {

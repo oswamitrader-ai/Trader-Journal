@@ -366,9 +366,17 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
   }, [equityCurvePoints]);
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-black/80 p-5 shadow-xl">
-      {/* Header with Chart Selectors */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-4">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-black p-5 shadow-xl">
+      {/* Background Image: Charging Bull Watermark (opacidade baixa para não poluir os candles) */}
+      <div
+        className="absolute inset-0 pointer-events-none bg-center bg-cover bg-no-repeat opacity-[0.12] transition-opacity duration-300"
+        style={{ backgroundImage: 'url("/bull-bg.jpg")' }}
+      />
+
+      {/* Content wrapper above background layer */}
+      <div className="relative z-10 space-y-4">
+        {/* Header with Chart Selectors */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-4">
         <div>
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Activity className="h-5 w-5 text-emerald-400" />
@@ -1703,7 +1711,8 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
         )}
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 /* ============================================================

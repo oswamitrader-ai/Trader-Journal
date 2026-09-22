@@ -45,7 +45,7 @@ import { StakePlannerModal } from './components/StakePlannerModal';
 import { ImportTradesModal } from './components/ImportTradesModal';
 import { PDFReportModal } from './components/PDFReportModal';
 import { LoginScreen } from './components/LoginScreen';
-import { AdminUserManagementModal } from './components/AdminUserManagementModal';
+import { AdminUserManagementPage } from './components/AdminUserManagementPage';
 import { getCurrentSession, logoutUser } from './utils/auth';
 import { SystemUser } from './types';
 import {
@@ -70,7 +70,7 @@ type ActiveView = 'all' | 'charts' | 'calendar' | 'weekly' | 'trades';
 export default function App() {
   // 0. Auth State
   const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => getCurrentSession());
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS'>('JOURNAL');
 
   const handleLogout = () => {
     logoutUser();
@@ -809,6 +809,15 @@ export default function App() {
     return <LoginScreen onLoginSuccess={(user) => setCurrentUser(user)} />;
   }
 
+  if (currentView === 'ADMIN_CLIENTS' && currentUser) {
+    return (
+      <AdminUserManagementPage
+        currentUser={currentUser}
+        onBackToDashboard={() => setCurrentView('JOURNAL')}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-slate-100 selection:bg-emerald-500 selection:text-white pb-16">
       {/* Top Navigation */}
@@ -832,7 +841,7 @@ export default function App() {
         onOpenSupabase={() => setIsSupabaseModalOpen(true)}
         onOpenAntiFuria={() => setIsAntiFuriaModalOpen(true)}
         onOpenPdfReport={() => setIsPdfReportOpen(true)}
-        onOpenAdminManagement={() => setIsAdminModalOpen(true)}
+        onOpenAdminManagement={() => setCurrentView('ADMIN_CLIENTS')}
         onLogout={handleLogout}
         onClearNotifications={handleClearNotifications}
         onResetData={handleResetData}
@@ -1240,12 +1249,6 @@ export default function App() {
         settings={settings}
         dailyPerformance={dailyPerformance}
         monthlyPerformance={monthlyPerformance}
-      />
-
-      <AdminUserManagementModal
-        isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
-        currentUser={currentUser}
       />
     </div>
   );

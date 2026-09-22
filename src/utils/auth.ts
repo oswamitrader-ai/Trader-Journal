@@ -1,4 +1,4 @@
-import { SystemUser } from '../types';
+import { SystemUser, SubscriptionStatus } from '../types';
 import {
   fetchUsersFromSupabase,
   upsertUserToSupabase,
@@ -224,12 +224,16 @@ export async function authenticateUser(
   };
 }
 
-// Cadastrar novo cliente pelo Admin
+// Cadastrar novo cliente pelo Admin com dados de Assinatura SaaS
 export async function createNewUserByAdmin(newUser: {
   name: string;
   email: string;
   password?: string;
   role?: 'ADMIN' | 'CLIENT';
+  subscriptionPlan?: 'MENSAL' | 'TRIMESTRAL' | 'ANUAL' | 'TRIAL';
+  subscriptionExpiresAt?: string;
+  monthlyPrice?: number;
+  whatsapp?: string;
 }): Promise<{ success: boolean; user?: SystemUser; message?: string }> {
   const cleanEmail = newUser.email.trim().toLowerCase();
   const cleanName = newUser.name.trim();
@@ -245,6 +249,11 @@ export async function createNewUserByAdmin(newUser: {
     return { success: false, message: `O e-mail ${cleanEmail} já está cadastrado no sistema.` };
   }
 
+  // Define data padrão de vencimento se não informada (+30 dias)
+  const defaultExp = new Date();
+  defaultExp.setDate(defaultExp.getDate() + 30);
+  const expiresAtStr = newUser.subscriptionExpiresAt || defaultExp.toISOString().split('T')[0];
+
   const userObj: SystemUser = {
     id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     email: cleanEmail,
@@ -253,6 +262,11 @@ export async function createNewUserByAdmin(newUser: {
     active: true,
     createdAt: new Date().toISOString(),
     password: newUser.password?.trim() || 'cliente123',
+    subscriptionStatus: 'ACTIVE',
+    subscriptionPlan: newUser.subscriptionPlan || 'MENSAL',
+    subscriptionExpiresAt: expiresAtStr,
+    monthlyPrice: newUser.monthlyPrice ?? 97,
+    whatsapp: newUser.whatsapp?.replace(/\D/g, '') || '',
   };
 
   const updatedList = [userObj, ...allUsers];
@@ -266,12 +280,38 @@ export async function createNewUserByAdmin(newUser: {
   };
 }
 
-// Alternar status ativo/inativo do usuário
+// Atualizar parâmetros de assinatura do cliente pelo Admin
+export async function updateUserSubscriptionByAdmin(
+  userId: string,
+  updates: Partial<SystemUser>
+): Promise<SystemUser[]> {
+  const allUsers = getSavedUsers();
+  const updated = allUsers.map((u) => {
+    if (u.id === userId) {
+      return {
+        ...u,
+        ...updates,
+      };
+    }
+    return u;
+  });
+  saveUsersList(updated);
+  const target = updated.find((u) => u.id === userId);
+  if (target) await upsertUserToSupabase(target);
+  return updated;
+}
+
+// Alternar status ativo/inativo do usuário por inadimplência ou decisão administrativa
 export async function toggleUserStatus(userId: string): Promise<SystemUser[]> {
   const allUsers = getSavedUsers();
   const updated = allUsers.map((u) => {
     if (u.id === userId && u.email.toLowerCase() !== INITIAL_ADMIN_USER.email.toLowerCase()) {
-      return { ...u, active: !u.active };
+      const nextActive = !u.active;
+      return {
+        ...u,
+        active: nextActive,
+        subscriptionStatus: (nextActive ? 'ACTIVE' : 'INACTIVE') as SubscriptionStatus,
+      };
     }
     return u;
   });
