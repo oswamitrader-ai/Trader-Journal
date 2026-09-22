@@ -765,189 +765,290 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 })();
 `;
 
-  // 4. BLOCKED.HTML (The psychological intervention screen with rich trader stats)
+  // 4. BLOCKED.HTML (Tela de Bloqueio da Extensão - Design Oficial Touro vs Urso & Painel Dark)
   const blockedHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Acesso Bloqueado | Stop Loss Atingido</title>
+  <title>Acesso Bloqueado | TradeLock Anti-Fúria</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
     body {
-      background: #090d16;
-      color: #f1f5f9;
+      background: #000000;
+      color: #f8fafc;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: 20px;
     }
     .card {
-      max-width: 640px;
+      max-width: 900px;
       width: 100%;
-      background: #0f172a;
-      border: 2px solid #ef4444;
+      background: #000000;
+      border: 2px solid #e11d48;
       border-radius: 24px;
-      box-shadow: 0 25px 50px -12px rgba(239, 68, 68, 0.25);
+      box-shadow: 0 0 50px rgba(225, 29, 72, 0.35);
       overflow: hidden;
-      animation: fadeIn 0.4s ease-out;
     }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
     .header {
-      background: #dc2626;
-      color: white;
-      padding: 26px 24px;
+      background: #e11d48;
+      color: #ffffff;
+      padding: 24px 20px;
       text-align: center;
+      border-bottom: 1px solid #be123c;
     }
-    .icon-badge {
-      display: inline-flex;
+    .header-title-row {
+      display: flex;
       align-items: center;
       justify-content: center;
-      width: 60px;
-      height: 60px;
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 50%;
-      margin-bottom: 10px;
+      gap: 10px;
+      margin-bottom: 6px;
     }
-    .icon-badge svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 2.5; }
-    .header h1 { font-size: 21px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; }
-    .header p { font-size: 13px; opacity: 0.95; margin-top: 4px; font-weight: 500; }
-    .content { padding: 24px; }
+    .header-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(0,0,0,0.25);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 900;
+      font-family: monospace;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .header p {
+      font-size: 13px;
+      font-weight: 700;
+      opacity: 0.95;
+      max-width: 620px;
+      margin: 0 auto;
+      line-height: 1.4;
+    }
 
+    .content {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      background: #000000;
+    }
+
+    /* Duel Card */
+    .duel-card {
+      border: 1px solid #1e293b;
+      background: #000000;
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .duel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .duel-tag {
+      font-size: 10px;
+      font-weight: 900;
+      font-family: monospace;
+      color: #fbbf24;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .duel-title {
+      font-size: 14px;
+      font-weight: 900;
+      font-family: monospace;
+      color: #ffffff;
+    }
+    .duel-btn-row {
+      display: flex;
+      gap: 6px;
+      background: #000000;
+      border: 1px solid #1e293b;
+      padding: 4px;
+      border-radius: 12px;
+    }
+    .duel-btn {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      background: transparent;
+      color: #94a3b8;
+      border: none;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .duel-btn.active-bull { background: #059669; color: #ffffff; }
+    .duel-btn.active-bear { background: #e11d48; color: #ffffff; }
+    .duel-btn.active-full { background: #7c3aed; color: #ffffff; }
+
+    .duel-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 640px) {
+      .duel-grid { grid-template-columns: 1fr; }
+    }
+    .duel-view-box {
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      background: #000000;
+      padding: 16px;
+    }
+
+    /* 4-KPI Grid */
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 10px;
-      margin-bottom: 16px;
     }
     @media (max-width: 520px) {
       .metrics-grid { grid-template-columns: repeat(2, 1fr); }
     }
     .metric-card {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 10px 8px;
+      background: #000000;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      padding: 12px 10px;
       text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
     }
-    .metric-label { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; }
-    .metric-val { font-size: 15px; font-weight: 800; font-family: monospace; color: #f1f5f9; margin-top: 3px; }
+    .metric-label { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 800; font-family: monospace; letter-spacing: 0.5px; }
+    .metric-val { font-size: 18px; font-weight: 900; font-family: monospace; color: #f8fafc; margin-top: 4px; }
     .metric-val.green { color: #34d399; }
     .metric-val.cyan { color: #38bdf8; }
-    .metric-val.red { color: #f87171; }
 
-    .stats-box {
-      background: #1e293b;
-      border-radius: 16px;
-      padding: 14px 20px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 20px;
-      border: 1px solid #334155;
-    }
-    .stat-item { text-align: center; }
-    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; font-weight: 600; }
-    .stat-val { font-size: 20px; font-weight: 800; font-family: monospace; margin-top: 4px; color: #f87171; }
-
+    /* AI Mentor Quote Box */
     .quote-box {
-      background: rgba(220, 38, 38, 0.1);
-      border-left: 4px solid #ef4444;
+      background: #000000;
+      border: 1px solid rgba(225, 29, 72, 0.4);
       padding: 16px;
-      border-radius: 12px;
-      margin-bottom: 20px;
-      font-size: 13px;
+      border-radius: 16px;
+      font-size: 12px;
       line-height: 1.6;
       color: #cbd5e1;
     }
-    .quote-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #fca5a5; margin-bottom: 6px; }
+    .quote-title { font-size: 11px; font-weight: 900; font-family: monospace; text-transform: uppercase; letter-spacing: 1px; color: #fb7185; margin-bottom: 6px; }
 
+    /* Timer Card */
     .countdown-card {
-      background: #020617;
-      border: 1px dashed #475569;
+      background: #000000;
+      border: 1px solid #1e293b;
       border-radius: 16px;
       padding: 14px;
       text-align: center;
-      margin-bottom: 20px;
     }
-    .countdown-title { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; }
+    .countdown-title { font-size: 11px; font-weight: 800; font-family: monospace; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
     .countdown-digits { font-size: 28px; font-weight: 900; font-family: monospace; color: #38bdf8; margin-top: 4px; }
+
     .btn-row { display: flex; gap: 12px; }
     .btn {
       flex: 1;
       padding: 14px 20px;
-      border-radius: 12px;
-      font-size: 14px;
-      font-weight: 700;
+      border-radius: 14px;
+      font-size: 13px;
+      font-weight: 800;
+      font-family: monospace;
       cursor: pointer;
       text-align: center;
       text-decoration: none;
       transition: all 0.2s;
       border: none;
     }
-    .btn-primary { background: #334155; color: white; }
-    .btn-primary:hover { background: #475569; }
+    .btn-primary { background: #1e293b; color: white; border: 1px solid #334155; }
+    .btn-primary:hover { background: #334155; }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="header">
-      <div class="icon-badge">
-        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    <div class="header" id="headerBox">
+      <div class="header-title-row">
+        <div class="header-icon">🛡️</div>
+        <h1 id="headerTitle">ACESSO BLOQUEADO PELO PLANO DE TRADE</h1>
       </div>
-      <h1>Acesso Bloqueado pelo Plano de Trade</h1>
-      <p>Você atingiu o seu limite de Stop Loss diário na corretora</p>
+      <p id="headerSub">Você atingiu o seu Stop Loss diário de R$ 60,00. O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria.</p>
     </div>
 
     <div class="content">
+      <!-- Duelo Box -->
+      <div class="duel-card" id="duelSection">
+        <div class="duel-header">
+          <div>
+            <div class="duel-tag">CONFRONTO VISUAL PSICOLÓGICO</div>
+            <div class="duel-title">O Duelo: Touro da Disciplina vs. Urso do Dia de Fúria</div>
+          </div>
+          <div class="duel-btn-row">
+            <button class="duel-btn" id="btnBull">📈 Modo Lucro &amp; Disciplina</button>
+            <button class="duel-btn" id="btnBear">📉 Modo Fúria &amp; Quebra</button>
+            <button class="duel-btn active-full" id="btnFull">🛡️ Ver Confronto Completo</button>
+          </div>
+        </div>
+
+        <div id="duelContent">
+          <div class="duel-grid">
+            <div class="duel-view-box" style="border-color: rgba(5, 150, 105, 0.4);">
+              <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #34d399; text-transform: uppercase;">CONFRONTO DE TENDÊNCIA</div>
+              <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Touro vs. Urso em Execução</div>
+              <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O confronto entre a disciplina tática do Touro e o impulso irracional do Urso de recuperar o loss.</div>
+            </div>
+            <div class="duel-view-box" style="border-color: rgba(56, 189, 248, 0.4);">
+              <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #38bdf8; text-transform: uppercase;">BARREIRA FÍSICA INTRANSPONÍVEL</div>
+              <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Escudo TradeLock Interceptando</div>
+              <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O bloqueio rígido que ergue o escudo no navegador antes que o Urso devore seu saldo restante.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 4-Card Rich Metrics Grid -->
-      <div class="metrics-grid">
+      <div class="metrics-grid" id="metricsSection">
         <div class="metric-card">
-          <div class="metric-label">Assertividade</div>
+          <div class="metric-label">ASSERTIVIDADE</div>
           <div class="metric-val green" id="winRateVal">--%</div>
         </div>
         <div class="metric-card">
-          <div class="metric-label">Fator de Lucro</div>
+          <div class="metric-label">FATOR LUCRO</div>
           <div class="metric-val cyan" id="profitFactorVal">--</div>
         </div>
         <div class="metric-card">
-          <div class="metric-label">Trades Hoje</div>
+          <div class="metric-label">TRADES HOJE</div>
           <div class="metric-val" id="tradesCountVal">--</div>
         </div>
         <div class="metric-card">
-          <div class="metric-label">Saldo Atual</div>
+          <div class="metric-label">SALDO ATUAL</div>
           <div class="metric-val" id="capitalVal">R$ --</div>
         </div>
       </div>
 
-      <!-- Stop Loss Details Bar -->
-      <div class="stats-box">
-        <div class="stat-item">
-          <div class="stat-label">Limite de Stop</div>
-          <div class="stat-val" id="lossLimit">R$ 30,00</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">Resultado Hoje</div>
-          <div class="stat-val red" id="todayPnl">-R$ 30,00</div>
-        </div>
-      </div>
-
       <!-- Tactical AI Mentor Advice Card -->
-      <div class="quote-box">
-        <div class="quote-title">🧠 Diagnóstico do Mentor IA</div>
+      <div class="quote-box" id="quoteSection">
+        <div class="quote-title">✨ DIAGNÓSTICO DO MENTOR IA TRADELOCK</div>
         <div id="aiMentorAdvice">
           Carregando análise do seu histórico operacional...
         </div>
       </div>
 
-      <div class="countdown-card">
-        <div class="countdown-title">Acesso liberado novamente à meia-noite (00:00:00)</div>
+      <div class="countdown-card" id="timerSection">
+        <div class="countdown-title">ACESSO LIBERADO AUTOMATICAMENTE A MEIA-NOITE (00:00:00)</div>
         <div class="countdown-digits" id="timer">--h --m --s</div>
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-primary" id="btnDashboard">Voltar ao Diário de Trade</button>
+        <button class="btn btn-primary" id="btnDashboard">← Voltar ao Diário de Trade</button>
       </div>
     </div>
   </div>
@@ -957,9 +1058,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 </html>
 `;
 
-  // 4b. BLOCKED.JS (External script for Manifest V3 CSP compliance)
+  // 4b. BLOCKED.JS (Script com suporte dinâmico ao Duelo Touro vs Urso e Diagnóstico IA)
   const blockedJs = `(function() {
   let targetUnlockDate = null;
+  let currentDuelMode = 'FULL';
 
   function formatBRL(val) {
     const num = Number(val) || 0;
@@ -967,17 +1069,59 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return (num < 0 ? '-R$ ' : 'R$ ') + absStr;
   }
 
+  function updateDuelView() {
+    const content = document.getElementById('duelContent');
+    const btnBull = document.getElementById('btnBull');
+    const btnBear = document.getElementById('btnBear');
+    const btnFull = document.getElementById('btnFull');
+
+    if (!content || !btnBull || !btnBear || !btnFull) return;
+
+    btnBull.className = 'duel-btn' + (currentDuelMode === 'BULL' ? ' active-bull' : '');
+    btnBear.className = 'duel-btn' + (currentDuelMode === 'BEAR' ? ' active-bear' : '');
+    btnFull.className = 'duel-btn' + (currentDuelMode === 'FULL' ? ' active-full' : '');
+
+    if (currentDuelMode === 'BULL') {
+      content.innerHTML = \`
+        <div style="border: 1px solid rgba(5,150,105,0.6); background: #000000; border-radius: 14px; padding: 16px;">
+          <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #34d399; text-transform: uppercase;">LUZ ESMERALDA — TENDÊNCIA DE ALTA</div>
+          <div style="font-size: 14px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Visão do Touro: Lucro Preservado &amp; Frieza Operacional</div>
+          <div style="font-size: 12px; color: #cbd5e1; margin-top: 6px; line-height: 1.5;">Traders consistentes respeitam a parada diária. Ao aceitar o stop de hoje, você protege semanas de ganhos e permite que o Touro da Disciplina mantenha sua curva de capital saudável no longo prazo.</div>
+        </div>
+      \`;
+    } else if (currentDuelMode === 'BEAR') {
+      content.innerHTML = \`
+        <div style="border: 1px solid rgba(225,29,72,0.6); background: #000000; border-radius: 14px; padding: 16px;">
+          <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #f87171; text-transform: uppercase;">LUZ CARMESIM — QUEDA LIVRE DE CAPITAL</div>
+          <div style="font-size: 14px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Visão do Urso: Armadilhas do Revenge Trading</div>
+          <div style="font-size: 12px; color: #cbd5e1; margin-top: 6px; line-height: 1.5;">Sob o impacto emocional da fúria, o cérebro tenta recuperar o loss abrindo ordens impulsivas com lotes maiores. Sem a trava TradeLock, 94% dos traders zeram a banca inteira em menos de 40 minutos de revenge trading.</div>
+        </div>
+      \`;
+    } else {
+      content.innerHTML = \`
+        <div class="duel-grid">
+          <div class="duel-view-box" style="border-color: rgba(5, 150, 105, 0.4);">
+            <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #34d399; text-transform: uppercase;">CONFRONTO DE TENDÊNCIA</div>
+            <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Touro vs. Urso em Execução</div>
+            <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O confronto entre a disciplina tática do Touro e o impulso irracional do Urso de recuperar o loss.</div>
+          </div>
+          <div class="duel-view-box" style="border-color: rgba(56, 189, 248, 0.4);">
+            <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #38bdf8; text-transform: uppercase;">BARREIRA FÍSICA INTRANSPONÍVEL</div>
+            <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Escudo TradeLock Interceptando</div>
+            <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O bloqueio rígido que ergue o escudo no navegador antes que o Urso devore seu saldo restante.</div>
+          </div>
+        </div>
+      \`;
+    }
+  }
+
   function generateAiAdvice(winRate, profitFactor, tradesCount, todayPnl, lossLimit) {
     const limitFormatted = formatBRL(lossLimit);
 
     if (winRate > 0 && winRate >= 50) {
-      return 'Sua taxa de assertividade geral é de <strong>' + winRate.toFixed(1) + '%</strong> com Fator de Lucro de <strong>' + profitFactor.toFixed(2) + '</strong>. Seu histórico prova que sua técnica funciona! Não destrua semanas de lucro consistente por conta de um Stop Loss diário de <strong>' + limitFormatted + '</strong>. Aceitar a perda de hoje protege o seu capital para continuar vencendo no próximo ciclo.';
-    } else if (tradesCount >= 4) {
-      return 'Você já realizou <strong>' + tradesCount + ' operações</strong> hoje e atingiu o limite de Stop Loss. Continuar operando sob forte emoção (tilt/fúria) é o principal motivo de quebra de bancas. Feche a corretora agora, estude seu histórico no diário e volte revigorado na sua próxima janela!';
-    } else if (winRate > 0) {
-      return 'Sua assertividade atual é de <strong>' + winRate.toFixed(1) + '%</strong>. O mercado financeiro é uma maratona de longo prazo. Respeitar o seu limite de perda de <strong>' + limitFormatted + '</strong> é a única regra inegociável que garante a sua sobrevivência e longevidade no trading.';
+      return 'Sua taxa de assertividade acumulada é de <strong style="color:#34d399">' + winRate.toFixed(1) + '%</strong> com Fator de Lucro de <strong style="color:#38bdf8">' + profitFactor.toFixed(2) + '</strong>. Sua estratégia técnica funciona! Não jogue fora semanas de resultado por causa de um Stop Loss pontual de <strong style="color:#ffffff">' + limitFormatted + '</strong>. Aceitar a perda de hoje é o que separa um apostador de um profissional.';
     } else {
-      return 'O maior destruidor de bancas em Opções Binárias e Mercado Financeiro não é a taxa de acerto, é o dia de fúria após tomar o stop. Aceitar a perda de <strong>' + limitFormatted + '</strong> é a decisão que separa um apostador de um trader profissional.';
+      return 'O maior causador de quebra de bancas no mercado financeiro não é a perda individual, é a tentativa descontrolada de recuperar o prejuízo no mesmo dia. Aceitar o stop de <strong style="color:#ffffff">' + limitFormatted + '</strong> preserva seu saldo para vencer no próximo pregão.';
     }
   }
 
@@ -1059,46 +1203,48 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const isSubBlocked = Boolean(data.isSubBlocked) || params.get('type') === 'sub_blocked';
 
       if (isSubBlocked) {
-        const headerTitle = document.querySelector('.header h1');
-        const headerSub = document.querySelector('.header p');
-        const quoteTitle = document.querySelector('.quote-title');
+        const headerTitle = document.getElementById('headerTitle');
+        const headerSub = document.getElementById('headerSub');
+        const duelSection = document.getElementById('duelSection');
+        const quoteSection = document.getElementById('quoteSection');
+        const timerSection = document.getElementById('timerSection');
         const adviceEl = document.getElementById('aiMentorAdvice');
-        const countdownCard = document.querySelector('.countdown-card');
         const btnRow = document.querySelector('.btn-row');
 
-        if (headerTitle) headerTitle.innerText = '🔒 ASSINATURA PENDENTE / SUSPENSA';
-        if (headerSub) headerSub.innerText = 'Sua conta do TradeLock foi desativada pela administração';
-        if (quoteTitle) quoteTitle.innerText = '⚠️ BLOQUEIO DE ASSINATURA SAAS';
+        if (headerTitle) headerTitle.innerText = '🔒 ACESSO BLOQUEADO — ASSINATURA PENDENTE / SUSPENSA';
+        if (headerSub) headerSub.innerText = 'Sua conta do TradeLock foi desativada pela administração por falta de pagamento ou vencimento do plano.';
+        if (duelSection) duelSection.style.display = 'none';
+        if (timerSection) timerSection.style.display = 'none';
+        if (quoteSection) quoteSection.style.borderColor = 'rgba(225, 29, 72, 0.8)';
         if (adviceEl) {
-          adviceEl.innerHTML = 'Seu acesso às corretoras e ao diário de trade foi suspenso por pendência no plano de assinatura.<br/><br/><strong>Para reativar seu acesso:</strong> entre em contato com a administração para realizar o pagamento.';
+          adviceEl.innerHTML = 'Seu acesso às corretoras e ao diário de trade foi suspenso pela administração.<br/><br/><strong>Para reativar seu acesso instantaneamente:</strong> entre em contato com o suporte do TradeLock.';
         }
-        if (countdownCard) countdownCard.style.display = 'none';
         if (btnRow) {
           btnRow.innerHTML = '<a href="https://wa.me/5511999999999?text=Ol%C3%A1!%20Gostaria%20de%20regularizar%20minha%20assinatura%20do%20TradeLock%20para%20liberar%20meu%20acesso." target="_blank" class="btn btn-primary" style="background:#059669;color:#fff;text-decoration:none;display:block;text-align:center;">💬 Regularizar Assinatura no WhatsApp</a>';
         }
         return;
       }
-      const limitEl = document.getElementById('lossLimit');
-      const pnlEl = document.getElementById('todayPnl');
-      const titleEl = document.querySelector('.countdown-title');
-      const winRateEl = document.getElementById('winRateVal');
-      const pfEl = document.getElementById('profitFactorVal');
-      const tradesEl = document.getElementById('tradesCountVal');
-      const capitalEl = document.getElementById('capitalVal');
-      const adviceEl = document.getElementById('aiMentorAdvice');
 
-      const limit = Number(data.dailyLossLimit) || ${dailyLossLimit};
+      const limit = Number(data.dailyLossLimit) || 60;
       const pnl = Number(data.todayPnl);
       const winRate = Number(data.winRate) || 0;
       const profitFactor = Number(data.profitFactor) || 0;
       const tradesCount = Number(data.todayTradesCount) || 0;
       const capital = Number(data.currentCapital) || 0;
 
-      if (limitEl) limitEl.innerText = formatBRL(limit);
-      if (pnlEl) pnlEl.innerText = formatBRL(isNaN(pnl) || pnl === 0 ? -limit : pnl);
-      if (winRateEl) winRateEl.innerText = winRate > 0 ? winRate.toFixed(1) + '%' : 'N/A';
-      if (pfEl) pfEl.innerText = profitFactor > 0 ? profitFactor.toFixed(2) : 'N/A';
-      if (tradesEl) tradesEl.innerText = tradesCount > 0 ? tradesCount + ' trades' : '1 trade';
+      const headerSub = document.getElementById('headerSub');
+      const winRateEl = document.getElementById('winRateVal');
+      const pfEl = document.getElementById('profitFactorVal');
+      const tradesEl = document.getElementById('tradesCountVal');
+      const capitalEl = document.getElementById('capitalVal');
+      const adviceEl = document.getElementById('aiMentorAdvice');
+
+      if (headerSub) {
+        headerSub.innerText = 'Você atingiu o seu Stop Loss diário de ' + formatBRL(limit) + '. O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria.';
+      }
+      if (winRateEl) winRateEl.innerText = winRate > 0 ? winRate.toFixed(1) + '%' : '--%';
+      if (pfEl) pfEl.innerText = profitFactor > 0 ? profitFactor.toFixed(2) : '--';
+      if (tradesEl) tradesEl.innerText = tradesCount > 0 ? tradesCount + ' trade' + (tradesCount > 1 ? 's' : '') : '1 trade';
       if (capitalEl) capitalEl.innerText = capital > 0 ? formatBRL(capital) : 'R$ --';
 
       if (adviceEl) {
@@ -1107,15 +1253,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       targetUnlockDate = calculateTargetUnlockDate(data);
 
-      if (titleEl) {
-        if (data && data.antiFuriaCustomWindowEnabled && data.antiFuriaStartTime) {
-          titleEl.innerText = 'Acesso liberado novamente no próximo ciclo às ' + data.antiFuriaStartTime + 'h';
-        } else {
-          titleEl.innerText = 'Acesso liberado novamente à meia-noite (00:00:00)';
-        }
-      }
-
-      if (data.isStopHit === false) {
+      if (data.isStopHit === false && !isSubBlocked) {
         redirectBack();
       }
     });
@@ -1126,6 +1264,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
     });
   }
+
+  // Setup Duel Mode listeners
+  const btnBull = document.getElementById('btnBull');
+  const btnBear = document.getElementById('btnBear');
+  const btnFull = document.getElementById('btnFull');
+
+  if (btnBull) btnBull.addEventListener('click', () => { currentDuelMode = 'BULL'; updateDuelView(); });
+  if (btnBear) btnBear.addEventListener('click', () => { currentDuelMode = 'BEAR'; updateDuelView(); });
+  if (btnFull) btnFull.addEventListener('click', () => { currentDuelMode = 'FULL'; updateDuelView(); });
 
   // Start countdown timer immediately
   updateCountdown();

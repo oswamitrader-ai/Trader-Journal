@@ -165,12 +165,14 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Visualização Exclusiva de Clientes**: As abas **"Tela de Bloqueio & Duelo Touro vs. Urso"** e **"Corretoras Bloqueadas"** foram completamente removidas da visualização de clientes (`role === 'CLIENT'`).
 32. **Reformulação do Modal da Extensão (`popup.html`, `popup.js`) & Imutabilidade de Corretoras**:
     - **Alinhamento Estético com a Plataforma**: O popup da barra de ferramentas da extensão foi refatorado com o tema escuro do painel (`bg-black`, bordas `border-slate-800`, tipografia `font-mono` Arial Black, badges `LIBERADO 🟢` e `BLOQUEADO 🔒`).
-    - **Proteção Anti-Burla Somente Leitura**: Removido o campo de formulário para adicionar domínios e os botões `×` de remoção. A lista de corretoras bloqueadas é exibida como **somente leitura (PROTEGIDO 🔒)** com aviso explícito de gerenciamento exclusivo pela Administração.
+33. **Alinhamento Completo da Tela de Intervenção nas Corretoras (`blocked.html`, `blocked.js`)**:
+    - **Integração do Design Oficial Touro vs. Urso**: Quando a extensão bloqueia o acesso em qualquer corretora (Exnova, Quotex, IQ Option, etc.), a página gerada `blocked.html` agora exibe exatamente o mesmo design oficial do painel (`bg-black`, borda dupla carmesim `border-2 border-rose-600` com brilho neon, o container de Duelo Psicológico com alternância interativa de modos `Touro vs Urso`, os 4 cards de KPIs de risco, a caixa de Diagnóstico do Mentor IA e a contagem regressiva em azul ciano até 00:00:00).
 
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
 - Português do Brasil (PT-BR).
+
 
 
 
