@@ -1150,50 +1150,177 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 })();
 `;
 
-  // 5. POPUP.HTML & POPUP.JS (Toolbar interface)
+  // 5. POPUP.HTML & POPUP.JS (Interface da Barra de Ferramentas - Design Painel Dark & Somente Leitura)
   const popupHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Anti-Fúria Trader</title>
+  <title>TradeLock Anti-Fúria</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    body { width: 320px; background: #0f172a; color: #f8fafc; padding: 16px; }
-    .header { display: flex; align-items: center; justify-content: space-between; border-b: 1px solid #1e293b; padding-bottom: 12px; margin-bottom: 14px; }
-    .logo { font-size: 13px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px; }
-    .status-badge { font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 9999px; text-transform: uppercase; }
-    .status-active { background: #dc2626; color: white; }
-    .status-inactive { background: #059669; color: white; }
-    .status-card { background: #1e293b; border-radius: 12px; padding: 12px; margin-bottom: 14px; }
-    .domains-title { font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 700; margin-bottom: 6px; }
-    .domain-list { max-height: 120px; overflow-y: auto; font-size: 12px; }
-    .domain-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #334155; }
-    .add-row { display: flex; gap: 6px; margin-top: 8px; }
-    .input { flex: 1; background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 6px 8px; color: white; font-size: 11px; }
-    .btn-add { background: #2563eb; color: white; border: none; border-radius: 6px; padding: 6px 10px; font-size: 11px; font-weight: 700; cursor: pointer; }
-    .btn-test { width: 100%; background: #dc2626; color: white; border: none; border-radius: 8px; padding: 10px; font-size: 12px; font-weight: 700; cursor: pointer; margin-top: 8px; }
-    .btn-unlock { width: 100%; background: #334155; color: #94a3b8; border: none; border-radius: 8px; padding: 6px; font-size: 11px; cursor: pointer; margin-top: 6px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body {
+      width: 320px;
+      background: #000000;
+      color: #f8fafc;
+      padding: 16px;
+      border: 1px solid #1e293b;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .logo {
+      font-size: 13px;
+      font-weight: 900;
+      font-family: monospace;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: -0.3px;
+    }
+    .status-badge {
+      font-size: 10px;
+      font-weight: 900;
+      font-family: monospace;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-active { background: #e11d48; color: #ffffff; box-shadow: 0 0 12px rgba(225,29,72,0.4); }
+    .status-inactive { background: #059669; color: #ffffff; }
+
+    .status-card {
+      background: #000000;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .card-label {
+      font-size: 10px;
+      font-weight: 800;
+      font-family: monospace;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .card-val {
+      font-size: 12px;
+      font-weight: 800;
+      font-family: monospace;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    .domains-title {
+      font-size: 10px;
+      font-weight: 800;
+      font-family: monospace;
+      text-transform: uppercase;
+      color: #94a3b8;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .domain-list {
+      max-height: 140px;
+      overflow-y: auto;
+      background: #000000;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 4px 8px;
+      margin-bottom: 10px;
+    }
+    .domain-list::-webkit-scrollbar { width: 4px; }
+    .domain-list::-webkit-scrollbar-track { background: #000000; }
+    .domain-list::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+    .domain-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 6px;
+      border-bottom: 1px solid #0f172a;
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .domain-item:last-child { border-bottom: none; }
+
+    .admin-lock-note {
+      font-size: 10px;
+      font-family: monospace;
+      color: #64748b;
+      text-align: center;
+      padding: 8px;
+      background: #000000;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-test {
+      width: 100%;
+      background: #e11d48;
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      padding: 10px;
+      font-size: 11px;
+      font-weight: 900;
+      font-family: monospace;
+      cursor: pointer;
+      margin-bottom: 6px;
+      transition: background 0.2s;
+      box-shadow: 0 4px 14px rgba(225,29,72,0.3);
+    }
+    .btn-test:hover { background: #f43f5e; }
+
+    .btn-unlock {
+      width: 100%;
+      background: #1e293b;
+      color: #94a3b8;
+      border: none;
+      border-radius: 12px;
+      padding: 8px;
+      font-size: 10px;
+      font-weight: 800;
+      font-family: monospace;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-unlock:hover { background: #334155; color: #ffffff; }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="logo">🛡️ Anti-Fúria Trader</div>
-    <div id="statusBadge" class="status-badge status-inactive">Liberado</div>
+    <div class="logo">🛡️ TradeLock Anti-Fúria</div>
+    <div id="statusBadge" class="status-badge status-inactive">Liberado 🟢</div>
   </div>
 
   <div class="status-card">
-    <div style="font-size: 11px; color: #94a3b8; font-weight: 600;">Status da Trava de Stop:</div>
-    <div id="statusMsg" style="font-size: 13px; font-weight: 700; margin-top: 4px; color: #34d399;">
-      Operações liberadas normalmente
+    <div class="card-label">Status da Trava de Risk:</div>
+    <div id="statusMsg" class="card-val" style="color: #34d399;">
+      Operações liberadas normalmente sob custódia.
     </div>
   </div>
 
   <div class="domains-title">Corretoras Bloqueadas no Stop:</div>
   <div class="domain-list" id="domainList"></div>
 
-  <div class="add-row">
-    <input type="text" id="newDomain" class="input" placeholder="ex: minhacorretora.com" />
-    <button id="btnAdd" class="btn-add">Adicionar</button>
+  <div class="admin-lock-note">
+    <span>🔒 Lista gerenciada exclusivamente pela Administração</span>
   </div>
 
   <button id="btnTest" class="btn-test">Simular Stop Loss (Testar)</button>
@@ -1205,20 +1332,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 `;
 
   const popupJs = `function render() {
-  chrome.storage.local.get(['isStopHit', 'blockedDomains'], (data) => {
+  chrome.storage.local.get(['isStopHit', 'isSubBlocked', 'blockedDomains'], (data) => {
     const badge = document.getElementById('statusBadge');
     const msg = document.getElementById('statusMsg');
     const list = document.getElementById('domainList');
 
-    if (data.isStopHit) {
+    if (data.isSubBlocked) {
       badge.className = 'status-badge status-active';
-      badge.innerText = 'BLOQUEADO';
+      badge.innerText = 'SUSPENSO 🔒';
+      msg.innerText = 'Assinatura suspensa! Acesso a corretoras bloqueado.';
+      msg.style.color = '#f87171';
+    } else if (data.isStopHit) {
+      badge.className = 'status-badge status-active';
+      badge.innerText = 'BLOQUEADO 🔒';
       msg.innerText = 'Stop Loss atingido! Acesso a corretoras bloqueado.';
       msg.style.color = '#f87171';
     } else {
       badge.className = 'status-badge status-inactive';
-      badge.innerText = 'LIBERADO';
-      msg.innerText = 'Operações liberadas normalmente.';
+      badge.innerText = 'LIBERADO 🟢';
+      msg.innerText = 'Operações liberadas normalmente sob custódia.';
       msg.style.color = '#34d399';
     }
 
@@ -1227,28 +1359,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     doms.forEach(d => {
       const item = document.createElement('div');
       item.className = 'domain-item';
-      item.innerHTML = '<span>' + d + '</span><span style="color:#ef4444;cursor:pointer;font-weight:bold" data-domain="' + d + '">×</span>';
+      item.innerHTML = '<span>🌐 ' + d + '</span><span style="color:#64748b;font-size:10px">PROTEGIDO 🔒</span>';
       list.appendChild(item);
-    });
-
-    list.querySelectorAll('[data-domain]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const domToRemove = e.target.getAttribute('data-domain');
-        chrome.runtime.sendMessage({ type: 'REMOVE_DOMAIN', domain: domToRemove }, () => render());
-      });
     });
   });
 }
-
-document.getElementById('btnAdd').addEventListener('click', () => {
-  const input = document.getElementById('newDomain');
-  if (input.value.trim()) {
-    chrome.runtime.sendMessage({ type: 'ADD_DOMAIN', domain: input.value.trim() }, () => {
-      input.value = '';
-      render();
-    });
-  }
-});
 
 document.getElementById('btnTest').addEventListener('click', () => {
   chrome.runtime.sendMessage({ type: 'TEST_BLOCK_TRIGGER' }, () => render());

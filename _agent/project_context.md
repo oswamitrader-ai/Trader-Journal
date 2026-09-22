@@ -163,12 +163,15 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Bloqueio Unificado da Plataforma & Extensão Chrome por Inadimplência**: Quando um cliente está com status inativo, suspenso ou inadimplente (`active === false` ou `subscriptionStatus === 'OVERDUE' | 'INACTIVE'`), o sistema intercepta o acesso tanto no painel web quanto na extensão Chrome.
 31. **Exclusividade das Abas "Tela de Bloqueio" e "Corretoras Bloqueadas" para Administrador (`AntiFuriaExtensionPage.tsx`)**:
     - **Visualização Exclusiva de Clientes**: As abas **"Tela de Bloqueio & Duelo Touro vs. Urso"** e **"Corretoras Bloqueadas"** foram completamente removidas da visualização de clientes (`role === 'CLIENT'`).
-    - **Aba de Instalação Padrão**: Clientes navegam diretamente na aba **"Instalação no Chrome & Passo a Passo"**, que permanece sendo o único recurso disponível para download e configuração da extensão. Administradores continuam com acesso total às 3 abas.
+32. **Reformulação do Modal da Extensão (`popup.html`, `popup.js`) & Imutabilidade de Corretoras**:
+    - **Alinhamento Estético com a Plataforma**: O popup da barra de ferramentas da extensão foi refatorado com o tema escuro do painel (`bg-black`, bordas `border-slate-800`, tipografia `font-mono` Arial Black, badges `LIBERADO 🟢` e `BLOQUEADO 🔒`).
+    - **Proteção Anti-Burla Somente Leitura**: Removido o campo de formulário para adicionar domínios e os botões `×` de remoção. A lista de corretoras bloqueadas é exibida como **somente leitura (PROTEGIDO 🔒)** com aviso explícito de gerenciamento exclusivo pela Administração.
 
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
 - Português do Brasil (PT-BR).
+
 
 
 
