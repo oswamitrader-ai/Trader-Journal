@@ -167,6 +167,11 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Alinhamento Estético com a Plataforma**: O popup da barra de ferramentas da extensão foi refatorado com o tema escuro do painel (`bg-black`, bordas `border-slate-800`, tipografia `font-mono` Arial Black, badges `LIBERADO 🟢` e `BLOQUEADO 🔒`).
 33. **Alinhamento Completo da Tela de Intervenção nas Corretoras (`blocked.html`, `blocked.js`)**:
     - **Integração do Design Oficial Touro vs. Urso**: Quando a extensão bloqueia o acesso em qualquer corretora (Exnova, Quotex, IQ Option, etc.), a página gerada `blocked.html` agora exibe exatamente o mesmo design oficial do painel (`bg-black`, borda dupla carmesim `border-2 border-rose-600` com brilho neon, o container de Duelo Psicológico com alternância interativa de modos `Touro vs Urso`, os 4 cards de KPIs de risco, a caixa de Diagnóstico do Mentor IA e a contagem regressiva em azul ciano até 00:00:00).
+34. **Solução 1: Blindagem de Aplicativos Windows Desktop (.msi / .exe) (`windowsLockerGenerator.ts`)**:
+    - **Inviolabilidade da Trava em Apps Desktop**: Criado gerador de script nativo Windows `tradelock-blindagem-windows.bat` em `src/utils/windowsLockerGenerator.ts`.
+    - **Modificação do Arquivo Hosts do Windows**: Mapeia todos os domínios de corretoras e subdomínios de WebSocket/API para `127.0.0.1` em `C:\Windows\System32\drivers\etc\hosts`, executa `ipconfig /flushdns` e mata imediatamente os processos executáveis das corretoras (`exnova.exe`, `iqoption.exe`, `quotex.exe`, etc.) com `taskkill`.
+    - **Disponibilização de Download no Painel**: Card interativo com 1-click download integrado na guia de instalação da `AntiFuriaExtensionPage.tsx` para os traders blindarem seus computadores contra uso de softwares instalados fora do navegador Chrome.
+
 
 ## Regras Importantes
 - Ambiente: Windows.

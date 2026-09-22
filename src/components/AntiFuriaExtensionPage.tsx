@@ -27,6 +27,7 @@ import {
   generateExtensionZip,
   DEFAULT_BLOCKED_DOMAINS,
 } from '../utils/extensionGenerator';
+import { downloadWindowsLockerBat } from '../utils/windowsLockerGenerator';
 
 interface AntiFuriaExtensionPageProps {
   onBackToDashboard: () => void;
@@ -691,6 +692,49 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
                 <p className="text-slate-400 text-xs leading-relaxed">
                   Clique em <strong>&quot;Carregar sem compactação&quot;</strong> no topo e escolha a pasta extraída. A extensão será ativada instantaneamente!
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Seção Adicional: Blindagem para Aplicativo Desktop Windows (.MSI / .EXE) */}
+          <div className="rounded-2xl border border-slate-800 bg-black p-6 space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-emerald-400" />
+                  <h4 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
+                    Blindagem para Aplicativos Desktop Windows (.MSI / .EXE)
+                  </h4>
+                  <span className="rounded-full bg-emerald-600/30 border border-emerald-500/40 px-2.5 py-0.5 text-[9px] font-extrabold text-emerald-300 uppercase font-mono">
+                    BLINDAGEM NATIVA
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-1 leading-relaxed max-w-xl">
+                  Opera utilizando o software instalado no Windows (ex: Exnova.msi, IQ Option.exe)? Baixe o script de blindagem do Windows para bloquear o acesso nos aplicativos desktop.
+                </p>
+              </div>
+
+              <button
+                onClick={() => downloadWindowsLockerBat(domains)}
+                className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs transition shadow-lg shadow-emerald-950/50 shrink-0"
+              >
+                <Download className="h-4 w-4" />
+                <span>Baixar Blindagem Windows (.BAT)</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="rounded-xl border border-slate-800 bg-black p-3 space-y-1">
+                <span className="font-mono text-emerald-400 font-bold">1. Bloqueio no Arquivo Hosts</span>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Redireciona a resolução DNS dos servidores no Windows para 127.0.0.1, impedindo conexões do app desktop.</p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-black p-3 space-y-1">
+                <span className="font-mono text-emerald-400 font-bold">2. Encerramento de Processos</span>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Encerra automaticamente os executáveis (.exe) ativos da Exnova, IQ Option e Quotex no Windows.</p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-black p-3 space-y-1">
+                <span className="font-mono text-emerald-400 font-bold">3. Execução em 1-Clique</span>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Basta clicar com o botão direito no arquivo baixado e escolher &quot;Executar como Administrador&quot;.</p>
               </div>
             </div>
           </div>
