@@ -165,10 +165,11 @@ function isUrlBlocked(url, domains) {
   }
 }
 
-// Redirect or block tab if stop is active
-function enforceTabBlock(tabId, url, domains) {
+// Redirect or block tab if stop or subscription block is active
+function enforceTabBlock(tabId, url, domains, isSubBlocked) {
   if (isUrlBlocked(url, domains)) {
-    const blockedUrl = chrome.runtime.getURL('blocked.html?orig=' + encodeURIComponent(url));
+    const param = isSubBlocked ? '?type=sub_blocked&orig=' : '?orig=';
+    const blockedUrl = chrome.runtime.getURL('blocked.html' + param + encodeURIComponent(url));
     chrome.tabs.update(tabId, { url: blockedUrl });
     console.warn('[Anti-Fúria] Bloqueio acionado na aba:', url);
   }
@@ -221,9 +222,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // Intercept navigations via webNavigation
 chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   if (details.frameId !== 0) return; // Only top level navigation
-  chrome.storage.local.get(['isStopHit', 'blockedDomains'], (data) => {
-    if (data.isStopHit && Array.isArray(data.blockedDomains)) {
-      enforceTabBlock(details.tabId, details.url, data.blockedDomains);
+  chrome.storage.local.get(['isStopHit', 'isSubBlocked', 'blockedDomains'], (data) => {
+    if ((data.isStopHit || data.isSubBlocked) && Array.isArray(data.blockedDomains)) {
+      enforceTabBlock(details.tabId, details.url, data.blockedDomains, data.isSubBlocked);
     }
   });
 });
@@ -277,18 +278,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === 'UPDATE_STOP_STATUS') {
     chrome.storage.local.get(['testMode'], (st) => {
-      if (st && st.testMode && !msg.isStopHit) {
+      if (st && st.testMode && !msg.isStopHit && !msg.isSubBlocked) {
         sendResponse({ success: true, testMode: true });
         return;
       }
 
-      const isHit = Boolean(msg.isStopHit);
+      const isSubBlocked = Boolean(msg.isSubBlocked);
+      const isHit = Boolean(msg.isStopHit) || isSubBlocked;
       const pnl = Number(msg.todayPnl) || 0;
       const limit = Number(msg.dailyLossLimit) || ${dailyLossLimit};
       const today = new Date().toISOString().split('T')[0];
 
       chrome.storage.local.set({
         isStopHit: isHit,
+        isSubBlocked: isSubBlocked,
         todayPnl: pnl,
         dailyLossLimit: limit,
         lastDate: today,
@@ -303,8 +306,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             chrome.tabs.query({}, (tabs) => {
               tabs.forEach((tab) => {
                 if (tab.id && tab.url && isUrlBlocked(tab.url, doms)) {
-                  const blockedUrl = chrome.runtime.getURL('blocked.html?orig=' + encodeURIComponent(tab.url));
-                  chrome.tabs.update(tab.id, { url: blockedUrl });
+                  enforceTabBlock(tab.id, tab.url, doms, isSubBlocked);
                 }
               });
             });
@@ -312,7 +314,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         } else {
           unblockAllTabs();
         }
-        sendResponse({ success: true, isStopHit: isHit });
+        sendResponse({ success: true, isStopHit: isHit, isSubBlocked: isSubBlocked });
       });
     });
     return true;
@@ -686,6 +688,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const bridgeEl = document.getElementById('anti-furia-status-bridge');
     if (bridgeEl) {
       const isStopHit = bridgeEl.getAttribute('data-stophit') === 'true';
+      const userActive = bridgeEl.getAttribute('data-user-active') !== 'false';
+      const subStatus = bridgeEl.getAttribute('data-sub-status') || 'ACTIVE';
+      const userRole = bridgeEl.getAttribute('data-user-role') || 'CLIENT';
       const todayPnl = parseFloat(bridgeEl.getAttribute('data-today-pnl') || '0');
       const dailyLossLimit = parseFloat(bridgeEl.getAttribute('data-loss-limit') || '30');
       const winRate = parseFloat(bridgeEl.getAttribute('data-winrate') || '0');
@@ -693,9 +698,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const todayTradesCount = parseInt(bridgeEl.getAttribute('data-trades-count') || '0', 10);
       const currentCapital = parseFloat(bridgeEl.getAttribute('data-capital') || '0');
 
+      const isSubBlocked = (userRole === 'CLIENT' && (!userActive || subStatus === 'OVERDUE' || subStatus === 'INACTIVE'));
+
       chrome.runtime.sendMessage({
         type: 'UPDATE_STOP_STATUS',
-        isStopHit: isStopHit,
+        isStopHit: isStopHit || isSubBlocked,
+        isSubBlocked: isSubBlocked,
+        userActive: userActive,
+        subStatus: subStatus,
+        userRole: userRole,
         todayPnl: todayPnl,
         dailyLossLimit: dailyLossLimit,
         winRate: winRate,
@@ -1043,7 +1054,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Load state from extension storage & listen to live unlock changes
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['dailyLossLimit', 'todayPnl', 'isStopHit', 'antiFuriaCustomWindowEnabled', 'antiFuriaStartTime', 'winRate', 'profitFactor', 'todayTradesCount', 'currentCapital'], (data) => {
+    chrome.storage.local.get(['dailyLossLimit', 'todayPnl', 'isStopHit', 'isSubBlocked', 'antiFuriaCustomWindowEnabled', 'antiFuriaStartTime', 'winRate', 'profitFactor', 'todayTradesCount', 'currentCapital'], (data) => {
+      const params = new URLSearchParams(window.location.search);
+      const isSubBlocked = Boolean(data.isSubBlocked) || params.get('type') === 'sub_blocked';
+
+      if (isSubBlocked) {
+        const headerTitle = document.querySelector('.header h1');
+        const headerSub = document.querySelector('.header p');
+        const quoteTitle = document.querySelector('.quote-title');
+        const adviceEl = document.getElementById('aiMentorAdvice');
+        const countdownCard = document.querySelector('.countdown-card');
+        const btnRow = document.querySelector('.btn-row');
+
+        if (headerTitle) headerTitle.innerText = '🔒 ASSINATURA PENDENTE / SUSPENSA';
+        if (headerSub) headerSub.innerText = 'Sua conta do TradeLock foi desativada pela administração';
+        if (quoteTitle) quoteTitle.innerText = '⚠️ BLOQUEIO DE ASSINATURA SAAS';
+        if (adviceEl) {
+          adviceEl.innerHTML = 'Seu acesso às corretoras e ao diário de trade foi suspenso por pendência no plano de assinatura.<br/><br/><strong>Para reativar seu acesso:</strong> entre em contato com a administração para realizar o pagamento.';
+        }
+        if (countdownCard) countdownCard.style.display = 'none';
+        if (btnRow) {
+          btnRow.innerHTML = '<a href="https://wa.me/5511999999999?text=Ol%C3%A1!%20Gostaria%20de%20regularizar%20minha%20assinatura%20do%20TradeLock%20para%20liberar%20meu%20acesso." target="_blank" class="btn btn-primary" style="background:#059669;color:#fff;text-decoration:none;display:block;text-align:center;">💬 Regularizar Assinatura no WhatsApp</a>';
+        }
+        return;
+      }
       const limitEl = document.getElementById('lossLimit');
       const pnlEl = document.getElementById('todayPnl');
       const titleEl = document.querySelector('.countdown-title');

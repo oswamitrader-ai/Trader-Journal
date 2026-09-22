@@ -147,12 +147,31 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - **3 Abas Principais**:
         1. **Instalação no Navegador & Guia**: Botão de Download do pacote ZIP pré-configurado e passo a passo visual em 4 passos.
         2. **Corretoras Bloqueadas**: Lista interativa para adicionar e remover domínios personalizados (Exnova, Quotex, IQ Option, etc.).
-        3. **Prévia Interativa da Intervenção**: Interface idêntica à que é exibida no navegador com o diagnóstico do Mentor IA e botão para simulação do sinal de stop.
+28. **Reformulação Visual Completa da Tela de Bloqueio & Duelo Touro vs. Urso (`AntiFuriaExtensionPage.tsx`)**:
+    - **Remoção de Glassmorphism & Alinhamento com o Painel**: Adotada a mesma estética visual do painel (`bg-black`, bordas sólidas `border-slate-800`, tipografia negrita Arial Black/Mono).
+    - **Incorporação das Imagens Oficiais**:
+      - `/bull-vs-bear.jpg`: Ilustração do duelo épico entre o Touro da Disciplina e o Urso da Fúria.
+      - `/tradelock-shield.jpg`: Escudo com cadeado de ouro/esmeralda atuando como a barreira física inviolável.
+    - **Controles Interativos do Duelo Psicológico**:
+      - **Modo Lucro & Disciplina (Touro)**: Luz esmeralda, foco em curva ascendente, execução fria e proteção de lucro.
+      - **Modo Fúria & Quebra (Urso)**: Luz carmesim, alertas de revenge trading e demonstração do risco de destruição de banca.
+      - **Ver Confronto Completo**: Exibição visual das imagens épicas do Touro vs Urso e do Escudo TradeLock interceptando as corretoras.
+29. **Alinhamento 100% Fiel do Modo de Bloqueio em Tela Cheia ao Design Oficial (`AntiFuriaExtensionPage.tsx`)**:
+    - **Ajuste do Layout e Borda Neon Carmesim**: Card principal com borda dupla carmesim `border-2 border-rose-600` e brilho neon `shadow-[0_0_50px_rgba(225,29,72,0.35)]`, com cabeçalho vermelho de aviso `ACESSO BLOQUEADO PELO PLANO DE TRADE`.
+30. **Bloqueio por Inadimplência/Assinatura & Ocultação de Recursos para Clientes (`App.tsx`, `extensionGenerator.ts`)**:
+    - **Remoção do Botão "Ver Bloqueio em Tela Cheia" para Clientes**: O botão fica visível exclusivamente para a role `ADMIN` em `AntiFuriaExtensionPage.tsx`.
+    - **Bloqueio Unificado da Plataforma & Extensão Chrome por Inadimplência**: Quando um cliente está com status inativo, suspenso ou inadimplente (`active === false` ou `subscriptionStatus === 'OVERDUE' | 'INACTIVE'`), o sistema intercepta o acesso tanto no painel web quanto na extensão Chrome.
+31. **Exclusividade das Abas "Tela de Bloqueio" e "Corretoras Bloqueadas" para Administrador (`AntiFuriaExtensionPage.tsx`)**:
+    - **Visualização Exclusiva de Clientes**: As abas **"Tela de Bloqueio & Duelo Touro vs. Urso"** e **"Corretoras Bloqueadas"** foram completamente removidas da visualização de clientes (`role === 'CLIENT'`).
+    - **Aba de Instalação Padrão**: Clientes navegam diretamente na aba **"Instalação no Chrome & Passo a Passo"**, que permanece sendo o único recurso disponível para download e configuração da extensão. Administradores continuam com acesso total às 3 abas.
 
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
 - Português do Brasil (PT-BR).
+
+
+
 
 
 

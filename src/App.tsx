@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Activity,
   Award,
+  Lock,
 } from 'lucide-react';
 import { Trade, RiskSettings, DayPerformance, NotificationAlert, CapitalTransaction } from './types';
 import { INITIAL_TRADES, DEFAULT_RISK_SETTINGS } from './data/initialTrades';
@@ -810,6 +811,90 @@ export default function App() {
     return <LoginScreen onLoginSuccess={(user) => setCurrentUser(user)} />;
   }
 
+  // 🔒 Bloqueio de Acesso por Assinatura Suspensa / Inadimplência
+  const isSubscriptionBlocked =
+    currentUser.role === 'CLIENT' &&
+    (currentUser.active === false ||
+      currentUser.subscriptionStatus === 'OVERDUE' ||
+      currentUser.subscriptionStatus === 'INACTIVE');
+
+  if (isSubscriptionBlocked) {
+    const whatsappNum = (currentUser.whatsapp || '11999999999').replace(/\D/g, '');
+    const waMessage = encodeURIComponent(
+      `Olá! Meu nome é ${currentUser.name} (${currentUser.email}). Gostaria de regularizar minha assinatura do TradeLock para liberar meu acesso.`
+    );
+
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4 text-slate-100 selection:bg-rose-500 selection:text-white">
+        {/* DOM Bridge para sincronizar o bloqueio de assinatura com a extensão Chrome */}
+        <div
+          id="anti-furia-status-bridge"
+          data-stophit="true"
+          data-user-active="false"
+          data-sub-status={currentUser.subscriptionStatus || 'OVERDUE'}
+          data-user-role={currentUser.role}
+          data-today-pnl={todayPnl}
+          data-loss-limit={settings.dailyLossLimit}
+          data-winrate={metrics.winRate}
+          data-profit-factor={metrics.profitFactor}
+          data-trades-count={todayPerformance?.tradesCount || 0}
+          data-capital={metrics.currentCapital}
+          style={{ display: 'none' }}
+        />
+        <div className="rounded-3xl border-2 border-rose-600 bg-black p-8 sm:p-10 text-center max-w-lg shadow-[0_0_60px_rgba(225,29,72,0.4)] space-y-6">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-950/60 border border-rose-800 text-rose-400 mx-auto shadow-lg">
+            <Lock className="h-8 w-8" />
+          </div>
+          <div className="space-y-2">
+            <span className="rounded-full bg-rose-600/30 px-3.5 py-1 text-[10px] font-extrabold text-rose-300 border border-rose-500/40 uppercase font-mono tracking-wider">
+              ACESSO SUSPENSO — ASSINATURA INADIMPLENTE
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black text-white font-mono uppercase tracking-tight mt-3">
+              Plano Bloqueado pela Administração
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
+              Olá, <strong className="text-white">{currentUser.name}</strong>! Seu acesso à plataforma e ao bloqueador de corretoras foi suspenso devido à pendência no plano de assinatura.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-black p-4 text-left text-xs space-y-2 font-mono">
+            <div className="flex justify-between text-slate-400">
+              <span>Status da Conta:</span>
+              <span className="text-rose-400 font-bold uppercase">
+                {currentUser.subscriptionStatus === 'OVERDUE' ? 'EM ATRASO (INADIMPLENTE)' : 'DESATIVADO'}
+              </span>
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>Vencimento do Plano:</span>
+              <span className="text-white font-bold">
+                {currentUser.subscriptionExpiresAt
+                  ? currentUser.subscriptionExpiresAt.split('-').reverse().join('/')
+                  : 'Vencido'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <a
+              href={`https://wa.me/55${whatsappNum}?text=${waMessage}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs shadow-lg shadow-emerald-950/50 transition"
+            >
+              <span>💬 Regularizar no WhatsApp</span>
+            </a>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono font-bold text-xs transition"
+            >
+              Sair da Conta
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (currentView === 'ADMIN_CLIENTS' && currentUser) {
     return (
       <AdminUserManagementPage
@@ -830,6 +915,7 @@ export default function App() {
         profitFactor={metrics.profitFactor}
         todayTradesCount={todayPerformance?.tradesCount || 0}
         currentCapital={metrics.currentCapital}
+        currentUser={currentUser}
       />
     );
   }
@@ -867,6 +953,9 @@ export default function App() {
       <div
         id="anti-furia-status-bridge"
         data-stophit={isStopHit ? 'true' : 'false'}
+        data-user-active={currentUser?.active !== false ? 'true' : 'false'}
+        data-sub-status={currentUser?.subscriptionStatus || 'ACTIVE'}
+        data-user-role={currentUser?.role || 'CLIENT'}
         data-today-pnl={todayPnl}
         data-loss-limit={settings.dailyLossLimit}
         data-winrate={metrics.winRate}
