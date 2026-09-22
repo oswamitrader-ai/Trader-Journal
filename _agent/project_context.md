@@ -171,6 +171,15 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Inviolabilidade da Trava em Apps Desktop**: Criado gerador de script nativo Windows `tradelock-blindagem-windows.bat` em `src/utils/windowsLockerGenerator.ts`.
     - **Modificação do Arquivo Hosts do Windows**: Mapeia todos os domínios de corretoras e subdomínios de WebSocket/API para `127.0.0.1` em `C:\Windows\System32\drivers\etc\hosts`, executa `ipconfig /flushdns` e mata imediatamente os processos executáveis das corretoras (`exnova.exe`, `iqoption.exe`, `quotex.exe`, etc.) com `taskkill`.
     - **Disponibilização de Download no Painel**: Card interativo com 1-click download integrado na guia de instalação da `AntiFuriaExtensionPage.tsx` para os traders blindarem seus computadores contra uso de softwares instalados fora do navegador Chrome.
+35. **Aplicativo Nativo Mobile TradeLock (Android & iOS)**:
+    - **Módulo Android (`TradeLockVpnService.kt` + `TradeLockAccessibilityService.kt`)**:
+      - `VpnService`: Filtra requisições de rede direcionadas a domínios de corretoras (`exnova.com`, `iqoption.com`, etc.) em tempo real a nível de SO sem servidores externos.
+      - `AccessibilityService`: Monitora a abertura dos pacotes nativos de corretoras e injeta a tela de bloqueio em tela cheia (`OverlayBlockActivity.kt`) com o Duelo Touro vs Urso por cima do aplicativo da corretora.
+    - **Módulo iOS (`TradeLockScreenTimeModule.swift` + `ShieldConfigurationExtension.swift`)**:
+      - Utiliza `FamilyControls` e `ManagedSettings` (Screen Time API) do iOS 15+ para ocultar/bloquear aplicativos de corretoras e domínios web no Safari quando a trava estiver ativa.
+    - **Sincronização em Tempo Real (`mobileSyncService.ts` + `mobile/src/App.tsx`)**:
+      - Conecta com a base Supabase em tempo real acionando e desligando as blindagens nativas móveis instantaneamente.
+
 
 
 ## Regras Importantes
