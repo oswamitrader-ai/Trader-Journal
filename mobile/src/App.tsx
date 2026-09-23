@@ -6,6 +6,7 @@ export const TradeLockMobileApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'SHIELD' | 'KPI' | 'DUEL'>('SHIELD');
   const [duelMode, setDuelMode] = useState<'BULL' | 'BEAR'>('BULL');
   const [countdown, setCountdown] = useState<string>('00:00:00');
+  const [inputEmail, setInputEmail] = useState<string>(lockState.userEmail || 'oswamitrader@gmail.com');
 
   useEffect(() => {
     const unsubscribe = mobileSyncService.subscribe((state) => {
@@ -36,13 +37,23 @@ export const TradeLockMobileApp: React.FC = () => {
     };
   }, []);
 
-  const handleActivateVpn = () => {
-    alert('⚠️ Solicitando permissão para ativar VpnService local de filtragem de rede no Android...');
+  const handleSaveEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputEmail) {
+      mobileSyncService.setUserEmail(inputEmail);
+    }
+  };
+
+  const handleActivateTestLock = () => {
     mobileSyncService.updateState({ isStopHit: true });
   };
 
-  const handleDeactivateVpn = () => {
+  const handleDeactivateTestLock = () => {
     mobileSyncService.updateState({ isStopHit: false, isMaxTradesHit: false });
+  };
+
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
   return (
@@ -55,14 +66,17 @@ export const TradeLockMobileApp: React.FC = () => {
           </div>
           <div>
             <h1 className="text-lg font-black tracking-tight text-white uppercase">TRADELOCK MOBILE</h1>
-            <p className="text-xs text-slate-400 font-mono">Blindagem Android & iOS v1.0</p>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <p className="text-[10px] text-emerald-400 font-mono font-bold uppercase">SUPABASE REALTIME CONECTADO</p>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <span
-            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+            className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-wider ${
               lockState.isLockActive
-                ? 'bg-rose-950/80 text-rose-400 border border-rose-600'
+                ? 'bg-rose-950/80 text-rose-400 border border-rose-600 animate-pulse'
                 : 'bg-emerald-950/80 text-emerald-400 border border-emerald-600'
             }`}
           >
@@ -70,6 +84,28 @@ export const TradeLockMobileApp: React.FC = () => {
           </span>
         </div>
       </header>
+
+      {/* User Email Sync Box */}
+      <form onSubmit={handleSaveEmail} className="mb-4 bg-slate-900/70 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
+        <div className="flex-1">
+          <label className="text-[10px] font-mono text-slate-400 uppercase block mb-1">
+            E-mail do Trader no Painel Web:
+          </label>
+          <input
+            type="email"
+            value={inputEmail}
+            onChange={(e) => setInputEmail(e.target.value)}
+            className="w-full bg-black border border-slate-700 rounded px-2.5 py-1 text-xs text-white font-mono focus:border-rose-500 focus:outline-none"
+            placeholder="seu-email@gmail.com"
+          />
+        </div>
+        <button
+          type="submit"
+          className="self-end py-1.5 px-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded text-xs uppercase tracking-wider shrink-0"
+        >
+          Sincronizar
+        </button>
+      </form>
 
       {/* Segment Navigation */}
       <div className="grid grid-cols-3 gap-1 bg-slate-900/60 p-1 rounded-lg border border-slate-800 mb-5">
@@ -79,7 +115,7 @@ export const TradeLockMobileApp: React.FC = () => {
             activeTab === 'SHIELD' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-white'
           }`}
         >
-          🛡️ Escudo VPN
+          🛡️ Escudo Nativo
         </button>
         <button
           onClick={() => setActiveTab('KPI')}
@@ -112,7 +148,7 @@ export const TradeLockMobileApp: React.FC = () => {
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold font-mono text-slate-400 uppercase tracking-wider">
-                Status da Blindagem no Celular
+                Status do Celular (Acessibilidade & VPN)
               </span>
               <span className="text-xs font-mono text-cyan-400 font-bold">{countdown}</span>
             </div>
@@ -120,19 +156,19 @@ export const TradeLockMobileApp: React.FC = () => {
               {lockState.isLockActive ? 'BLINDAGEM NATIVA ATIVA' : 'SISTEMA MONITORANDO'}
             </h2>
             <p className="text-xs text-slate-300 mb-4">
-              {lockState.reason || 'Todos os acessos a aplicativos e sites de corretoras estão sob monitoramento.'}
+              {lockState.reason || 'Todos os acessos a aplicativos (Exnova, Quotex, IQ Option) e redes estão sob monitoramento em tempo real.'}
             </p>
 
             <div className="grid grid-cols-1 gap-2 pt-2">
               <button
-                onClick={handleActivateVpn}
+                onClick={handleActivateTestLock}
                 className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-lg text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2"
               >
                 🔒 Testar Bloqueio Mobile Instantâneo
               </button>
               {lockState.isLockActive && (
                 <button
-                  onClick={handleDeactivateVpn}
+                  onClick={handleDeactivateTestLock}
                   className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs uppercase"
                 >
                   🔓 Liberar Acesso (Simulação)
@@ -141,33 +177,19 @@ export const TradeLockMobileApp: React.FC = () => {
             </div>
           </div>
 
-          {/* Device Setup Cards */}
+          {/* Native Device Setup Cards */}
           <div className="grid grid-cols-1 gap-3">
             <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-800">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-lg">🤖</span>
-                <h3 className="text-sm font-bold text-white">Configuração Android (VpnService + Acessibilidade)</h3>
+                <h3 className="text-sm font-bold text-white">Android Nativo (VpnService + AccessibilityService)</h3>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed mb-3">
-                O VpnService local bloqueia as requisições de rede para a Exnova e IQ Option, enquanto a Acessibilidade desenha a tela de bloqueio por cima dos apps.
+                O VpnService filtra os pacotes de rede para a Exnova/Quotex, enquanto o AccessibilityService desenha o bloqueio por cima dos apps das corretoras ao tentar abrir.
               </p>
               <div className="flex items-center justify-between text-xs font-mono text-emerald-400 bg-emerald-950/40 p-2 rounded border border-emerald-800/50">
-                <span>VpnService Local: OK</span>
+                <span>VpnService: Conectado</span>
                 <span>Acessibilidade: Ativa</span>
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-800">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg">🍏</span>
-                <h3 className="text-sm font-bold text-white">Configuração iOS (Screen Time API)</h3>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed mb-3">
-                Utiliza as APIs oficiais `FamilyControls` e `ManagedSettings` para oculta/bloquear aplicativos de corretoras e Safari no iPhone.
-              </p>
-              <div className="flex items-center justify-between text-xs font-mono text-cyan-400 bg-cyan-950/40 p-2 rounded border border-cyan-800/50">
-                <span>ManagedSettings: OK</span>
-                <span>iOS 15+: Compatível</span>
               </div>
             </div>
           </div>
@@ -177,20 +199,24 @@ export const TradeLockMobileApp: React.FC = () => {
       {activeTab === 'KPI' && (
         <div className="grid grid-cols-2 gap-3">
           <div className="p-3 bg-slate-900/50 rounded-xl border border-slate-800">
-            <span className="text-[10px] text-slate-400 font-mono uppercase">PnL do Dia (R$)</span>
-            <p className="text-lg font-black text-rose-500 font-mono mt-1">- R$ 150,00</p>
+            <span className="text-[10px] text-slate-400 font-mono uppercase">PnL Real do Dia</span>
+            <p className={`text-lg font-black font-mono mt-1 ${lockState.todayPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+              {formatCurrency(lockState.todayPnl)}
+            </p>
           </div>
           <div className="p-3 bg-slate-900/50 rounded-xl border border-slate-800">
             <span className="text-[10px] text-slate-400 font-mono uppercase">Limite Stop Loss</span>
-            <p className="text-lg font-black text-white font-mono mt-1">R$ 150,00</p>
+            <p className="text-lg font-black text-white font-mono mt-1">{formatCurrency(lockState.dailyLossLimit)}</p>
           </div>
           <div className="p-3 bg-slate-900/50 rounded-xl border border-slate-800">
             <span className="text-[10px] text-slate-400 font-mono uppercase">Operações Hoje</span>
-            <p className="text-lg font-black text-white font-mono mt-1">5 / 5</p>
+            <p className="text-lg font-black text-white font-mono mt-1">
+              {lockState.todayTradesCount} / {lockState.maxTradesPerDay}
+            </p>
           </div>
           <div className="p-3 bg-slate-900/50 rounded-xl border border-slate-800">
             <span className="text-[10px] text-slate-400 font-mono uppercase">Assertividade</span>
-            <p className="text-lg font-black text-emerald-400 font-mono mt-1">20%</p>
+            <p className="text-lg font-black text-emerald-400 font-mono mt-1">{lockState.winRate}%</p>
           </div>
         </div>
       )}

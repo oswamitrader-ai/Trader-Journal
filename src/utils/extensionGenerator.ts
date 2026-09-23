@@ -285,12 +285,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       const isSubBlocked = Boolean(msg.isSubBlocked);
       const isHit = Boolean(msg.isStopHit) || isSubBlocked;
+      const isMaxTradesHit = Boolean(msg.isMaxTradesHit);
+      const maxTradesPerDay = Number(msg.maxTradesPerDay) || 5;
       const pnl = Number(msg.todayPnl) || 0;
       const limit = Number(msg.dailyLossLimit) || ${dailyLossLimit};
       const today = new Date().toISOString().split('T')[0];
 
       chrome.storage.local.set({
         isStopHit: isHit,
+        isMaxTradesHit: isMaxTradesHit,
+        maxTradesPerDay: maxTradesPerDay,
         isSubBlocked: isSubBlocked,
         todayPnl: pnl,
         dailyLossLimit: limit,
@@ -301,6 +305,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         currentCapital: Number(msg.currentCapital) || 0,
       }, () => {
         if (isHit) {
+          // Stop loss hit -> Full platform tab redirect to blocked.html
           chrome.storage.local.get(['blockedDomains'], (res) => {
             const doms = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
             chrome.tabs.query({}, (tabs) => {
@@ -312,9 +317,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             });
           });
         } else {
+          // If not stop hit (even if max trades hit), unblock tabs if currently on blocked.html!
           unblockAllTabs();
         }
-        sendResponse({ success: true, isStopHit: isHit, isSubBlocked: isSubBlocked });
+        sendResponse({ success: true, isStopHit: isHit, isMaxTradesHit: isMaxTradesHit, isSubBlocked: isSubBlocked });
       });
     });
     return true;
@@ -760,7 +766,108 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return promise;
   };
 
-  console.log('✅ [Anti-Fúria Auto-Capture v2] WebSocket Proxy + XHR + Fetch interceptors ativos.');
+  // ─── 4. TRAVA DO BEM: INTERCEPTADOR DE ORDENS E BOTÕES DE COMPRA/VENDA ─────
+  let lockState = { isStopHit: false, isMaxTradesHit: false, maxTradesPerDay: 5, todayTradesCount: 0 };
+
+  window.addEventListener('message', function(event) {
+    if (event.data && event.data.type === 'ANTI_FURIA_LOCK_STATE') {
+      lockState = {
+        isStopHit: Boolean(event.data.isStopHit),
+        isMaxTradesHit: Boolean(event.data.isMaxTradesHit),
+        maxTradesPerDay: Number(event.data.maxTradesPerDay) || 5,
+        todayTradesCount: Number(event.data.todayTradesCount) || 0
+      };
+      updateBrokerBanner();
+    }
+  });
+
+  function isOrderBlocked() {
+    return lockState.isStopHit || lockState.isMaxTradesHit;
+  }
+
+  let lastAlertTime = 0;
+  function showTravaDoBemAlert() {
+    const now = Date.now();
+    if (now - lastAlertTime < 2000) return; // Debounce alerts
+    lastAlertTime = now;
+
+    const msg = lockState.isStopHit 
+      ? '🔒 STOP LOSS ATINGIDO: Novas ordens foram bloqueadas!' 
+      : '🛡️ TRAVA DO BEM ATIVA: Você atingiu seu limite de ' + lockState.maxTradesPerDay + ' operações para hoje (' + lockState.todayTradesCount + '/' + lockState.maxTradesPerDay + ').\n\nNovas ordens foram bloqueadas para proteger seu capital, mas telas de saque e navegação permanecem LIBERADAS! 🟢';
+    
+    alert(msg);
+  }
+
+  // Intercept Call / Put / Buy / Sell button clicks on broker UI
+  document.addEventListener('click', function(e) {
+    if (!isOrderBlocked()) return;
+
+    const target = e.target;
+    if (!target) return;
+
+    const btn = target.closest('button, div[role="button"], a[role="button"], .btn-call, .btn-put, .deal-button, [data-test*="call"], [data-test*="put"], [data-test*="deal"], [class*="call"], [class*="put"], [class*="buy"], [class*="sell"]');
+    
+    if (btn) {
+      const txt = (btn.innerText || btn.textContent || '').toLowerCase();
+      const cls = (btn.className || '').toString().toLowerCase();
+      const testAttr = (btn.getAttribute('data-test') || '').toLowerCase();
+
+      const isTradeBtn = 
+        cls.includes('call') || cls.includes('put') || cls.includes('buy') || cls.includes('sell') || cls.includes('deal') ||
+        testAttr.includes('call') || testAttr.includes('put') || testAttr.includes('deal') ||
+        txt.includes('call') || txt.includes('put') || txt.includes('comprar') || txt.includes('vender') || txt.includes('investir') || txt.includes('acima') || txt.includes('abaixo') || txt.includes('higher') || txt.includes('lower');
+
+      const isNavBtn = txt.includes('saque') || txt.includes('withdraw') || txt.includes('depósito') || txt.includes('deposit') || txt.includes('perfil') || txt.includes('suporte') || txt.includes('histórico');
+
+      if (isTradeBtn && !isNavBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        showTravaDoBemAlert();
+        return false;
+      }
+    }
+  }, true);
+
+  // Intercept WebSocket send for order placements
+  const origWSSend = WebSocket.prototype.send;
+  WebSocket.prototype.send = function(data) {
+    if (isOrderBlocked() && typeof data === 'string') {
+      const dataLower = data.toLowerCase();
+      if (
+        dataLower.includes('buyv3') ||
+        dataLower.includes('place-order') ||
+        dataLower.includes('open-position') ||
+        dataLower.includes('create-option') ||
+        dataLower.includes('do-deal') ||
+        dataLower.includes('option-buy')
+      ) {
+        console.warn('🛡️ [Anti-Fúria Trava do Bem] Requisição de ordem interceptada e cancelada:', dataLower.substring(0, 100));
+        showTravaDoBemAlert();
+        return; // Block sending
+      }
+    }
+    return origWSSend.apply(this, arguments);
+  };
+
+  function updateBrokerBanner() {
+    let banner = document.getElementById('anti-furia-trava-do-bem-banner');
+    if (!lockState.isMaxTradesHit || lockState.isStopHit) {
+      if (banner) banner.remove();
+      return;
+    }
+
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'anti-furia-trava-do-bem-banner';
+      banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; z-index: 999999; background: #09090b; border-bottom: 2px solid #10b981; color: #ffffff; padding: 10px 16px; font-family: monospace; font-size: 13px; font-weight: bold; text-align: center; display: flex; align-items: center; justify-content: center; gap: 12px; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);';
+      document.body.appendChild(banner);
+    }
+
+    banner.innerHTML = '<span>🛡️ <strong style="color:#10b981;">TRAVA DO BEM TRADELOCK:</strong> Limite diário de operações atingido (' + lockState.todayTradesCount + '/' + lockState.maxTradesPerDay + '). Novas entradas bloqueadas | Saques e histórico liberados 🟢</span>';
+  }
+
+  console.log('✅ [Anti-Fúria Auto-Capture v2] WebSocket Proxy + Trava do Bem interceptores ativos.');
 })();
 `;
 
@@ -773,6 +880,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const bridgeEl = document.getElementById('anti-furia-status-bridge');
     if (bridgeEl) {
       const isStopHit = bridgeEl.getAttribute('data-stophit') === 'true';
+      const isMaxTradesHit = bridgeEl.getAttribute('data-max-trades-hit') === 'true';
+      const maxTradesPerDay = parseInt(bridgeEl.getAttribute('data-max-trades') || '5', 10);
       const userActive = bridgeEl.getAttribute('data-user-active') !== 'false';
       const subStatus = bridgeEl.getAttribute('data-sub-status') || 'ACTIVE';
       const userRole = bridgeEl.getAttribute('data-user-role') || 'CLIENT';
@@ -785,9 +894,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       const isSubBlocked = (userRole === 'CLIENT' && (!userActive || subStatus === 'OVERDUE' || subStatus === 'INACTIVE'));
 
+      // Forward status to injected script on broker pages
+      window.postMessage({
+        type: 'ANTI_FURIA_LOCK_STATE',
+        isStopHit: isStopHit || isSubBlocked,
+        isMaxTradesHit: isMaxTradesHit,
+        maxTradesPerDay: maxTradesPerDay,
+        todayTradesCount: todayTradesCount,
+      }, '*');
+
       chrome.runtime.sendMessage({
         type: 'UPDATE_STOP_STATUS',
         isStopHit: isStopHit || isSubBlocked,
+        isMaxTradesHit: isMaxTradesHit,
+        maxTradesPerDay: maxTradesPerDay,
         isSubBlocked: isSubBlocked,
         userActive: userActive,
         subStatus: subStatus,

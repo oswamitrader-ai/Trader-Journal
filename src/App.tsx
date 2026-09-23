@@ -953,6 +953,8 @@ export default function App() {
       <div
         id="anti-furia-status-bridge"
         data-stophit={isStopHit ? 'true' : 'false'}
+        data-max-trades-hit={isMaxTradesHit ? 'true' : 'false'}
+        data-max-trades={settings.maxTradesPerDay || 5}
         data-user-active={currentUser?.active !== false ? 'true' : 'false'}
         data-sub-status={currentUser?.subscriptionStatus || 'ACTIVE'}
         data-user-role={currentUser?.role || 'CLIENT'}
