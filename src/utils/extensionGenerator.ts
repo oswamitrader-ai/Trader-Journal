@@ -802,7 +802,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     const msg = lockState.isStopHit 
       ? '🔒 STOP LOSS ATINGIDO: Novas ordens foram bloqueadas!' 
-      : '🛡️ TRAVA DO BEM ATIVA: Você atingiu seu limite de ' + lockState.maxTradesPerDay + ' operações para hoje (' + lockState.todayTradesCount + '/' + lockState.maxTradesPerDay + ').\n\nNovas ordens foram bloqueadas para proteger seu capital, mas telas de saque e navegação permanecem LIBERADAS! 🟢';
+      : '🛡️ TRAVA DO BEM ATIVA: Você atingiu seu limite de ' + lockState.maxTradesPerDay + ' operações para hoje (' + lockState.todayTradesCount + '/' + lockState.maxTradesPerDay + ').\\n\\nNovas ordens foram bloqueadas para proteger seu capital, mas telas de saque e navegação permanecem LIBERADAS! 🟢';
     
     alert(msg);
   }

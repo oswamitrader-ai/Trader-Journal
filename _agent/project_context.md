@@ -185,9 +185,17 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - Entrada Web independente compilada via Vite (`dist/mobile.html`) para execução direta do app móvel em qualquer navegador desktop ou celular (`http://localhost:5173/mobile.html`).
     - **Configuração Capacitor APK (`capacitor.config.json` + `mobile/android/AndroidManifest.xml`)**:
       - Projeto estruturado para compilação nativa de APK Android (`com.tradelock.shield`) com suporte completo a VpnService e AccessibilityService.
-
-
-
+36. **Página Dedicada de Gestão de Risco & Metas Invioláveis (`RiskManagementPage.tsx`)**:
+    - **Substituição do Modal Flutuante**: O antigo modal compacto foi substituído por uma **página inteira e independente** (`RiskManagementPage.tsx`), acessível diretamente pelo botão "Gestão & Risco" da `Navbar`.
+    - **Trava de Compromisso Inviolável (`riskLockUntil`)**:
+      - Seletores rápidos de tempo de compromisso: **1 Dia**, **3 Dias**, **7 Dias (1 Semana)**, **14 Dias (2 Semanas)** e **30 Dias (1 Mês)**.
+      - Quando o trader salva com um período de compromisso ativo (`Date.now() < riskLockUntil`), as regras de **Stop Loss**, **Meta de Lucro** e **Overtrading (Max Trades)** ficam **trancadas com chave inviolável**. O sistema exibe contagem regressiva em tempo real `DDd HHh MMm SSs` e impede qualquer tentativa de afrouxar os limites em momento de fúria.
+    - **Calculadora & Simulador Avançado de Gestão**:
+      - Modelos operacionais integrados: `Mão Fixa`, `Soros Nível 1, 2, 3`, `SorosGale`, `Martingale Moderado` e `Critério de Kelly`.
+      - Campo renomeado para **"Investimento por Entrada"** com seletor duplo de modo: **Percentual (% da Banca)** vs **Valor Fixo (R$)**.
+      - **Simulador Realista com Interrupção Inteligente por Saldo & Stop Loss**:
+        - Removida a expressão "banca base" do formulário de capital inicial.
+        - O simulador avalia trade a trade se o trader possui saldo suficiente (`currentBalance >= stake`) ou se atingiu o `Stop Loss Diário`. Se o capital for zerado ou o stop atingido (ex: R$ 60 de capital com entradas de R$ 30 -> 2 losses zeram a conta), a sessão é **interrompida imediatamente no 2º trade** com a tag `Zerou a Conta 🛑` ou `Stop Loss Atingido 🔒`. Cenários irrealistas (como 3º ou 4º trade após quebrar a conta) são colapsados e eliminados.
 
 ## Regras Importantes
 - Ambiente: Windows.

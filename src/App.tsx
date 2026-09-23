@@ -40,6 +40,7 @@ import { DayDetailModal } from './components/DayDetailModal';
 import { AiTraderMentorModal } from './components/AiTraderMentorModal';
 import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { AntiFuriaExtensionPage } from './components/AntiFuriaExtensionPage';
+import { RiskManagementPage } from './components/RiskManagementPage';
 import { CapitalHistoryModal } from './components/CapitalHistoryModal';
 import { KellyCalculatorModal } from './components/KellyCalculatorModal';
 import { StakePlannerModal } from './components/StakePlannerModal';
@@ -71,7 +72,7 @@ type ActiveView = 'all' | 'charts' | 'calendar' | 'weekly' | 'trades';
 export default function App() {
   // 0. Auth State
   const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => getCurrentSession());
-  const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS' | 'ANTI_FURIA'>('JOURNAL');
+  const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS' | 'ANTI_FURIA' | 'RISK_MANAGEMENT'>('JOURNAL');
 
   const handleLogout = () => {
     logoutUser();
@@ -920,6 +921,21 @@ export default function App() {
     );
   }
 
+  if (currentView === 'RISK_MANAGEMENT' && currentUser) {
+    return (
+      <RiskManagementPage
+        settings={settings}
+        currentCapital={metrics.currentCapital}
+        todayPnl={todayPnl}
+        todayTradesCount={todayPerformance?.tradesCount || 0}
+        isStopHit={isStopHit}
+        isMaxTradesHit={isMaxTradesHit}
+        onSaveSettings={handleSaveSettings}
+        onBackToJournal={() => setCurrentView('JOURNAL')}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-slate-100 selection:bg-emerald-500 selection:text-white pb-16">
       {/* Top Navigation */}
@@ -936,7 +952,7 @@ export default function App() {
         onCurrencyChange={handleCurrencyChange}
         onOpenNewTrade={handleOpenNewTrade}
         onOpenImportModal={() => setIsImportModalOpen(true)}
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenSettings={() => setCurrentView('RISK_MANAGEMENT')}
         onOpenAiMentor={() => setIsAiMentorOpen(true)}
         onOpenKellyCalculator={() => setIsKellyCalculatorOpen(true)}
         onOpenStakePlanner={() => setIsStakePlannerOpen(true)}
@@ -994,7 +1010,7 @@ export default function App() {
           settings={settings}
           dismissedAlerts={dismissedAlerts}
           onDismiss={handleDismissAlert}
-          onOpenSettings={() => setIsSettingsModalOpen(true)}
+          onOpenSettings={() => setCurrentView('RISK_MANAGEMENT')}
           onOpenAntiFuria={() => setCurrentView('ANTI_FURIA')}
         />
 

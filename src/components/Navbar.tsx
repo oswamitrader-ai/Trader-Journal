@@ -466,10 +466,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             id="btn-config-risco"
             onClick={onOpenSettings}
-            title="Configurar Metas & Limites de Risco"
-            className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-xl bg-slate-800 text-white shadow-md transition hover:bg-slate-700 active:scale-95 shrink-0"
+            title="Configurar Metas & Limites de Risco (Tela de Gestão Inviolável)"
+            className="flex h-8 sm:h-9 items-center gap-1.5 px-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md transition hover:opacity-90 active:scale-95 shrink-0 text-xs font-bold"
           >
-            <Settings className="h-4 w-4" />
+            <Shield className="h-4 w-4" />
+            <span className="hidden md:inline font-mono">Gestão &amp; Risco</span>
           </button>
 
           {/* Admin User Management Button */}

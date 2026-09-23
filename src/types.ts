@@ -67,6 +67,14 @@ export interface RiskSettings {
   antiFuriaCustomWindowEnabled?: boolean;
   antiFuriaStartTime?: string; // e.g., '07:00'
   antiFuriaEndTime?: string; // e.g., '11:30'
+  // Trava de Compromisso Inviolável (Lock Period)
+  riskLockUntil?: string; // Timestamp/ISO date até quando as regras de risco não podem ser afrouxadas
+  riskLockDurationDays?: number; // Período de compromisso selecionado (1, 3, 7, 14, 30)
+  // Calculadora de Gestão
+  managementStyle?: 'MAO_FIXA' | 'SOROS_1' | 'SOROS_2' | 'SOROS_3' | 'SOROSGALE' | 'MARTINGALE' | 'KELLY';
+  estimatedPayout?: number; // Payout médio % (ex: 87)
+  estimatedWinRate?: number; // Win rate médio % (ex: 65)
+  stakePercent?: number; // % por entrada da banca (ex: 2)
 }
 
 export interface DayPerformance {

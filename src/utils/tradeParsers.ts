@@ -296,6 +296,7 @@ function parseExnovaDedicated(
         accountType: 'REAL',
         isReal: true,
         isAutoCaptured: true,
+        tags: ['Importado', 'REAL'],
       };
 
       trades.push(tradeItem);
@@ -575,6 +576,7 @@ function parseQuotexDedicated(
         accountType: 'REAL',
         isReal: true,
         isAutoCaptured: true,
+        tags: ['Importado', 'REAL'],
       });
     } catch (err: any) {
       errors.push(`Linha ${i + 1}: ${err?.message || 'Erro de leitura Quotex'}`);
@@ -779,6 +781,7 @@ function parseGeneric(
         accountType: 'REAL',
         isReal: true,
         isAutoCaptured: true,
+        tags: ['Importado', 'REAL'],
       });
     } catch (err: any) {
       errors.push(`Linha ${i + 1}: ${err?.message || 'Erro de leitura'}`);
