@@ -139,20 +139,53 @@ export const RiskAlertBanner: React.FC<RiskAlertBannerProps> = ({
 
   if (isTradesLimitHit && !dismissedAlerts['trades']) {
     return (
-      <div className="rounded-2xl border border-amber-500/40 bg-amber-950/40 p-3.5 backdrop-blur-md">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0" />
-            <p className="text-xs sm:text-sm text-amber-200">
-              <strong>Alerta de Overtrading:</strong> Você já realizou <strong>{todayTradesCount} operações</strong> hoje (limite sugerido: {maxTradesPerDay}). Fique atento à fadiga mental.
-            </p>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-600 via-rose-600 to-rose-700 p-4 shadow-2xl border border-amber-500/40">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-black/30 text-amber-300 border border-amber-400/30">
+              <AlertOctagon className="h-6 w-6 text-amber-300 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-300 border border-amber-400/30">
+                  Bloqueio por Overtrading 🛑
+                </span>
+                <h4 className="text-sm sm:text-base font-extrabold text-white">
+                  Limite Máximo de Operações no Dia Atingido ({todayTradesCount} / {maxTradesPerDay} Trades)
+                </h4>
+              </div>
+              <p className="mt-1 text-xs sm:text-sm text-white/95 leading-relaxed font-medium">
+                Sua trava de segurança contra <strong>Overtrading</strong> foi ativada por atingir o limite estipulado no gerenciamento (<strong>{maxTradesPerDay} operações diárias</strong>).
+                <strong> O envio de novas ordens foi bloqueado!</strong> Operar em excesso gera fadiga mental e devolve o lucro ao mercado. Respeite seu plano e encerre a sessão.
+              </p>
+            </div>
           </div>
-          <button
-            onClick={() => onDismiss('trades')}
-            className="text-amber-400 hover:text-amber-200 text-xs px-2 py-1"
-          >
-            Dispensar
-          </button>
+
+          <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0 flex-wrap">
+            {onOpenAntiFuria && (
+              <button
+                onClick={onOpenAntiFuria}
+                className="flex items-center gap-1.5 rounded-xl bg-black/40 hover:bg-black/60 text-white px-3.5 py-2 text-xs font-bold shadow-md transition border border-white/20"
+                title="Abrir Extensão e Detalhes de Bloqueio"
+              >
+                <ShieldAlert className="w-4 h-4 text-amber-300" />
+                <span>Detalhes do Bloqueio 🔒</span>
+              </button>
+            )}
+            <button
+              onClick={onOpenSettings}
+              className="rounded-xl bg-white px-3.5 py-2 text-xs font-bold text-rose-900 shadow-md hover:bg-slate-100 transition"
+            >
+              Configurações de Risco
+            </button>
+            <button
+              onClick={() => onDismiss('trades')}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:bg-black/20 hover:text-white transition"
+              title="Dispensar alerta"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     );

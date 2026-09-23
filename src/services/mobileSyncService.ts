@@ -11,10 +11,14 @@ export interface MobileLockState {
   isLockActive: boolean;
   reason: string | null;
   todayPnl: number;
+  totalTodayPnl: number; // Inclui DEMO + Real
   dailyLossLimit: number;
   dailyProfitTarget: number;
   maxTradesPerDay: number;
   todayTradesCount: number;
+  todayRealTradesCount: number;
+  gainCount: number;
+  lossCount: number;
   winRate: number;
   profitFactor: number;
   isRealtimeConnected: boolean;
@@ -33,10 +37,14 @@ class MobileSyncService {
     isLockActive: false,
     reason: null,
     todayPnl: 0,
+    totalTodayPnl: 0,
     dailyLossLimit: 60,
     dailyProfitTarget: 70,
     maxTradesPerDay: 4,
     todayTradesCount: 0,
+    todayRealTradesCount: 0,
+    gainCount: 0,
+    lossCount: 0,
     winRate: 0,
     profitFactor: 0,
     isRealtimeConnected: false,
@@ -138,30 +146,63 @@ class MobileSyncService {
 
       // 3. Fetch today's trades
       const todayStr = getLocalDateStr();
-      const { data: trades } = await supabase
+      const { data: trades, error: tradesError } = await supabase
         .from('trades')
         .select('*')
         .eq('user_email', email)
         .eq('date', todayStr);
 
-      const allTrades = trades || [];
-      const todayRealTrades = allTrades.filter(t => t.accountType !== 'DEMO' && t.isReal !== false);
-      const todayPnl = todayRealTrades.reduce((acc, t) => acc + (Number(t.pnl) || 0), 0);
-      const todayTradesCount = allTrades.length;
-      
-      const winsCount = todayRealTrades.filter(t => t.result === 'GAIN' || Number(t.pnl) > 0).length;
-      const winRate = todayRealTrades.length > 0 ? Math.round((winsCount / todayRealTrades.length) * 100) : 0;
+      if (tradesError) {
+        console.warn('[MobileSyncService] Erro ao buscar trades:', tradesError.message);
+      }
 
-      const isStopHit = dailyLossLimit > 0 && todayPnl <= -dailyLossLimit && todayPnl < 0;
+      let allTrades: any[] = trades || [];
+      if (allTrades.length === 0 && typeof window !== 'undefined') {
+        const userKey = email.toLowerCase().trim();
+        const localSaved = localStorage.getItem(`trader_journal_trades_${userKey}`) || localStorage.getItem('trader_journal_trades_v2') || localStorage.getItem('trader_journal_trades_v1');
+        if (localSaved) {
+          try {
+            const parsed = JSON.parse(localSaved);
+            if (Array.isArray(parsed)) {
+              allTrades = parsed.filter((t: any) => t.date === todayStr);
+            }
+          } catch (e) {}
+        }
+      }
+
+      const todayRealTrades = allTrades.filter(t => t.accountType !== 'DEMO' && t.isReal !== false && t.account_type !== 'DEMO');
+      const todayPnl = todayRealTrades.reduce((acc, t) => acc + (Number(t.pnl) || 0), 0);
+      const totalTodayPnl = allTrades.reduce((acc, t) => acc + (Number(t.pnl) || 0), 0);
+      const effectivePnl = todayRealTrades.length > 0 ? todayPnl : totalTodayPnl;
+      const todayTradesCount = allTrades.length;
+      const todayRealTradesCount = todayRealTrades.length;
+      
+      const gainCount = todayRealTrades.filter(t => t.result === 'GAIN' || Number(t.pnl) > 0).length;
+      const lossCount = todayRealTrades.filter(t => t.result === 'LOSS' || Number(t.pnl) < 0).length;
+      const winRate = todayRealTrades.length > 0 ? Math.round((gainCount / todayRealTrades.length) * 100) : 0;
+
+      // Profit Factor = soma dos ganhos / |soma das perdas|
+      const totalGains = todayRealTrades.filter(t => Number(t.pnl) > 0).reduce((s, t) => s + Number(t.pnl), 0);
+      const totalLosses = Math.abs(todayRealTrades.filter(t => Number(t.pnl) < 0).reduce((s, t) => s + Number(t.pnl), 0));
+      const profitFactor = totalLosses > 0 ? parseFloat((totalGains / totalLosses).toFixed(2)) : (totalGains > 0 ? 999 : 0);
+
+      const isStopHit = dailyLossLimit > 0 && (todayPnl <= -dailyLossLimit || effectivePnl <= -dailyLossLimit) && (todayPnl < 0 || effectivePnl < 0);
       const isMaxTradesHit = maxTradesPerDay > 0 && todayTradesCount >= maxTradesPerDay;
 
+      console.log(`[MobileSyncService] Dados carregados: PnL Real=${todayPnl}, Total=${totalTodayPnl}, Trades=${todayTradesCount}, StopLoss=${dailyLossLimit}`);
+
       this.updateState({
-        todayPnl,
+        todayPnl: effectivePnl,
+        totalTodayPnl,
         dailyLossLimit,
         dailyProfitTarget,
         maxTradesPerDay,
         todayTradesCount,
+        todayRealTradesCount,
+        gainCount,
+        lossCount,
         winRate,
+        profitFactor,
         isStopHit,
         isMaxTradesHit,
         isRealtimeConnected: true,

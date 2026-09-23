@@ -222,8 +222,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // Intercept navigations via webNavigation
 chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   if (details.frameId !== 0) return; // Only top level navigation
-  chrome.storage.local.get(['isStopHit', 'isSubBlocked', 'blockedDomains'], (data) => {
-    if ((data.isStopHit || data.isSubBlocked) && Array.isArray(data.blockedDomains)) {
+  chrome.storage.local.get(['isStopHit', 'isMaxTradesHit', 'isSubBlocked', 'blockedDomains'], (data) => {
+    if ((data.isStopHit || data.isMaxTradesHit || data.isSubBlocked) && Array.isArray(data.blockedDomains)) {
       enforceTabBlock(details.tabId, details.url, data.blockedDomains, data.isSubBlocked);
     }
   });
@@ -246,20 +246,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     });
 
-    // 2. Atualiza PnL e verifica se acionou o Stop Loss
-    chrome.storage.local.get(['todayPnl', 'dailyLossLimit', 'blockedDomains'], (res) => {
+    // 2. Atualiza PnL e verifica se acionou o Stop Loss ou o limite de Overtrading
+    chrome.storage.local.get(['todayPnl', 'dailyLossLimit', 'blockedDomains', 'todayTradesCount', 'maxTradesPerDay'], (res) => {
       const currentPnl = Number(res.todayPnl) || 0;
       const tradePnl = Number(msg.trade.pnl) || 0;
       const newPnl = currentPnl + tradePnl;
       const limit = Number(res.dailyLossLimit) || ${dailyLossLimit};
       const isHit = newPnl <= -limit;
 
+      const newTradesCount = (Number(res.todayTradesCount) || 0) + 1;
+      const maxTrades = Number(res.maxTradesPerDay) || 5;
+      const isMaxTradesHit = maxTrades > 0 && newTradesCount >= maxTrades;
+
+      const isLockActive = isHit || isMaxTradesHit;
+
       chrome.storage.local.set({
         todayPnl: newPnl,
         isStopHit: isHit,
+        isMaxTradesHit: isMaxTradesHit,
+        todayTradesCount: newTradesCount,
         lastTradeCaptured: msg.trade,
       }, () => {
-        if (isHit) {
+        if (isLockActive) {
           const doms = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
           chrome.tabs.query({}, (tabs) => {
             tabs.forEach((tab) => {
@@ -270,7 +278,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             });
           });
         }
-        sendResponse({ success: true, isStopHit: isHit, newPnl: newPnl });
+        sendResponse({ success: true, isStopHit: isHit, isMaxTradesHit: isMaxTradesHit, newPnl: newPnl });
       });
     });
     return true;
@@ -304,8 +312,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         todayTradesCount: Number(msg.todayTradesCount) || 0,
         currentCapital: Number(msg.currentCapital) || 0,
       }, () => {
-        if (isHit) {
-          // Stop loss hit -> Full platform tab redirect to blocked.html
+        const isLockActive = isHit || isMaxTradesHit || isSubBlocked;
+        if (isLockActive) {
+          // Stop loss hit or Overtrading hit or Subscription blocked -> Redirect broker tabs to blocked.html
           chrome.storage.local.get(['blockedDomains'], (res) => {
             const doms = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
             chrome.tabs.query({}, (tabs) => {
@@ -317,7 +326,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             });
           });
         } else {
-          // If not stop hit (even if max trades hit), unblock tabs if currently on blocked.html!
+          // Only unblock tabs if NO lock condition is active!
           unblockAllTabs();
         }
         sendResponse({ success: true, isStopHit: isHit, isMaxTradesHit: isMaxTradesHit, isSubBlocked: isSubBlocked });
@@ -1430,13 +1439,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return;
       }
 
-      const limit = Number(data.dailyLossLimit) || 60;
-      const pnl = Number(data.todayPnl);
-      const winRate = Number(data.winRate) || 0;
-      const profitFactor = Number(data.profitFactor) || 0;
-      const tradesCount = Number(data.todayTradesCount) || 0;
-      const capital = Number(data.currentCapital) || 0;
+      const isMaxTradesHit = Boolean(data.isMaxTradesHit);
+      const isStopHit = Boolean(data.isStopHit);
+      const isLockActive = isStopHit || isMaxTradesHit || isSubBlocked;
 
+      const headerTitle = document.getElementById('headerTitle');
       const headerSub = document.getElementById('headerSub');
       const winRateEl = document.getElementById('winRateVal');
       const pfEl = document.getElementById('profitFactorVal');
@@ -1444,8 +1451,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const capitalEl = document.getElementById('capitalVal');
       const adviceEl = document.getElementById('aiMentorAdvice');
 
+      if (headerTitle) {
+        headerTitle.innerText = isMaxTradesHit && !isStopHit
+          ? '🛑 ACESSO BLOQUEADO POR OVERTRADING'
+          : '🛡️ ACESSO BLOQUEADO PELO PLANO DE TRADE';
+      }
+
       if (headerSub) {
-        headerSub.innerText = 'Você atingiu o seu Stop Loss diário de ' + formatBRL(limit) + '. O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria.';
+        if (isMaxTradesHit && !isStopHit) {
+          headerSub.innerText = 'Você atingiu o seu Limite Máximo de Operações Diárias (' + tradesCount + ' trades realizados). O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o overtrading e proteger seu capital.';
+        } else {
+          headerSub.innerText = 'Você atingiu o seu Stop Loss diário de ' + formatBRL(limit) + '. O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria.';
+        }
       }
       if (winRateEl) winRateEl.innerText = winRate > 0 ? winRate.toFixed(1) + '%' : '--%';
       if (pfEl) pfEl.innerText = profitFactor > 0 ? profitFactor.toFixed(2) : '--';
@@ -1458,14 +1475,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       targetUnlockDate = calculateTargetUnlockDate(data);
 
-      if (data.isStopHit === false && !isSubBlocked) {
+      if (!isLockActive) {
         redirectBack();
       }
     });
 
     chrome.storage.onChanged.addListener((changes, namespace) => {
-      if (namespace === 'local' && changes.isStopHit && changes.isStopHit.newValue === false) {
-        redirectBack();
+      if (namespace === 'local') {
+        const isStopHit = changes.isStopHit ? changes.isStopHit.newValue : undefined;
+        const isMaxTradesHit = changes.isMaxTradesHit ? changes.isMaxTradesHit.newValue : undefined;
+        if (isStopHit === false && isMaxTradesHit === false) {
+          redirectBack();
+        }
       }
     });
   }

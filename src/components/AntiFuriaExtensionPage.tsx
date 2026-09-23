@@ -161,7 +161,16 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
   };
 
   // Renderizador Interno da Tela de Bloqueio com o Duelo Touro vs Urso Integrado
-  const renderLockScreenComponent = (isFullscreen = false) => (
+  const renderLockScreenComponent = (isFullscreen = false) => {
+    const isMaxTradesHit = todayTradesCount >= (dailyLossLimit > 0 ? 4 : 0); // Prop check fallback
+    const lockTitle = isStopHit
+      ? `Você atingiu o seu Stop Loss diário de ${formatCurrency(dailyLossLimit)}.`
+      : `Você atingiu o seu Limite Máximo de Operações Diárias (${todayTradesCount} trades realizados).`;
+    const lockReasonText = isStopHit
+      ? `O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria e proteger seu capital.`
+      : `O TradeLock ativou a Trava Anti-Overtrading para impedir a fadiga mental e conter operações impulsivas em excesso.`;
+
+    return (
     <div
       className={`rounded-3xl border-2 border-rose-600 bg-black text-white overflow-hidden shadow-[0_0_50px_rgba(225,29,72,0.35)] space-y-0 ${
         isFullscreen ? 'max-w-5xl mx-auto w-full my-auto' : ''
@@ -174,11 +183,11 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
             <ShieldAlert className="h-6 w-6" />
           </div>
           <h2 className="text-base sm:text-xl font-black font-mono tracking-wider uppercase">
-            ACESSO BLOQUEADO PELO PLANO DE TRADE
+            {isStopHit ? 'ACESSO BLOQUEADO POR STOP LOSS' : 'ACESSO BLOQUEADO POR OVERTRADING'}
           </h2>
         </div>
         <p className="text-xs sm:text-sm font-bold text-white/95 max-w-xl mx-auto leading-relaxed">
-          Você atingiu o seu Stop Loss diário de {formatCurrency(dailyLossLimit)}. O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria.
+          {lockTitle} {lockReasonText}
         </p>
       </div>
 
@@ -381,9 +390,10 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
             {countdownText || '00h 00m 00s'}
           </div>
         </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen bg-black text-slate-100 p-4 sm:p-6 md:p-8 space-y-6">
