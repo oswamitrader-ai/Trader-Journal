@@ -46,7 +46,8 @@ function simulateSequence(
   payoutPct: number,
   winRatePct: number,
   baseCapital: number,
-  dailyLossLimit: number
+  dailyLossLimit: number,
+  dailyProfitTarget: number
 ): {
   pnl: number;
   executedSeq: ('W' | 'L')[];
@@ -74,14 +75,21 @@ function simulateSequence(
     const res = seq[idx];
     const currentBalance = baseCapital + pnl;
 
-    // Check 1: Conta Zerada (Saldo <= 0)
+    // Check 1: Meta de Lucro Diária Atingida (Take Profit)
+    if (dailyProfitTarget > 0 && pnl >= dailyProfitTarget) {
+      terminatedEarly = true;
+      terminationReason = 'Meta Batida 🎯';
+      break;
+    }
+
+    // Check 2: Conta Zerada (Saldo <= 0)
     if (currentBalance <= 0) {
       terminatedEarly = true;
       terminationReason = 'Zerou a Conta 🛑';
       break;
     }
 
-    // Check 2: Stop Loss Diário Atingido
+    // Check 3: Stop Loss Diário Atingido
     if (dailyLossLimit > 0 && pnl <= -dailyLossLimit) {
       terminatedEarly = true;
       terminationReason = 'Stop Loss Atingido 🔒';
@@ -105,7 +113,7 @@ function simulateSequence(
       requiredStake = Math.max(1, (currentBalance * kellyPct) / 100);
     }
 
-    // Check 3: Saldo Insuficiente para a entrada
+    // Check 4: Saldo Insuficiente para a entrada
     if (currentBalance < requiredStake) {
       terminatedEarly = true;
       terminationReason = 'Saldo Insuficiente ⚠️';
@@ -225,6 +233,13 @@ function simulateSequence(
         pnl -= requiredStake;
         details.push(`T${idx + 1}: L (-${formatCurrency(requiredStake)})`);
       }
+    }
+
+    // Check pós-operação: se bateu a meta com o último lucro, encerra a sessão
+    if (dailyProfitTarget > 0 && pnl >= dailyProfitTarget) {
+      terminatedEarly = true;
+      terminationReason = 'Meta Batida 🎯';
+      break;
     }
   }
 
@@ -376,7 +391,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
   const evaluatedMap = new Map<string, any>();
 
   rawSequences.forEach((seq) => {
-    const res = simulateSequence(seq, managementStyle, stakeAmount, payout, winRate, baseCapital, dailyLossLimit);
+    const res = simulateSequence(seq, managementStyle, stakeAmount, payout, winRate, baseCapital, dailyLossLimit, dailyProfitTarget);
     
     // Deduplicate sequences that collapsed into the same early-terminated execution path
     if (!evaluatedMap.has(res.seqStr)) {

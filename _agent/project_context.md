@@ -193,9 +193,10 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Calculadora & Simulador Avançado de Gestão**:
       - Modelos operacionais integrados: `Mão Fixa`, `Soros Nível 1, 2, 3`, `SorosGale`, `Martingale Moderado` e `Critério de Kelly`.
       - Campo renomeado para **"Investimento por Entrada"** com seletor duplo de modo: **Percentual (% da Banca)** vs **Valor Fixo (R$)**.
-      - **Simulador Realista com Interrupção Inteligente por Saldo & Stop Loss**:
+      - **Simulador Realista com Interrupção Inteligente por Meta, Saldo & Stop Loss**:
         - Removida a expressão "banca base" do formulário de capital inicial.
-        - O simulador avalia trade a trade se o trader possui saldo suficiente (`currentBalance >= stake`) ou se atingiu o `Stop Loss Diário`. Se o capital for zerado ou o stop atingido (ex: R$ 60 de capital com entradas de R$ 30 -> 2 losses zeram a conta), a sessão é **interrompida imediatamente no 2º trade** com a tag `Zerou a Conta 🛑` ou `Stop Loss Atingido 🔒`. Cenários irrealistas (como 3º ou 4º trade após quebrar a conta) são colapsados e eliminados.
+        - O simulador avalia trade a trade se o trader atingiu a **Meta de Lucro Diária (Take Profit)**, se possui saldo suficiente (`currentBalance >= stake`) ou se atingiu o **Stop Loss Diário**.
+        - Se a meta for batida (ex: 2 wins de Soros Nível 1 atingem R$ 74,91 > Meta R$ 70,00), a sessão é **encerrada imediatamente no 2º trade** com a tag `Meta Batida 🎯`. Da mesma forma, se o capital zerar ou o stop for atingido, a sessão encerra no 2º trade com `Zerou a Conta 🛑` ou `Stop Loss Atingido 🔒`. Cenários redundantes ou irrealistas são eliminados da visualização.
 
 ## Regras Importantes
 - Ambiente: Windows.
