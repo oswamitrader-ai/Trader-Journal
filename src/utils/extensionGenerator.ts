@@ -450,29 +450,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     if (optionId) processedIds.add('oid-' + optionId);
 
-    // --- Amount invested ---
+    // --- Amount invested (Stake / Entrada) ---
     const amount = Math.abs(Number(raw.amount || raw.enrolled_amount || raw.investment || raw.stake || raw.buy_amount) || 0);
 
-    // --- PnL Extraction ---
-    const profitAmount = Number(raw.profit_amount) || 0;
-    const winEnrolled = Number(raw.win_enrolled_amount || raw.win_amount) || 0;
-    let pnl = Number(raw.pnl || raw.profit || raw.net_pnl) || 0;
-
     // --- Win/Loss detection ---
+    const rawProfitField = Number(raw.net_profit || raw.net_pnl || raw.profit_net || raw.profit_amount || raw.win_amount || raw.win_enrolled_amount || raw.profit || raw.pnl) || 0;
+
     const isWin =
       resultField === 'win' ||
       winField === 'win' ||
       winField === 'true' ||
       raw.win === true ||
-      (pnl > 0) ||
-      (profitAmount > 0) ||
-      (winEnrolled > amount && amount > 0);
+      (rawProfitField > amount && amount > 0) ||
+      (raw.net_profit > 0 || raw.net_pnl > 0);
 
     const isEqual =
       resultField === 'equal' ||
       resultField === 'draw' ||
       winField === 'equal' ||
-      (pnl === 0 && winEnrolled === amount && amount > 0);
+      (rawProfitField === amount && amount > 0);
 
     const isLoss =
       !isWin &&
@@ -483,21 +479,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         winField === 'loss' ||
         winField === 'false' ||
         raw.win === false ||
-        (winEnrolled === 0 && isClosed));
+        (rawProfitField === 0 && isClosed));
 
-    if (pnl === 0 && profitAmount > 0) {
-      // Exnova WIN: profit_amount IS the net profit
-      pnl = profitAmount;
-    } else if (pnl === 0 && winEnrolled > 0 && amount > 0) {
-      // win_enrolled_amount is TOTAL return. Net PnL = return - investment
-      pnl = winEnrolled - amount;
-    } else if (pnl === 0 && isLoss && amount > 0) {
-      // LOSS: trader lost the entire invested amount
-      pnl = -Math.abs(amount);
-    } else if (pnl === 0 && isWin && amount > 0) {
-      // WIN without explicit profit data: use profit_percent
-      const profitPct = Number(raw.profit_percent) || 185;
-      pnl = Math.abs(amount * ((profitPct - 100) / 100));
+    // --- Strict PnL Extraction (Lucro Líquido Real) ---
+    let pnl = 0;
+
+    if (raw.net_pnl != null) {
+      pnl = Number(raw.net_pnl);
+    } else if (raw.net_profit != null) {
+      pnl = Number(raw.net_profit);
+    } else if (raw.profit_net != null) {
+      pnl = Number(raw.profit_net);
+    } else if (isWin) {
+      if (rawProfitField > amount && amount > 0) {
+        // Exnova Payout Total (Retorno Total = Investimento + Lucro Líquido)
+        // Exemplo: Retorno R$ 18,50 - Investimento R$ 10,00 = Lucro Líquido R$ 8,50
+        pnl = rawProfitField - amount;
+      } else if (rawProfitField > 0) {
+        pnl = rawProfitField;
+      } else if (amount > 0) {
+        const profitPct = Number(raw.profit_percent) || 185;
+        pnl = profitPct > 100 ? amount * ((profitPct - 100) / 100) : amount * (profitPct / 100);
+      }
+    } else if (isLoss) {
+      pnl = -Math.abs(amount > 0 ? amount : rawProfitField);
     } else if (isEqual) {
       pnl = 0;
     }
