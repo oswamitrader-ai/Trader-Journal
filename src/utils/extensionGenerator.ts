@@ -1738,16 +1738,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     <span>🔒 Lista gerenciada exclusivamente pela Administração</span>
   </div>
 
-  <button id="btnTest" class="btn-test">Simular Stop Loss (Testar)</button>
-  <button id="btnUnlock" class="btn-unlock">Desativar Trava (Modo Teste)</button>
-
   <script src="popup.js"></script>
 </body>
 </html>
 `;
 
   const popupJs = `function render() {
-  chrome.storage.local.get(['isStopHit', 'isSubBlocked', 'blockedDomains'], (data) => {
+  chrome.storage.local.get(['isStopHit', 'isMaxTradesHit', 'isSubBlocked', 'blockedDomains'], (data) => {
     const badge = document.getElementById('statusBadge');
     const msg = document.getElementById('statusMsg');
     const list = document.getElementById('domainList');
@@ -1757,10 +1754,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       badge.innerText = 'SUSPENSO 🔒';
       msg.innerText = 'Assinatura suspensa! Acesso a corretoras bloqueado.';
       msg.style.color = '#f87171';
-    } else if (data.isStopHit) {
+    } else if (data.isStopHit || data.isMaxTradesHit) {
       badge.className = 'status-badge status-active';
       badge.innerText = 'BLOQUEADO 🔒';
-      msg.innerText = 'Stop Loss atingido! Acesso a corretoras bloqueado.';
+      msg.innerText = data.isMaxTradesHit && !data.isStopHit 
+        ? 'Limite de operações atingido (Overtrading)! Acesso bloqueado.' 
+        : 'Stop Loss atingido! Acesso a corretoras bloqueado.';
       msg.style.color = '#f87171';
     } else {
       badge.className = 'status-badge status-inactive';
@@ -1779,14 +1778,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
   });
 }
-
-document.getElementById('btnTest').addEventListener('click', () => {
-  chrome.runtime.sendMessage({ type: 'TEST_BLOCK_TRIGGER' }, () => render());
-});
-
-document.getElementById('btnUnlock').addEventListener('click', () => {
-  chrome.runtime.sendMessage({ type: 'TEST_UNLOCK' }, () => render());
-});
 
 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
   chrome.storage.onChanged.addListener(() => render());

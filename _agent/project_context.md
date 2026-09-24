@@ -234,6 +234,10 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - Adicionadas as chaves `'isMaxTradesHit', 'maxTradesPerDay'` no `chrome.storage.local.get` da extensão.
       - Atualizada a formatação dos títulos e descrições em `blocked.js` e `AntiFuriaExtensionPage.tsx` para apresentar detalhadamente o PnL atual real (ex: `resultado do dia de -R$ 45,00 (Limite: R$ 60,00)`), o motivo exato (Stop Loss, Overtrading ou Ambos), e a quantidade de trades executados de forma dinâmica e precisa.
 
+43. **Remoção dos Botões de Teste Manual ("Simular Stop Loss" e "Desativar Trava") do Popup da Extensão**:
+    - Removidos os botões de teste manual (`btnTest` e `btnUnlock`) do arquivo [extensionGenerator.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/extensionGenerator.ts) (`popup.html` e `popup.js`).
+    - O popup da extensão Chrome agora opera de forma 100% automática e inviolável, exibindo apenas os indicadores de status do risco, lista de corretoras protegidas e avisos administrativos.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
