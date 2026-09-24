@@ -75,6 +75,13 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS' | 'ANTI_FURIA' | 'RISK_MANAGEMENT'>('JOURNAL');
 
   const handleLogout = () => {
+    if (isAntiFuriaActive) {
+      alert(
+        '🔒 Trava Anti-Fúria ATIVADA!\n\n' +
+        'Você NÃO pode sair da sua conta enquanto a Trava Anti-Fúria (Stop Loss ou Overtrading) estiver ativa no dia.\n\nEncerre as operações de hoje e proteja seu capital!'
+      );
+      return;
+    }
     logoutUser();
     setCurrentUser(null);
   };
@@ -815,7 +822,41 @@ export default function App() {
   };
 
   if (!currentUser) {
-    return <LoginScreen onLoginSuccess={(user) => setCurrentUser(user)} />;
+    const savedStateStr = typeof window !== 'undefined' ? localStorage.getItem('trader_anti_furia_state_v1') : null;
+    let isLoggedOutLockActive = false;
+    let loggedOutPnl = 0;
+    let loggedOutLimit = 30;
+
+    if (savedStateStr) {
+      try {
+        const parsed = JSON.parse(savedStateStr);
+        const todayStr = getLocalDateStr();
+        const updatedDate = parsed.updatedAt ? getLocalDateStr(parsed.updatedAt) : '';
+        if (updatedDate === todayStr && (parsed.isStopHit || parsed.isMaxTradesHit)) {
+          isLoggedOutLockActive = true;
+          loggedOutPnl = parsed.todayPnl || 0;
+          loggedOutLimit = parsed.dailyLossLimit || 30;
+        }
+      } catch (e) {}
+    }
+
+    return (
+      <>
+        {isLoggedOutLockActive && (
+          <div
+            id="anti-furia-status-bridge"
+            data-stophit="true"
+            data-max-trades-hit="true"
+            data-user-active="true"
+            data-sub-status="ACTIVE"
+            data-today-pnl={loggedOutPnl}
+            data-loss-limit={loggedOutLimit}
+            style={{ display: 'none' }}
+          />
+        )}
+        <LoginScreen onLoginSuccess={(user) => setCurrentUser(user)} />
+      </>
+    );
   }
 
   // 🔒 Bloqueio de Acesso por Assinatura Suspensa / Inadimplência

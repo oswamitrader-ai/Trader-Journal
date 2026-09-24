@@ -242,6 +242,13 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Causa Raiz Identificada**: Na função `simulateSequence` de [RiskManagementPage.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/RiskManagementPage.tsx), a variável `pnl` não era incrementada na 1ª mão de vitorias do Soros (`sorosStep === 0`). Isso fazia com que sequências como `W - L - W` mantivessem a 1ª vitória invisível no PnL, resultando em `-R$ 30,00` em vez do valor real de `-R$ 3,90`. Além disso, a perda no Soros subtraía `baseStake` em vez do valor da stake reinvestida (`stakeThisTrade`), gerando encerramentos precoces falsos por "Saldo Insuficiente".
     - **Solução Implementada**: Atualizado o simulador para computar o PnL trade a trade (`pnl += profit` nas vitórias e `pnl -= stakeThisTrade` nas perdas). As sequências como `W - L - W` e `L - W` agora exibem os valores exatos (ex: `-R$ 3,90` em vez de `-R$ 30,00`), liberando a simulação continuada dos trades seguintes de forma matematicamente precisa.
 
+45. **Blindagem Anti-Burlar por Logout & Análise de Arquitetura App Desktop vs Web/Mobile (`App.tsx`)**:
+    - **Causa Raiz Identificada**: Ao clicar em "Sair da Conta" (Logout), o estado `currentUser` era desarmado para `null`, unmontando a ponte DOM `#anti-furia-status-bridge` e permitindo que o trader em fúria burlasse o bloqueio das corretoras fazendo logout.
+    - **Soluções Implementedas**:
+      - Bloqueado o botão de **Logout ("Sair da Conta")** no [App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/App.tsx) enquanto `isAntiFuriaActive === true`, exibindo um alerta inviolável de bloqueio.
+      - Adicionado fallback em `if (!currentUser)` no `App.tsx` que lê o `localStorage` e mantém o elemento bridge `#anti-furia-status-bridge` montado mesmo na tela de login caso a trava estivesse ativa hoje.
+      - **Análise Técnica da Arquitetura Desktop (Electron/Tauri)**: Um App Desktop rodando como serviço de segundo plano no Windows (OS-Level Daemon) acrescenta a camada de alteração inviolável do arquivo `hosts` do Windows e encerramento forçado de processos (`taskkill`), atuando a nível de Sistema Operacional independentemente de abas ou logins do navegador.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
