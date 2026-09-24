@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { setNativeLockState } = require('./windowsDaemon.cjs');
 
@@ -29,15 +30,20 @@ function createWindow() {
   // Remove menu padrão do Electron para ficar 100% limpo em Dark Theme
   Menu.setApplicationMenu(null);
 
-  const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
+  const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:3000';
+  const indexPath = path.join(__dirname, '../dist/index.html');
 
   if (isDev) {
     mainWindow.loadURL(devUrl).catch(() => {
-      console.log('🔗 [TradeLock Electron] Carregando URL de desenvolvimento local...');
-      setTimeout(() => mainWindow.loadURL(devUrl), 2000);
+      console.log('🔗 [TradeLock Electron] Servidor dev offline. Carregando interface local...');
+      if (fs.existsSync(indexPath)) {
+        mainWindow.loadFile(indexPath);
+      } else {
+        setTimeout(() => mainWindow.loadURL(devUrl).catch(() => {}), 2000);
+      }
     });
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadFile(indexPath);
   }
 
   mainWindow.once('ready-to-show', () => {
