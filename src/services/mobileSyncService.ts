@@ -219,24 +219,30 @@ class MobileSyncService {
     if (this.tradesChannel) supabase.removeChannel(this.tradesChannel);
     if (this.usersChannel) supabase.removeChannel(this.usersChannel);
 
+    const cleanEmail = email.toLowerCase().trim();
+
     this.tradesChannel = supabase
-      .channel(`mobile_trades_${email}`)
+      .channel(`mobile_realtime_${cleanEmail.replace(/[^a-z0-9]/g, '_')}_${Date.now()}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'trades', filter: `user_email=eq.${email}` },
+        { event: '*', schema: 'public', table: 'trades' },
         () => {
           this.fetchDataAndSubscribe(email);
         }
       )
-      .subscribe();
-
-    this.usersChannel = supabase
-      .channel(`mobile_users_${email}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'system_users', filter: `email=eq.${email}` },
+        { event: '*', schema: 'public', table: 'risk_settings' },
+        () => {
+          this.fetchDataAndSubscribe(email);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'system_users' },
         (payload: any) => {
-          if (payload.new) {
+          this.fetchDataAndSubscribe(email);
+          if (payload.new && payload.new.email && payload.new.email.toLowerCase().trim() === cleanEmail) {
             this.updateState({
               isUserActive: payload.new.active !== false,
               subscriptionStatus: payload.new.subscription_status || 'ACTIVE',

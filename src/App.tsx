@@ -56,6 +56,7 @@ import {
   fetchTradesFromSupabase,
   fetchRiskSettingsFromSupabase,
   fetchCapitalTransactionsFromSupabase,
+  fetchUsersFromSupabase,
   upsertTradeToSupabase,
   upsertCapitalTransactionToSupabase,
   deleteTradeFromSupabase,
@@ -299,17 +300,51 @@ export default function App() {
       initSupabase();
     }
 
-    // Inscreve em tempo real nas alterações da tabela public.trades e system_users
-    const tradesChannel = supabase
-      .channel('realtime:public:trades')
+    // Inscreve em tempo real nas alterações de todas as tabelas no Supabase (multidispositivo sem F5)
+    const email = currentUser?.email;
+    const channelName = `realtime_app_${email ? email.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'global'}_${Date.now()}`;
+
+    const realtimeChannel = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'trades' },
         async () => {
-          if (currentUser?.email) {
-            const res = await fetchTradesFromSupabase(currentUser.email);
-            if (res.data) {
-              setTrades(res.data);
+          if (email) {
+            const res = await fetchTradesFromSupabase(email);
+            if (res.data) setTrades(res.data);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'risk_settings' },
+        async () => {
+          if (email) {
+            const res = await fetchRiskSettingsFromSupabase(email);
+            if (res.data) setSettings(res.data);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'capital_transactions' },
+        async () => {
+          if (email) {
+            const res = await fetchCapitalTransactionsFromSupabase(email);
+            if (res.data) setCapitalTransactions(res.data);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'system_users' },
+        async () => {
+          if (email) {
+            const users = await fetchUsersFromSupabase();
+            if (users) {
+              const updatedMe = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+              if (updatedMe) setCurrentUser(updatedMe);
             }
           }
         }
@@ -318,7 +353,7 @@ export default function App() {
 
     return () => {
       isMounted = false;
-      supabase.removeChannel(tradesChannel);
+      supabase.removeChannel(realtimeChannel);
     };
   }, [currentUser?.email]);
 

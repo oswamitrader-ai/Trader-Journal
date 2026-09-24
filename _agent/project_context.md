@@ -280,6 +280,12 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - `package.json`: Adicionados os comandos `"npm run electron:dev"` para desenvolvimento desktop e `"npm run electron:build"` para gerar o instalador `.exe` (NSIS/Portable).
       - `App.tsx`: Sincronização em tempo real via IPC enviando `syncLockState` diretamente ao Windows Daemon quando a trava ativa no React.
 
+48. **Sincronização Multidispositivo em Tempo Real via Supabase Realtime (Web, App Desktop e App Mobile)**:
+    - **Causa Raiz Identificada**: A escuta do Supabase no `App.tsx` assinava apenas a tabela `trades`, sem ouvir `risk_settings`, `capital_transactions` ou `system_users`. Quando uma operação de stop ou alteração era salva na Web, o aplicativo Desktop e o App Mobile não recebiam os eventos das outras tabelas para atualizar em tempo real sem F5.
+    - **Solução Implementada**:
+      - Atualizada a escuta do Supabase em [App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/App.tsx) e [mobileSyncService.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/services/mobileSyncService.ts) para assinar dinamicamente em tempo real as 4 tabelas (`trades`, `risk_settings`, `capital_transactions` e `system_users`).
+      - Qualquer operação adicionada ou editada na Web, Mobile ou Extensão é retransmitida instantaneamente para todos os dispositivos abertos (Web, Desktop Electron e Mobile App). Os cálculos de PnL do dia, Stop Loss, Overtrading e comandos IPC do Windows Daemon são recalculados na hora sem necessidade de F5 ou recarregamento.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
