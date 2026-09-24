@@ -134,65 +134,68 @@ function simulateSequence(
         details.push(`T${idx + 1}: L (-${formatCurrency(baseStake)})`);
       }
     } else if (model === 'SOROS_1') {
+      const stakeThisTrade = currentStake;
       if (res === 'W') {
         winCount++;
-        const profit = currentStake * payoutDec;
+        const profit = stakeThisTrade * payoutDec;
+        pnl += profit;
         if (sorosStep === 0) {
           sorosStep = 1;
           currentStake = baseStake + profit;
           details.push(`T${idx + 1}: W 1ª (+${formatCurrency(profit)})`);
         } else {
-          pnl += profit + (currentStake - baseStake);
-          details.push(`T${idx + 1}: W Soros 1! 🎉 (+${formatCurrency(profit + (currentStake - baseStake))})`);
           sorosStep = 0;
           currentStake = baseStake;
+          details.push(`T${idx + 1}: W Soros 1! 🎉 (+${formatCurrency(profit)})`);
         }
       } else {
         lossCount++;
-        pnl -= baseStake;
-        details.push(`T${idx + 1}: L Soros (-${formatCurrency(baseStake)})`);
+        pnl -= stakeThisTrade;
+        details.push(`T${idx + 1}: L Soros (-${formatCurrency(stakeThisTrade)})`);
         sorosStep = 0;
         currentStake = baseStake;
       }
     } else if (model === 'SOROS_2') {
+      const stakeThisTrade = currentStake;
       if (res === 'W') {
         winCount++;
-        const profit = currentStake * payoutDec;
+        const profit = stakeThisTrade * payoutDec;
+        pnl += profit;
         if (sorosStep < 2) {
           sorosStep++;
           currentStake = currentStake + profit;
           details.push(`T${idx + 1}: W Mão ${sorosStep} (+${formatCurrency(profit)})`);
         } else {
-          pnl += profit + (currentStake - baseStake);
-          details.push(`T${idx + 1}: W Soros 2! 🎉 (+${formatCurrency(profit + (currentStake - baseStake))})`);
           sorosStep = 0;
           currentStake = baseStake;
+          details.push(`T${idx + 1}: W Soros 2! 🎉 (+${formatCurrency(profit)})`);
         }
       } else {
         lossCount++;
-        pnl -= baseStake;
-        details.push(`T${idx + 1}: L Soros (-${formatCurrency(baseStake)})`);
+        pnl -= stakeThisTrade;
+        details.push(`T${idx + 1}: L Soros (-${formatCurrency(stakeThisTrade)})`);
         sorosStep = 0;
         currentStake = baseStake;
       }
     } else if (model === 'SOROS_3') {
+      const stakeThisTrade = currentStake;
       if (res === 'W') {
         winCount++;
-        const profit = currentStake * payoutDec;
+        const profit = stakeThisTrade * payoutDec;
+        pnl += profit;
         if (sorosStep < 3) {
           sorosStep++;
           currentStake = currentStake + profit;
           details.push(`T${idx + 1}: W Mão ${sorosStep} (+${formatCurrency(profit)})`);
         } else {
-          pnl += profit + (currentStake - baseStake);
-          details.push(`T${idx + 1}: W Soros 3! 🚀 (+${formatCurrency(profit + (currentStake - baseStake))})`);
           sorosStep = 0;
           currentStake = baseStake;
+          details.push(`T${idx + 1}: W Soros 3! 🚀 (+${formatCurrency(profit)})`);
         }
       } else {
         lossCount++;
-        pnl -= baseStake;
-        details.push(`T${idx + 1}: L Soros (-${formatCurrency(baseStake)})`);
+        pnl -= stakeThisTrade;
+        details.push(`T${idx + 1}: L Soros (-${formatCurrency(stakeThisTrade)})`);
         sorosStep = 0;
         currentStake = baseStake;
       }

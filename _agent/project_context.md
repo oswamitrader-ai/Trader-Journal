@@ -238,6 +238,10 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - Removidos os botões de teste manual (`btnTest` e `btnUnlock`) do arquivo [extensionGenerator.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/extensionGenerator.ts) (`popup.html` e `popup.js`).
     - O popup da extensão Chrome agora opera de forma 100% automática e inviolável, exibindo apenas os indicadores de status do risco, lista de corretoras protegidas e avisos administrativos.
 
+44. **Correção do Cálculo Matemático do Simulador de Gestão Soros (`RiskManagementPage.tsx`)**:
+    - **Causa Raiz Identificada**: Na função `simulateSequence` de [RiskManagementPage.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/RiskManagementPage.tsx), a variável `pnl` não era incrementada na 1ª mão de vitorias do Soros (`sorosStep === 0`). Isso fazia com que sequências como `W - L - W` mantivessem a 1ª vitória invisível no PnL, resultando em `-R$ 30,00` em vez do valor real de `-R$ 3,90`. Além disso, a perda no Soros subtraía `baseStake` em vez do valor da stake reinvestida (`stakeThisTrade`), gerando encerramentos precoces falsos por "Saldo Insuficiente".
+    - **Solução Implementada**: Atualizado o simulador para computar o PnL trade a trade (`pnl += profit` nas vitórias e `pnl -= stakeThisTrade` nas perdas). As sequências como `W - L - W` e `L - W` agora exibem os valores exatos (ex: `-R$ 3,90` em vez de `-R$ 30,00`), liberando a simulação continuada dos trades seguintes de forma matematicamente precisa.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
