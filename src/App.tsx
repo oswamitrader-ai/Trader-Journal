@@ -447,6 +447,20 @@ export default function App() {
           currentCapital: metrics.currentCapital,
         }),
       }).catch(() => {});
+      // Sync with Electron Main process & Windows Daemon
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.syncLockState) {
+        (window as any).electronAPI.syncLockState({
+          isStopHit: isStopHit,
+          isMaxTradesHit: isMaxTradesHit,
+          maxTradesPerDay: settings.maxTradesPerDay,
+          todayPnl,
+          dailyLossLimit: settings.dailyLossLimit,
+          winRate: metrics.winRate,
+          profitFactor: metrics.profitFactor,
+          todayTradesCount,
+          currentCapital: metrics.currentCapital,
+        });
+      }
     } catch (e) {
       console.warn('Falha ao sincronizar ponte Anti-Fúria:', e);
     }
