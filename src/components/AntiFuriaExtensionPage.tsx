@@ -32,6 +32,8 @@ import { downloadWindowsLockerBat } from '../utils/windowsLockerGenerator';
 interface AntiFuriaExtensionPageProps {
   onBackToDashboard: () => void;
   isStopHit: boolean;
+  isMaxTradesHit?: boolean;
+  maxTradesPerDay?: number;
   todayPnl: number;
   dailyLossLimit: number;
   winRate?: number;
@@ -44,6 +46,8 @@ interface AntiFuriaExtensionPageProps {
 export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
   onBackToDashboard,
   isStopHit,
+  isMaxTradesHit = false,
+  maxTradesPerDay = 5,
   todayPnl,
   dailyLossLimit,
   winRate = 0,
@@ -162,13 +166,26 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
 
   // Renderizador Interno da Tela de Bloqueio com o Duelo Touro vs Urso Integrado
   const renderLockScreenComponent = (isFullscreen = false) => {
-    const isMaxTradesHit = todayTradesCount >= (dailyLossLimit > 0 ? 4 : 0); // Prop check fallback
-    const lockTitle = isStopHit
-      ? `Você atingiu o seu Stop Loss diário de ${formatCurrency(dailyLossLimit)}.`
-      : `Você atingiu o seu Limite Máximo de Operações Diárias (${todayTradesCount} trades realizados).`;
-    const lockReasonText = isStopHit
-      ? `O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria e proteger seu capital.`
-      : `O TradeLock ativou a Trava Anti-Overtrading para impedir a fadiga mental e conter operações impulsivas em excesso.`;
+    let headerText = 'ACESSO BLOQUEADO PELO PLANO DE TRADE';
+    let lockTitle = '';
+    let lockReasonText = '';
+
+    if (isStopHit && isMaxTradesHit) {
+      headerText = 'ACESSO BLOQUEADO POR STOP LOSS E OVERTRADING';
+      lockTitle = `Você atingiu o seu Stop Loss diário (${formatCurrency(todayPnl)} / Limite: ${formatCurrency(dailyLossLimit)}) e o limite máximo de ${todayTradesCount} operações.`;
+      lockReasonText = `O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria e conter o overtrading.`;
+    } else if (isMaxTradesHit) {
+      headerText = 'ACESSO BLOQUEADO POR OVERTRADING';
+      lockTitle = `Você atingiu o seu Limite Máximo de Operações Diárias (${todayTradesCount}${maxTradesPerDay > 0 ? ` de ${maxTradesPerDay}` : ''} trades realizados).`;
+      lockReasonText = `O TradeLock ativou a Trava Anti-Overtrading para impedir a fadiga mental e conter operações impulsivas em excesso.`;
+    } else if (isStopHit) {
+      headerText = 'ACESSO BLOQUEADO POR STOP LOSS';
+      lockTitle = `Você atingiu o seu Stop Loss diário (${formatCurrency(todayPnl)} / Limite de perda: ${formatCurrency(dailyLossLimit)}).`;
+      lockReasonText = `O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria e proteger seu capital.`;
+    } else {
+      lockTitle = `Trava Anti-Fúria do TradeLock ativada.`;
+      lockReasonText = `O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria e proteger seu capital.`;
+    }
 
     return (
     <div
@@ -183,7 +200,7 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
             <ShieldAlert className="h-6 w-6" />
           </div>
           <h2 className="text-base sm:text-xl font-black font-mono tracking-wider uppercase">
-            {isStopHit ? 'ACESSO BLOQUEADO POR STOP LOSS' : 'ACESSO BLOQUEADO POR OVERTRADING'}
+            {headerText}
           </h2>
         </div>
         <p className="text-xs sm:text-sm font-bold text-white/95 max-w-xl mx-auto leading-relaxed">

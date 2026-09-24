@@ -396,7 +396,9 @@ export default function App() {
       window.postMessage(
         {
           type: 'ANTI_FURIA_SYNC',
-          isStopHit: isAntiFuriaActive,
+          isStopHit: isStopHit,
+          isMaxTradesHit: isMaxTradesHit,
+          maxTradesPerDay: settings.maxTradesPerDay,
           todayPnl,
           dailyLossLimit: settings.dailyLossLimit,
           winRate: metrics.winRate,
@@ -410,7 +412,9 @@ export default function App() {
       localStorage.setItem(
         'trader_anti_furia_state_v1',
         JSON.stringify({
-          isStopHit: isAntiFuriaActive,
+          isStopHit: isStopHit,
+          isMaxTradesHit: isMaxTradesHit,
+          maxTradesPerDay: settings.maxTradesPerDay,
           todayPnl,
           dailyLossLimit: settings.dailyLossLimit,
           winRate: metrics.winRate,
@@ -425,7 +429,9 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          isStopHit: isAntiFuriaActive,
+          isStopHit: isStopHit,
+          isMaxTradesHit: isMaxTradesHit,
+          maxTradesPerDay: settings.maxTradesPerDay,
           todayPnl,
           dailyLossLimit: settings.dailyLossLimit,
           winRate: metrics.winRate,
@@ -910,6 +916,8 @@ export default function App() {
       <AntiFuriaExtensionPage
         onBackToDashboard={() => setCurrentView('JOURNAL')}
         isStopHit={isStopHit}
+        isMaxTradesHit={isMaxTradesHit}
+        maxTradesPerDay={settings.maxTradesPerDay}
         todayPnl={todayPnl}
         dailyLossLimit={settings.dailyLossLimit}
         winRate={metrics.winRate}

@@ -220,6 +220,20 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - Atualizado [extensionGenerator.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/extensionGenerator.ts) para empacotar automaticamente as imagens `bull-vs-bear.jpg` e `tradelock-shield.jpg` no arquivo ZIP e liberá-las no `manifest.json`.
       - Atualizado o HTML/CSS de `blocked.html` e `blocked.js` com a mesma estrutura visual com gradiente e imagens de fundo do painel. A tela exibida ao tentar acessar a corretora bloqueada agora fica 100% idêntica à do painel.
 
+41. **Correção do Loop Infinito de Redirecionamento (Piscamento) & Descrição do Motivo de Overtrading (`background.js` / `blocked.js`)**:
+    - **Causa Raiz do Piscamento Incessante**: A função `isUrlBlocked` encontrava o domínio da corretora dentro do parâmetro `?orig=https%3A%2F%2Ftrade.exnova.com` da própria URL `blocked.html`. Isso fazia o `background.js` redirecionar a página `blocked.html` para si mesma centenas de vezes por segundo em loop infinito.
+    - **Causa Raiz da Descrição Incorreta**: O manipulador de mensagens do `background.js` combinava `isSubBlocked` com `isStopHit`, forçando o valor como `true` mesmo quando o stop era apenas por limite de operações (Overtrading).
+    - **Soluções Aplicadas**:
+      - `isUrlBlocked`, `enforceTabBlock` e `onBeforeNavigate` passam a ignorar imediatamente qualquer URL contendo `blocked.html` ou iniciada com `chrome-extension://`, eliminando completamente o loop de redirecionamento.
+      - Isoladas as variáveis `isStopHit` e `isMaxTradesHit` em `background.js` e `blocked.js`, garantindo a exibição exata do cabeçalho **🛑 ACESSO BLOQUEADO POR OVERTRADING** quando o trader atinge o limite de trades do dia.
+
+42. **Correção Precisa das Mensagens de Motivo do Bloqueio & Exclusão da Mensagem Padrão Genérica (-R$ 60,00)**:
+    - **Causa Raiz Identificada**: Em `App.tsx`, o manipulador de mensagens `ANTI_FURIA_SYNC` enviava `isStopHit: isAntiFuriaActive`. Quando a trava de limite de operações (Overtrading) ativava sem Stop Loss, `App.tsx` repassava `isStopHit: true` para a extensão Chrome. A extensão concluía incorretamente que o Stop Loss de R$ 60 fora atingido. Além disso, o template inicial `blocked.html` continha o texto estático "Você atingiu o seu Stop Loss diário de R$ 60,00".
+    - **Solução Implementada**:
+      - Atualizado `App.tsx` para transmitir as flags `isStopHit`, `isMaxTradesHit` e `maxTradesPerDay` separadamente via `window.postMessage`, `localStorage` e API.
+      - Adicionadas as chaves `'isMaxTradesHit', 'maxTradesPerDay'` no `chrome.storage.local.get` da extensão.
+      - Atualizada a formatação dos títulos e descrições em `blocked.js` e `AntiFuriaExtensionPage.tsx` para apresentar detalhadamente o PnL atual real (ex: `resultado do dia de -R$ 45,00 (Limite: R$ 60,00)`), o motivo exato (Stop Loss, Overtrading ou Ambos), e a quantidade de trades executados de forma dinâmica e precisa.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.

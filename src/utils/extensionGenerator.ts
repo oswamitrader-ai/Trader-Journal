@@ -177,6 +177,7 @@ function unblockAllTabs() {
 // Helper: Check if a URL matches any blocked domain
 function isUrlBlocked(url, domains) {
   if (!url) return false;
+  if (url.includes('blocked.html') || url.startsWith('chrome-extension://')) return false;
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
@@ -188,6 +189,7 @@ function isUrlBlocked(url, domains) {
 
 // Redirect or block tab if stop or subscription block is active
 function enforceTabBlock(tabId, url, domains, isSubBlocked) {
+  if (!url || url.includes('blocked.html') || url.startsWith('chrome-extension://')) return;
   if (isUrlBlocked(url, domains)) {
     const param = isSubBlocked ? '?type=sub_blocked&orig=' : '?orig=';
     const blockedUrl = chrome.runtime.getURL('blocked.html' + param + encodeURIComponent(url));
@@ -243,6 +245,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // Intercept navigations via webNavigation
 chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   if (details.frameId !== 0) return; // Only top level navigation
+  if (details.url && (details.url.includes('blocked.html') || details.url.startsWith('chrome-extension://'))) return;
   chrome.storage.local.get(['isStopHit', 'isMaxTradesHit', 'isSubBlocked', 'blockedDomains'], (data) => {
     if ((data.isStopHit || data.isMaxTradesHit || data.isSubBlocked) && Array.isArray(data.blockedDomains)) {
       enforceTabBlock(details.tabId, details.url, data.blockedDomains, data.isSubBlocked);
@@ -292,7 +295,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           const doms = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
           chrome.tabs.query({}, (tabs) => {
             tabs.forEach((tab) => {
-              if (tab.id && tab.url && isUrlBlocked(tab.url, doms)) {
+              if (tab.id && tab.url && !tab.url.includes('blocked.html') && !tab.url.startsWith('chrome-extension://') && isUrlBlocked(tab.url, doms)) {
                 const blockedUrl = chrome.runtime.getURL('blocked.html?orig=' + encodeURIComponent(tab.url));
                 chrome.tabs.update(tab.id, { url: blockedUrl });
               }
@@ -313,7 +316,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       const isSubBlocked = Boolean(msg.isSubBlocked);
-      const isHit = Boolean(msg.isStopHit) || isSubBlocked;
+      const isHit = Boolean(msg.isStopHit);
       const isMaxTradesHit = Boolean(msg.isMaxTradesHit);
       const maxTradesPerDay = Number(msg.maxTradesPerDay) || 5;
       const pnl = Number(msg.todayPnl) || 0;
@@ -340,7 +343,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             const doms = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
             chrome.tabs.query({}, (tabs) => {
               tabs.forEach((tab) => {
-                if (tab.id && tab.url && isUrlBlocked(tab.url, doms)) {
+                if (tab.id && tab.url && !tab.url.includes('blocked.html') && !tab.url.startsWith('chrome-extension://') && isUrlBlocked(tab.url, doms)) {
                   enforceTabBlock(tab.id, tab.url, doms, isSubBlocked);
                 }
               });
@@ -1236,7 +1239,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         <div class="header-icon">🛡️</div>
         <h1 id="headerTitle">ACESSO BLOQUEADO PELO PLANO DE TRADE</h1>
       </div>
-      <p id="headerSub">Você atingiu o seu Stop Loss diário de R$ 60,00. O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria.</p>
+      <p id="headerSub">O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria e proteger seu capital.</p>
     </div>
 
     <div class="content">
@@ -1442,7 +1445,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Load state from extension storage & listen to live unlock changes
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['dailyLossLimit', 'todayPnl', 'isStopHit', 'isSubBlocked', 'antiFuriaCustomWindowEnabled', 'antiFuriaStartTime', 'winRate', 'profitFactor', 'todayTradesCount', 'currentCapital'], (data) => {
+    chrome.storage.local.get(['dailyLossLimit', 'todayPnl', 'isStopHit', 'isMaxTradesHit', 'maxTradesPerDay', 'isSubBlocked', 'antiFuriaCustomWindowEnabled', 'antiFuriaStartTime', 'winRate', 'profitFactor', 'todayTradesCount', 'currentCapital'], (data) => {
       const params = new URLSearchParams(window.location.search);
       const isSubBlocked = Boolean(data.isSubBlocked) || params.get('type') === 'sub_blocked';
 
@@ -1474,6 +1477,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const winRate = Number(data.winRate) || 0;
       const profitFactor = Number(data.profitFactor) || 0;
       const tradesCount = Number(data.todayTradesCount) || 0;
+      const maxTrades = Number(data.maxTradesPerDay) || 5;
       const capital = Number(data.currentCapital) || 0;
 
       const isMaxTradesHit = Boolean(data.isMaxTradesHit);
@@ -1489,16 +1493,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const adviceEl = document.getElementById('aiMentorAdvice');
 
       if (headerTitle) {
-        headerTitle.innerText = isMaxTradesHit && !isStopHit
-          ? '🛑 ACESSO BLOQUEADO POR OVERTRADING'
-          : '🛡️ ACESSO BLOQUEADO PELO PLANO DE TRADE';
+        if (isStopHit && isMaxTradesHit) {
+          headerTitle.innerText = '🛑 BLOQUEIO: STOP LOSS E OVERTRADING';
+        } else if (isMaxTradesHit) {
+          headerTitle.innerText = '🛑 ACESSO BLOQUEADO POR OVERTRADING';
+        } else if (isStopHit) {
+          headerTitle.innerText = '🛡️ ACESSO BLOQUEADO POR STOP LOSS';
+        } else {
+          headerTitle.innerText = '🛡️ ACESSO BLOQUEADO PELO PLANO DE TRADE';
+        }
       }
 
       if (headerSub) {
-        if (isMaxTradesHit && !isStopHit) {
-          headerSub.innerText = 'Você atingiu o seu Limite Máximo de Operações Diárias (' + tradesCount + ' trades realizados). O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o overtrading e proteger seu capital.';
+        if (isStopHit && isMaxTradesHit) {
+          headerSub.innerText = 'Você atingiu o seu Stop Loss diário (' + formatBRL(pnl) + ' / Limite: ' + formatBRL(limit) + ') e o seu Limite Máximo de ' + tradesCount + ' Operações Diárias. O TradeLock assumiu o controle e bloqueou fisicamente as corretoras.';
+        } else if (isMaxTradesHit) {
+          headerSub.innerText = 'Você atingiu o seu Limite Máximo de Operações Diárias (' + tradesCount + (maxTrades > 0 ? ' de ' + maxTrades : '') + ' trades realizados). O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o overtrading e proteger seu capital.';
+        } else if (isStopHit) {
+          headerSub.innerText = 'Você atingiu o seu Stop Loss diário com o resultado de ' + formatBRL(pnl) + ' (Limite de perda: ' + formatBRL(limit) + '). O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria.';
         } else {
-          headerSub.innerText = 'Você atingiu o seu Stop Loss diário de ' + formatBRL(limit) + '. O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria.';
+          headerSub.innerText = 'O TradeLock assumiu o controle e bloqueou fisicamente as corretoras para conter o Urso da Fúria e proteger seu capital.';
         }
       }
       if (winRateEl) winRateEl.innerText = winRate > 0 ? winRate.toFixed(1) + '%' : '--%';
