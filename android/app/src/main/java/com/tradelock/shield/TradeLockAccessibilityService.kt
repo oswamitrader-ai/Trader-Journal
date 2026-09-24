@@ -4,6 +4,8 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import java.util.Locale
 
 class TradeLockAccessibilityService : AccessibilityService() {
 
@@ -21,6 +23,29 @@ class TradeLockAccessibilityService : AccessibilityService() {
             "com.olymptrade"
         )
 
+        val BROWSER_PACKAGE_NAMES = setOf(
+            "com.android.chrome",
+            "org.mozilla.firefox",
+            "com.sec.android.app.sbrowser",
+            "com.microsoft.emmx",
+            "com.opera.browser",
+            "com.opera.mini.native",
+            "com.brave.browser",
+            "com.duckduckgo.mobile.android",
+            "com.vivaldi.browser",
+            "com.ucmobile.intl"
+        )
+
+        val BROKER_KEYWORDS = listOf(
+            "exnova",
+            "iqoption",
+            "quotex",
+            "qxbroker",
+            "pocketoption",
+            "binomo",
+            "olymptrade"
+        )
+
         @Volatile
         var isAntiFuriaActive: Boolean = false
 
@@ -29,20 +54,52 @@ class TradeLockAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
+        if (event == null || !isAntiFuriaActive) return
 
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val packageName = event.packageName?.toString() ?: return
+        val packageName = event.packageName?.toString() ?: return
 
-            if (BROKER_PACKAGE_NAMES.contains(packageName)) {
-                Log.w(TAG, "Tentativa de abertura do aplicativo de corretora detectada: $packageName")
+        // 1. Bloqueio direto de apps nativos de corretoras
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && BROKER_PACKAGE_NAMES.contains(packageName)) {
+            Log.e(TAG, "TRAVA ANTI-FÚRIA ATIVA! Bloqueando App de Corretora: $packageName")
+            launchFullBlockOverlay(packageName)
+            return
+        }
 
-                if (isAntiFuriaActive) {
-                    Log.e(TAG, "TRAVA ANTI-FÚRIA ATIVA! Disparando Overlay de Bloqueio em Tela Cheia!")
+        // 2. Bloqueio de navegação web em navegadores mobile (Chrome, Firefox, Samsung Internet, etc.)
+        if (BROWSER_PACKAGE_NAMES.contains(packageName)) {
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
+                event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+                event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
+                
+                val rootNode = rootInActiveWindow
+                if (rootNode != null && checkNodeForBrokerKeywords(rootNode)) {
+                    Log.e(TAG, "TRAVA ANTI-FÚRIA ATIVA! Detectado site de corretora no navegador: $packageName")
                     launchFullBlockOverlay(packageName)
                 }
             }
         }
+    }
+
+    private fun checkNodeForBrokerKeywords(node: AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+
+        val text = node.text?.toString()?.lowercase(Locale.getDefault()) ?: ""
+        val contentDescription = node.contentDescription?.toString()?.lowercase(Locale.getDefault()) ?: ""
+
+        for (keyword in BROKER_KEYWORDS) {
+            if (text.contains(keyword) || contentDescription.contains(keyword)) {
+                return true
+            }
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i)
+            if (checkNodeForBrokerKeywords(child)) {
+                return true
+            }
+        }
+
+        return false
     }
 
     private fun launchFullBlockOverlay(brokerPackage: String) {

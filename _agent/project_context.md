@@ -198,6 +198,17 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
         - O simulador avalia trade a trade se o trader atingiu a **Meta de Lucro Diária (Take Profit)**, se possui saldo suficiente (`currentBalance >= stake`) ou se atingiu o **Stop Loss Diário**.
         - Se a meta for batida (ex: 2 wins de Soros Nível 1 atingem R$ 74,91 > Meta R$ 70,00), a sessão é **encerrada imediatamente no 2º trade** com a tag `Meta Batida 🎯`. Da mesma forma, se o capital zerar ou o stop for atingido, a sessão encerra no 2º trade com `Zerou a Conta 🛑` ou `Stop Loss Atingido 🔒`. Cenários redundantes ou irrealistas são eliminados da visualização.
 
+37. **Correção do Acionamento Automático do Bloqueio Nativo Mobile (Android Bridge)**:
+    - **Causa Raiz do Problema**: Em `MainActivity.kt`, a ponte nativa Android utilizava a condição `isLockActive && isStopHit`. Quando o trader atingia o **Limite Máximo de Operações Diárias** (`isMaxTradesHit`), a trava estava ativa no app mobile (`isLockActive === true`), porém como `isStopHit` era `false`, a ponte nativa desativava o `TradeLockAccessibilityService` e desconectava a VPN local.
+    - **Solução Implementada**:
+      - Atualizado [MainActivity.kt](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/android/app/src/main/java/com/tradelock/shield/MainActivity.kt) para acionar a acessibilidade e a VPN com base no estado `isLockActive`. Assim, o bloqueio nativo ativa automaticamente no Stop Loss, Limite de Operações Diárias ou Inadimplência.
+      - Removidos os botões de teste manual (`Testar Bloqueio Mobile Instantâneo` e `Liberar Acesso`) do aplicativo mobile ([App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/mobile/src/App.tsx)), garantindo que a trava seja 100% automática e inviolável.
+
+38. **Bloqueio Nativo de Navegadores Web Móveis no Celular (Chrome, Firefox, Samsung Internet, Edge, Opera, Brave)**:
+    - **Implementação em 2 Camadas (UI + Rede)**:
+      - **Camada de UI (`TradeLockAccessibilityService.kt`)**: Adicionada detecção dos principais navegadores nativos para Android (`com.android.chrome`, `org.mozilla.firefox`, `com.sec.android.app.sbrowser`, `com.microsoft.emmx`, `com.opera.browser`, `com.brave.browser`, etc.). A varredura inspeciona em tempo real a barra de endereços URL e a tela do navegador por palavras-chave de corretoras (`exnova`, `iqoption`, `quotex`, `qxbroker`, `pocketoption`, `binomo`, `olymptrade`). Ao detectar a tentativa de acesso com qualquer stop atingido, dispara o bloqueio em tela cheia (`OverlayBlockActivity`).
+      - **Camada de Rede (`TradeLockVpnService.kt`)**: Implementada a filtragem de consultas DNS (UDP Porta 53) na VPN local. Quando a trava estiver ativa, as requisições de rede para domínios de corretoras são descartadas no nível do sistema operacional, impedindo que os navegadores carreguem os sites das corretoras.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.

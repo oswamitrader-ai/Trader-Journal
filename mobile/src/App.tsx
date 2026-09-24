@@ -60,14 +60,6 @@ export const TradeLockMobileApp: React.FC = () => {
     }
   };
 
-  const handleActivateTestLock = () => {
-    mobileSyncService.updateState({ isStopHit: true });
-  };
-
-  const handleDeactivateTestLock = () => {
-    mobileSyncService.updateState({ isStopHit: false, isMaxTradesHit: false });
-  };
-
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
@@ -190,21 +182,12 @@ export const TradeLockMobileApp: React.FC = () => {
                 {lockState.reason || 'Todos os acessos a aplicativos (Exnova, Quotex, IQ Option) e redes estão sob monitoramento em tempo real.'}
               </p>
 
-              <div className="grid grid-cols-1 gap-2 pt-2">
-                <button
-                  onClick={handleActivateTestLock}
-                  className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-lg text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
-                >
-                  🔒 Testar Bloqueio Mobile Instantâneo
-                </button>
-                {lockState.isLockActive && (
-                  <button
-                    onClick={handleDeactivateTestLock}
-                    className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold rounded-lg text-xs uppercase active:scale-95 transition cursor-pointer"
-                  >
-                    🔓 Liberar Acesso (Simulação)
-                  </button>
-                )}
+              <div className="pt-2 border-t border-slate-800/80 mt-3 flex items-center justify-between">
+                <span className="text-[10px] font-mono text-slate-400 uppercase">Trava de Segurança Nativa:</span>
+                <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                  100% Automática
+                </span>
               </div>
             </div>
 

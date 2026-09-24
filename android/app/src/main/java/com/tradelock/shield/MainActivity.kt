@@ -25,13 +25,12 @@ class MainActivity : BridgeActivity() {
             try {
                 val json = JSONObject(jsonState)
                 val isLockActive = json.optBoolean("isLockActive", false)
-                val isStopHit = json.optBoolean("isStopHit", false)
-                val reason = json.optString("reason", "Stop Loss Diário Atingido")
+                val reason = json.optString("reason", "Trava Anti-Fúria Ativa")
 
-                TradeLockAccessibilityService.isAntiFuriaActive = isLockActive && isStopHit
+                TradeLockAccessibilityService.isAntiFuriaActive = isLockActive
                 TradeLockAccessibilityService.lockReason = reason
 
-                if (isLockActive && isStopHit) {
+                if (isLockActive) {
                     val vpnIntent = Intent(context, TradeLockVpnService::class.java).apply {
                         action = TradeLockVpnService.ACTION_CONNECT
                     }

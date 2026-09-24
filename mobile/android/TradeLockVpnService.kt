@@ -105,8 +105,33 @@ class TradeLockVpnService : VpnService(), Runnable {
     }
 
     private fun inspectAndFilterPacket(packet: ByteBuffer): Boolean {
-        // Lógica de descarte de pacotes para IPs/domínios das corretoras bloqueadas
-        return false // Exemplo estático: pacotes normais passam; filtragem DNS bloqueia conexões proibidas
+        try {
+            val array = packet.array()
+            val length = packet.limit()
+            if (length < 28) return false
+
+            val protocol = array[9].toInt() and 0xFF
+            if (protocol != 17) return false // Apenas pacotes UDP
+
+            val ipHeaderLength = (array[0].toInt() and 0x0F) * 4
+            if (length < ipHeaderLength + 8) return false
+
+            val destPort = ((array[ipHeaderLength + 2].toInt() and 0xFF) shl 8) or (array[ipHeaderLength + 3].toInt() and 0xFF)
+
+            // Intercepta consultas DNS na Porta 53
+            if (destPort == 53) {
+                val payloadString = String(array, ipHeaderLength + 8, length - (ipHeaderLength + 8), Charsets.ISO_8859_1).lowercase(java.util.Locale.getDefault())
+                for (domain in BLOCKED_DOMAINS) {
+                    if (payloadString.contains(domain)) {
+                        Log.w(TAG, "Requisição DNS para corretora bloqueada via VPN local: $domain")
+                        return true
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Ignorar erros de parse para não afetar tráfego normal
+        }
+        return false
     }
 
     private fun stopVpn() {
