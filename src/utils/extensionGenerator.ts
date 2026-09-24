@@ -122,11 +122,32 @@ export async function generateExtensionZip(config?: Partial<ExtensionConfig>): P
     ],
     web_accessible_resources: [
       {
-        resources: ['blocked.html', 'blocked.js', 'icon.png', 'injected.js'],
+        resources: ['blocked.html', 'blocked.js', 'icon.png', 'injected.js', 'bull-vs-bear.jpg', 'tradelock-shield.jpg'],
         matches: ['<all_urls>'],
       },
     ],
   };
+
+  // Carregar imagens do duelo para o pacote ZIP da extensão
+  try {
+    const bullRes = await fetch('/bull-vs-bear.jpg');
+    if (bullRes.ok) {
+      const bullBlob = await bullRes.blob();
+      zip.file('bull-vs-bear.jpg', bullBlob);
+    }
+  } catch (e) {
+    console.warn('Não foi possível carregar bull-vs-bear.jpg para a extensão:', e);
+  }
+
+  try {
+    const shieldRes = await fetch('/tradelock-shield.jpg');
+    if (shieldRes.ok) {
+      const shieldBlob = await shieldRes.blob();
+      zip.file('tradelock-shield.jpg', shieldBlob);
+    }
+  } catch (e) {
+    console.warn('Não foi possível carregar tradelock-shield.jpg para a extensão:', e);
+  }
 
   // 2. BACKGROUND.JS
   const backgroundJs = `// Anti-Fúria Trader - Service Worker (Manifest V3)
@@ -1118,10 +1139,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .duel-grid { grid-template-columns: 1fr; }
     }
     .duel-view-box {
+      position: relative;
       border: 1px solid #1e293b;
-      border-radius: 14px;
+      border-radius: 16px;
       background: #000000;
-      padding: 16px;
+      overflow: hidden;
+      height: 200px;
+    }
+    .duel-box-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.85;
+      display: block;
+    }
+    .duel-box-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, #000000 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+    }
+    .duel-box-text {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      text-align: left;
     }
 
     /* 4-KPI Grid */
@@ -1212,15 +1254,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
         <div id="duelContent">
           <div class="duel-grid">
-            <div class="duel-view-box" style="border-color: rgba(5, 150, 105, 0.4);">
-              <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #34d399; text-transform: uppercase;">CONFRONTO DE TENDÊNCIA</div>
-              <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Touro vs. Urso em Execução</div>
-              <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O confronto entre a disciplina tática do Touro e o impulso irracional do Urso de recuperar o loss.</div>
+            <div class="duel-view-box">
+              <img src="bull-vs-bear.jpg" alt="Duelo Touro vs Urso" class="duel-box-img" />
+              <div class="duel-box-overlay"></div>
+              <div class="duel-box-text">
+                <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #fbbf24; text-transform: uppercase;">CONFRONTO DE TENDÊNCIA</div>
+                <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Touro vs. Urso em Execução</div>
+                <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O confronto entre a disciplina tática do Touro e o impulso irracional do Urso de recuperar o loss.</div>
+              </div>
             </div>
-            <div class="duel-view-box" style="border-color: rgba(56, 189, 248, 0.4);">
-              <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #38bdf8; text-transform: uppercase;">BARREIRA FÍSICA INTRANSPONÍVEL</div>
-              <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Escudo TradeLock Interceptando</div>
-              <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O bloqueio rígido que ergue o escudo no navegador antes que o Urso devore seu saldo restante.</div>
+            <div class="duel-view-box">
+              <img src="tradelock-shield.jpg" alt="Escudo TradeLock" class="duel-box-img" />
+              <div class="duel-box-overlay"></div>
+              <div class="duel-box-text">
+                <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #34d399; text-transform: uppercase;">BARREIRA FÍSICA INTRANSPONÍVEL</div>
+                <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Escudo TradeLock Interceptando</div>
+                <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O bloqueio rígido que ergue o escudo no navegador antes que o Urso devore seu saldo restante.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -1287,15 +1337,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     content.innerHTML = \`
       <div class="duel-grid">
-        <div class="duel-view-box" style="border-color: rgba(5, 150, 105, 0.4);">
-          <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #34d399; text-transform: uppercase;">CONFRONTO DE TENDÊNCIA</div>
-          <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Touro vs. Urso em Execução</div>
-          <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O confronto entre a disciplina tática do Touro e o impulso irracional do Urso de recuperar o loss.</div>
+        <div class="duel-view-box">
+          <img src="bull-vs-bear.jpg" alt="Duelo Touro vs Urso" class="duel-box-img" />
+          <div class="duel-box-overlay"></div>
+          <div class="duel-box-text">
+            <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #fbbf24; text-transform: uppercase;">CONFRONTO DE TENDÊNCIA</div>
+            <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Touro vs. Urso em Execução</div>
+            <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O confronto entre a disciplina tática do Touro e o impulso irracional do Urso de recuperar o loss.</div>
+          </div>
         </div>
-        <div class="duel-view-box" style="border-color: rgba(56, 189, 248, 0.4);">
-          <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #38bdf8; text-transform: uppercase;">BARREIRA FÍSICA INTRANSPONÍVEL</div>
-          <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Escudo TradeLock Interceptando</div>
-          <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O bloqueio rígido que ergue o escudo no navegador antes que o Urso devore seu saldo restante.</div>
+        <div class="duel-view-box">
+          <img src="tradelock-shield.jpg" alt="Escudo TradeLock" class="duel-box-img" />
+          <div class="duel-box-overlay"></div>
+          <div class="duel-box-text">
+            <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #34d399; text-transform: uppercase;">BARREIRA FÍSICA INTRANSPONÍVEL</div>
+            <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Escudo TradeLock Interceptando</div>
+            <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O bloqueio rígido que ergue o escudo no navegador antes que o Urso devore seu saldo restante.</div>
+          </div>
         </div>
       </div>
     \`;

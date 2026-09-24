@@ -214,6 +214,12 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Ajuste Realizado**: Variáveis reordenadas no topo do script para garantir preenchimento 100% fiel de todos os KPIs operacionais no bloqueio.
     - **Limpeza Visual**: Removidos os botões "Modo Lucro & Disciplina" e "Modo Fúria & Quebra" tanto na extensão (`blocked.html` / `blocked.js`) quanto na página do painel ([AntiFuriaExtensionPage.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/AntiFuriaExtensionPage.tsx)), fixando a visualização na aba unificada "Ver Confronto Completo".
 
+40. **Inclusão das Imagens Oficiais do Duelo no Bloqueio da Extensão (`bull-vs-bear.jpg` e `tradelock-shield.jpg`)**:
+    - **Correção da Causa Raiz Visual**: As imagens oficiais do duelo (`bull-vs-bear.jpg` e `tradelock-shield.jpg`) eram exibidas na amostra do painel, porém não eram empacotadas no arquivo `.zip` da extensão e o arquivo `blocked.html` possuía apenas caixas de texto genéricas sem as ilustrações.
+    - **Solução Implementada**:
+      - Atualizado [extensionGenerator.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/extensionGenerator.ts) para empacotar automaticamente as imagens `bull-vs-bear.jpg` e `tradelock-shield.jpg` no arquivo ZIP e liberá-las no `manifest.json`.
+      - Atualizado o HTML/CSS de `blocked.html` e `blocked.js` com a mesma estrutura visual com gradiente e imagens de fundo do painel. A tela exibida ao tentar acessar a corretora bloqueada agora fica 100% idêntica à do painel.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
