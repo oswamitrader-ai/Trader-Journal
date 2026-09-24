@@ -209,6 +209,11 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - **Camada de UI (`TradeLockAccessibilityService.kt`)**: Adicionada detecção dos principais navegadores nativos para Android (`com.android.chrome`, `org.mozilla.firefox`, `com.sec.android.app.sbrowser`, `com.microsoft.emmx`, `com.opera.browser`, `com.brave.browser`, etc.). A varredura inspeciona em tempo real a barra de endereços URL e a tela do navegador por palavras-chave de corretoras (`exnova`, `iqoption`, `quotex`, `qxbroker`, `pocketoption`, `binomo`, `olymptrade`). Ao detectar a tentativa de acesso com qualquer stop atingido, dispara o bloqueio em tela cheia (`OverlayBlockActivity`).
       - **Camada de Rede (`TradeLockVpnService.kt`)**: Implementada a filtragem de consultas DNS (UDP Porta 53) na VPN local. Quando a trava estiver ativa, as requisições de rede para domínios de corretoras são descartadas no nível do sistema operacional, impedindo que os navegadores carreguem os sites das corretoras.
 
+39. **Alinhamento Estético & Correção de Exibição de Métricas na Tela de Bloqueio da Extensão (`blocked.js` / `extensionGenerator.ts` / `AntiFuriaExtensionPage.tsx`)**:
+    - **Correção da Causa Raiz**: Em `blocked.js`, as variáveis `tradesCount` e `limit` eram referenciadas no cabeçalho antes de serem atribuídas, o que gerava um `ReferenceError` e interrompia o preenchimento dinâmico dos 4 cards de KPIs de risco (Assertividade, Fator de Lucro, Trades Hoje e Saldo Atual).
+    - **Ajuste Realizado**: Variáveis reordenadas no topo do script para garantir preenchimento 100% fiel de todos os KPIs operacionais no bloqueio.
+    - **Limpeza Visual**: Removidos os botões "Modo Lucro & Disciplina" e "Modo Fúria & Quebra" tanto na extensão (`blocked.html` / `blocked.js`) quanto na página do painel ([AntiFuriaExtensionPage.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/AntiFuriaExtensionPage.tsx)), fixando a visualização na aba unificada "Ver Confronto Completo".
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.

@@ -1206,9 +1206,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             <div class="duel-title">O Duelo: Touro da Disciplina vs. Urso do Dia de Fúria</div>
           </div>
           <div class="duel-btn-row">
-            <button class="duel-btn" id="btnBull">📈 Modo Lucro &amp; Disciplina</button>
-            <button class="duel-btn" id="btnBear">📉 Modo Fúria &amp; Quebra</button>
-            <button class="duel-btn active-full" id="btnFull">🛡️ Ver Confronto Completo</button>
+            <span class="duel-btn active-full" style="cursor:default;">🛡️ Ver Confronto Completo</span>
           </div>
         </div>
 
@@ -1285,48 +1283,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   function updateDuelView() {
     const content = document.getElementById('duelContent');
-    const btnBull = document.getElementById('btnBull');
-    const btnBear = document.getElementById('btnBear');
-    const btnFull = document.getElementById('btnFull');
+    if (!content) return;
 
-    if (!content || !btnBull || !btnBear || !btnFull) return;
-
-    btnBull.className = 'duel-btn' + (currentDuelMode === 'BULL' ? ' active-bull' : '');
-    btnBear.className = 'duel-btn' + (currentDuelMode === 'BEAR' ? ' active-bear' : '');
-    btnFull.className = 'duel-btn' + (currentDuelMode === 'FULL' ? ' active-full' : '');
-
-    if (currentDuelMode === 'BULL') {
-      content.innerHTML = \`
-        <div style="border: 1px solid rgba(5,150,105,0.6); background: #000000; border-radius: 14px; padding: 16px;">
-          <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #34d399; text-transform: uppercase;">LUZ ESMERALDA — TENDÊNCIA DE ALTA</div>
-          <div style="font-size: 14px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Visão do Touro: Lucro Preservado &amp; Frieza Operacional</div>
-          <div style="font-size: 12px; color: #cbd5e1; margin-top: 6px; line-height: 1.5;">Traders consistentes respeitam a parada diária. Ao aceitar o stop de hoje, você protege semanas de ganhos e permite que o Touro da Disciplina mantenha sua curva de capital saudável no longo prazo.</div>
+    content.innerHTML = \`
+      <div class="duel-grid">
+        <div class="duel-view-box" style="border-color: rgba(5, 150, 105, 0.4);">
+          <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #34d399; text-transform: uppercase;">CONFRONTO DE TENDÊNCIA</div>
+          <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Touro vs. Urso em Execução</div>
+          <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O confronto entre a disciplina tática do Touro e o impulso irracional do Urso de recuperar o loss.</div>
         </div>
-      \`;
-    } else if (currentDuelMode === 'BEAR') {
-      content.innerHTML = \`
-        <div style="border: 1px solid rgba(225,29,72,0.6); background: #000000; border-radius: 14px; padding: 16px;">
-          <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #f87171; text-transform: uppercase;">LUZ CARMESIM — QUEDA LIVRE DE CAPITAL</div>
-          <div style="font-size: 14px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Visão do Urso: Armadilhas do Revenge Trading</div>
-          <div style="font-size: 12px; color: #cbd5e1; margin-top: 6px; line-height: 1.5;">Sob o impacto emocional da fúria, o cérebro tenta recuperar o loss abrindo ordens impulsivas com lotes maiores. Sem a trava TradeLock, 94% dos traders zeram a banca inteira em menos de 40 minutos de revenge trading.</div>
+        <div class="duel-view-box" style="border-color: rgba(56, 189, 248, 0.4);">
+          <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #38bdf8; text-transform: uppercase;">BARREIRA FÍSICA INTRANSPONÍVEL</div>
+          <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Escudo TradeLock Interceptando</div>
+          <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O bloqueio rígido que ergue o escudo no navegador antes que o Urso devore seu saldo restante.</div>
         </div>
-      \`;
-    } else {
-      content.innerHTML = \`
-        <div class="duel-grid">
-          <div class="duel-view-box" style="border-color: rgba(5, 150, 105, 0.4);">
-            <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #34d399; text-transform: uppercase;">CONFRONTO DE TENDÊNCIA</div>
-            <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Touro vs. Urso em Execução</div>
-            <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O confronto entre a disciplina tática do Touro e o impulso irracional do Urso de recuperar o loss.</div>
-          </div>
-          <div class="duel-view-box" style="border-color: rgba(56, 189, 248, 0.4);">
-            <div style="font-size: 10px; font-weight: 900; font-family: monospace; color: #38bdf8; text-transform: uppercase;">BARREIRA FÍSICA INTRANSPONÍVEL</div>
-            <div style="font-size: 13px; font-weight: 900; font-family: monospace; color: #ffffff; margin-top: 2px;">Escudo TradeLock Interceptando</div>
-            <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">O bloqueio rígido que ergue o escudo no navegador antes que o Urso devore seu saldo restante.</div>
-          </div>
-        </div>
-      \`;
-    }
+      </div>
+    \`;
   }
 
   function generateAiAdvice(winRate, profitFactor, tradesCount, todayPnl, lossLimit) {
@@ -1439,6 +1411,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return;
       }
 
+      const limit = Number(data.dailyLossLimit) || ${dailyLossLimit};
+      const pnl = Number(data.todayPnl) || 0;
+      const winRate = Number(data.winRate) || 0;
+      const profitFactor = Number(data.profitFactor) || 0;
+      const tradesCount = Number(data.todayTradesCount) || 0;
+      const capital = Number(data.currentCapital) || 0;
+
       const isMaxTradesHit = Boolean(data.isMaxTradesHit);
       const isStopHit = Boolean(data.isStopHit);
       const isLockActive = isStopHit || isMaxTradesHit || isSubBlocked;
@@ -1490,15 +1469,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
     });
   }
-
-  // Setup Duel Mode listeners
-  const btnBull = document.getElementById('btnBull');
-  const btnBear = document.getElementById('btnBear');
-  const btnFull = document.getElementById('btnFull');
-
-  if (btnBull) btnBull.addEventListener('click', () => { currentDuelMode = 'BULL'; updateDuelView(); });
-  if (btnBear) btnBear.addEventListener('click', () => { currentDuelMode = 'BEAR'; updateDuelView(); });
-  if (btnFull) btnFull.addEventListener('click', () => { currentDuelMode = 'FULL'; updateDuelView(); });
 
   // Start countdown timer immediately
   updateCountdown();

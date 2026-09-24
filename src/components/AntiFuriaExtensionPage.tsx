@@ -204,46 +204,12 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
               </h3>
             </div>
 
-            {/* BOTOES DE ALTERNANCIA DE MODO INTERATIVO */}
-            <div className="flex items-center gap-1.5 bg-black border border-slate-800 p-1.5 rounded-xl shrink-0 overflow-x-auto">
-              <button
-                type="button"
-                onClick={() => setDuelMode('BULL')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
-                  duelMode === 'BULL'
-                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/40'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
-                }`}
-              >
-                <TrendingUp className="h-3.5 w-3.5 text-emerald-300" />
-                <span>Modo Lucro &amp; Disciplina</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDuelMode('BEAR')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
-                  duelMode === 'BEAR'
-                    ? 'bg-rose-600 text-white shadow-md shadow-rose-950/40'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
-                }`}
-              >
-                <TrendingDown className="h-3.5 w-3.5 text-rose-300" />
-                <span>Modo Fúria &amp; Quebra</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDuelMode('FULL')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
-                  duelMode === 'FULL'
-                    ? 'bg-violet-600 text-white shadow-md shadow-violet-950/40'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
-                }`}
-              >
+            {/* BADGE DE CONFRONTO COMPLETO */}
+            <div className="flex items-center gap-1.5 bg-black border border-slate-800 p-1.5 rounded-xl shrink-0">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-600 text-white shadow-md shadow-violet-950/40 font-mono uppercase">
                 <ShieldAlert className="h-3.5 w-3.5 text-violet-300" />
-                <span>Ver Confronto Completo</span>
-              </button>
+                Ver Confronto Completo
+              </span>
             </div>
           </div>
 
