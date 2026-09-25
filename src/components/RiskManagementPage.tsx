@@ -479,7 +479,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
     <div className="min-h-screen bg-black text-slate-100 font-sans pb-16">
       {/* Top Header */}
       <header className="sticky top-0 z-40 border-b border-slate-800 bg-black/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+        <div className="w-full max-w-[1920px] mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-3">
             <button
               onClick={onBackToJournal}
@@ -529,7 +529,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 py-8 space-y-8">
+      <main className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Banner Alert for Active Lock */}
         {isCurrentlyLocked && (
           <div className="rounded-3xl border-2 border-rose-600/80 bg-rose-950/40 p-6 shadow-2xl shadow-rose-900/30 backdrop-blur-xl">

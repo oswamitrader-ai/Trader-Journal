@@ -97,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 border-b border-slate-800 bg-black/95 backdrop-blur-md">
       {/* Top Layer: Dedicated Brand Header */}
       <div className="border-b border-slate-800/80 bg-black/90 py-1.5 px-3 sm:px-6">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
+        <div className="w-full max-w-[1920px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-emerald-500 to-teal-700 shadow-sm shrink-0">
               <TrendingUp className="h-3.5 w-3.5 text-white" />
@@ -120,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Main Layer: Result Cards & Action Buttons */}
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 gap-2">
+      <div className="w-full max-w-[1920px] mx-auto flex items-center justify-between px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 gap-2">
         {/* Highlighted Today Result Badge (Mobile & Tablet) */}
         <div className="flex lg:hidden items-center shrink-0">
           <div

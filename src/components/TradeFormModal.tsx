@@ -366,7 +366,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       console.warn(e);
     }
 
-    const currentDateStr = new Date().toISOString().split('T')[0];
+    const currentDateStr = getLocalDateStr();
     const now = new Date();
     const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 

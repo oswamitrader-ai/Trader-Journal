@@ -93,23 +93,68 @@ export default function App() {
   const SETTINGS_STORAGE_KEY = `trader_journal_settings_${userEmailKey}`;
   const CAPITAL_STORAGE_KEY = `trader_journal_capital_txs_${userEmailKey}`;
 
-  // 1. Trades State
-  const [trades, setTrades] = useState<Trade[]>([]);
+  // 1. Trades State (Sync Initial Hydration to Eliminate 0/Empty State Flash & Timezone Fix)
+  const [trades, setTrades] = useState<Trade[]>(() => {
+    try {
+      const savedTrades = localStorage.getItem(TRADES_STORAGE_KEY);
+      const todayStr = getLocalDateStr();
+      const sanitizeDates = (list: Trade[]) =>
+        list.map((t) => (t.date && t.date > todayStr ? { ...t, date: todayStr } : t));
+
+      if (savedTrades && savedTrades !== 'undefined' && savedTrades !== 'null') {
+        const parsed = JSON.parse(savedTrades);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter((t: any) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
+          return sanitizeDates(valid);
+        }
+      }
+      if (userEmailKey === 'oswamitrader@gmail.com') {
+        const legacySaved = localStorage.getItem('trader_journal_trades_v2') || localStorage.getItem('trader_journal_trades_v1');
+        if (legacySaved && legacySaved !== 'undefined' && legacySaved !== 'null') {
+          const parsed = JSON.parse(legacySaved);
+          if (Array.isArray(parsed)) {
+            const valid = parsed.filter((t: any) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
+            return sanitizeDates(valid);
+          }
+        }
+      }
+    } catch {}
+    return [];
+  });
 
   // 2. Risk Settings State
-  const [settings, setSettings] = useState<RiskSettings>(DEFAULT_RISK_SETTINGS);
+  const [settings, setSettings] = useState<RiskSettings>(() => {
+    try {
+      const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (savedSettings && savedSettings !== 'undefined' && savedSettings !== 'null') {
+        return { ...DEFAULT_RISK_SETTINGS, ...JSON.parse(savedSettings) };
+      }
+      if (userEmailKey === 'oswamitrader@gmail.com') {
+        const legacySettings = localStorage.getItem('trader_journal_settings_v1');
+        if (legacySettings) return { ...DEFAULT_RISK_SETTINGS, ...JSON.parse(legacySettings) };
+      }
+    } catch {}
+    return DEFAULT_RISK_SETTINGS;
+  });
 
   // 3. Capital Transactions State
-  const [capitalTransactions, setCapitalTransactions] = useState<CapitalTransaction[]>([]);
+  const [capitalTransactions, setCapitalTransactions] = useState<CapitalTransaction[]>(() => {
+    try {
+      const savedTxs = localStorage.getItem(CAPITAL_STORAGE_KEY);
+      if (savedTxs && savedTxs !== 'undefined' && savedTxs !== 'null') {
+        return JSON.parse(savedTxs);
+      }
+    } catch {}
+    return [];
+  });
   const [isCapitalModalOpen, setIsCapitalModalOpen] = useState(false);
 
   // Flag para rastrear quando os dados iniciais foram hidratados
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(true);
 
   // Re-hydrate user-isolated data whenever currentUser changes
   useEffect(() => {
     if (!currentUser) return;
-    setIsDataLoaded(false);
 
     // Load user's isolated trades
     try {
@@ -134,38 +179,24 @@ export default function App() {
         }
       }
 
-      setTrades(loadedTrades);
-    } catch {
-      setTrades([]);
-    }
+      if (loadedTrades.length > 0) setTrades(loadedTrades);
+    } catch {}
 
     // Load user's isolated risk settings
     try {
       const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (savedSettings && savedSettings !== 'undefined' && savedSettings !== 'null') {
         setSettings({ ...DEFAULT_RISK_SETTINGS, ...JSON.parse(savedSettings) });
-      } else if (currentUser.email.toLowerCase() === 'oswamitrader@gmail.com') {
-        const legacySettings = localStorage.getItem('trader_journal_settings_v1');
-        if (legacySettings) setSettings({ ...DEFAULT_RISK_SETTINGS, ...JSON.parse(legacySettings) });
-        else setSettings(DEFAULT_RISK_SETTINGS);
-      } else {
-        setSettings(DEFAULT_RISK_SETTINGS);
       }
-    } catch {
-      setSettings(DEFAULT_RISK_SETTINGS);
-    }
+    } catch {}
 
     // Load user's isolated capital transactions
     try {
       const savedTxs = localStorage.getItem(CAPITAL_STORAGE_KEY);
       if (savedTxs && savedTxs !== 'undefined' && savedTxs !== 'null') {
         setCapitalTransactions(JSON.parse(savedTxs));
-      } else {
-        setCapitalTransactions([]);
       }
-    } catch {
-      setCapitalTransactions([]);
-    }
+    } catch {}
 
     setIsDataLoaded(true);
   }, [currentUser?.email]);
@@ -250,8 +281,24 @@ export default function App() {
           if (!isMounted) return;
 
           if (cloudTrades.data && cloudTrades.data.length > 0) {
-            setTrades(cloudTrades.data);
-            localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(cloudTrades.data));
+            const todayStr = getLocalDateStr();
+            let correctedCount = 0;
+            const sanitizedCloudTrades = cloudTrades.data.map((t) => {
+              if (t.date && t.date > todayStr) {
+                correctedCount++;
+                const corrected = { ...t, date: todayStr };
+                upsertTradeToSupabase(corrected, currentUser.email).catch(() => {});
+                return corrected;
+              }
+              return t;
+            });
+
+            if (correctedCount > 0) {
+              console.log(`✅ [Anti-Fúria Fix] ${correctedCount} operações noturnas com data UTC corrigidas para ${todayStr}`);
+            }
+
+            setTrades(sanitizedCloudTrades);
+            localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(sanitizedCloudTrades));
           } else {
             // 2. Se a nuvem ainda não tem os trades do usuário, faz upload dos trades locais existentes para o Supabase
             const localSaved =
@@ -526,7 +573,7 @@ export default function App() {
         (event.data.type === 'AUTO_TRADE_CAPTURED' || event.data.type === 'TRADER_JOURNAL_AUTO_TRADE') &&
         event.data.trade
       ) {
-        const capturedTrade: Trade = event.data.trade;
+        const capturedTrade: Trade = { ...event.data.trade };
         // Ignora capturas de DOM imprecisas geradas por mutação visual da página da corretora
         if (
           capturedTrade.strategy?.includes('DOM') ||
@@ -534,6 +581,12 @@ export default function App() {
           capturedTrade.id?.startsWith('dom-')
         ) {
           return;
+        }
+
+        // Garante data no fuso horário local (evita data de amanhã pelo fuso UTC pós 21h)
+        const todayStr = getLocalDateStr();
+        if (!capturedTrade.date || capturedTrade.date > todayStr) {
+          capturedTrade.date = todayStr;
         }
 
         setTrades((prev) => {
@@ -1100,7 +1153,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-28 lg:pb-12 space-y-5 sm:space-y-6">
+      <main className="w-full max-w-[1920px] mx-auto px-3.5 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-28 lg:pb-12 space-y-5 sm:space-y-6">
         {/* Supabase Notice Banner if tables not created yet */}
         {supabaseHealth.status === 'table_missing' && (
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs">

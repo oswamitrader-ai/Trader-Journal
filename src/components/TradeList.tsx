@@ -100,11 +100,13 @@ export const TradeList: React.FC<TradeListProps> = ({
     });
   }, [trades, searchTerm, filterResult, filterAsset, filterStrategy, filterPeriod, todayDate]);
 
-  // Multi-select helpers
+  // Multi-select Set helper for O(1) instant lookup & 0ms lag
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
   const isAllFilteredSelected = useMemo(() => {
     if (filteredTrades.length === 0) return false;
-    return filteredTrades.every((t) => selectedIds.includes(t.id));
-  }, [filteredTrades, selectedIds]);
+    return filteredTrades.every((t) => selectedSet.has(t.id));
+  }, [filteredTrades, selectedSet]);
 
   const toggleSelectAllFiltered = () => {
     if (isAllFilteredSelected) {
@@ -118,7 +120,7 @@ export const TradeList: React.FC<TradeListProps> = ({
 
   const toggleSelectTrade = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      selectedSet.has(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
@@ -389,7 +391,7 @@ export const TradeList: React.FC<TradeListProps> = ({
           filteredTrades.map((trade) => {
             const isGain = trade.result === 'GAIN';
             const isLoss = trade.result === 'LOSS';
-            const isSelected = selectedIds.includes(trade.id);
+            const isSelected = selectedSet.has(trade.id);
 
             return (
               <div
@@ -557,7 +559,7 @@ export const TradeList: React.FC<TradeListProps> = ({
               filteredTrades.map((trade) => {
                 const isGain = trade.result === 'GAIN';
                 const isLoss = trade.result === 'LOSS';
-                const isSelected = selectedIds.includes(trade.id);
+                const isSelected = selectedSet.has(trade.id);
 
                 return (
                   <tr

@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Trade, RiskSettings, SystemUser, CapitalTransaction } from '../types';
-import { isTradeProtected } from '../utils/calculations';
+import { isTradeProtected, getLocalDateStr } from '../utils/calculations';
 
 // Default configuration provided by the user
 export const SUPABASE_URL =
@@ -143,24 +143,32 @@ export async function fetchTradesFromSupabase(userEmail?: string): Promise<{ dat
         // Para clientes, inclui apenas operações vinculadas estritamente ao seu e-mail
         return rowUserEmail === cleanEmail;
       })
-      .map((row: any) => ({
-      id: String(row.id),
-      date: String(row.date),
-      time: String(row.time),
-      asset: String(row.asset),
-      type: row.type === 'BUY' ? 'BUY' : 'SELL',
-      strategy: String(row.strategy),
-      result: row.result === 'GAIN' ? 'GAIN' : row.result === 'LOSS' ? 'LOSS' : 'BREAKEVEN',
-      pnl: Number(row.pnl) || 0,
-      contractsOrQuantity: Number(row.contractsOrQuantity) || 1,
-      entryPrice: row.entryPrice != null ? Number(row.entryPrice) : undefined,
-      exitPrice: row.exitPrice != null ? Number(row.exitPrice) : undefined,
-      notes: row.notes || undefined,
-      tags: Array.isArray(row.tags) ? row.tags : undefined,
-      accountType: row.accountType || undefined,
-      isReal: row.isReal != null ? Boolean(row.isReal) : undefined,
-      isAutoCaptured: row.isAutoCaptured != null ? Boolean(row.isAutoCaptured) : undefined,
-    }));
+      .map((row: any) => {
+        let tradeDate = String(row.date);
+        const todayStr = getLocalDateStr();
+        if (tradeDate > todayStr) {
+          tradeDate = todayStr;
+        }
+
+        return {
+          id: String(row.id),
+          date: tradeDate,
+          time: String(row.time),
+          asset: String(row.asset),
+          type: row.type === 'BUY' ? 'BUY' : 'SELL',
+          strategy: String(row.strategy),
+          result: row.result === 'GAIN' ? 'GAIN' : row.result === 'LOSS' ? 'LOSS' : 'BREAKEVEN',
+          pnl: Number(row.pnl) || 0,
+          contractsOrQuantity: Number(row.contractsOrQuantity) || 1,
+          entryPrice: row.entryPrice != null ? Number(row.entryPrice) : undefined,
+          exitPrice: row.exitPrice != null ? Number(row.exitPrice) : undefined,
+          notes: row.notes || undefined,
+          tags: Array.isArray(row.tags) ? row.tags : undefined,
+          accountType: row.accountType || undefined,
+          isReal: row.isReal != null ? Boolean(row.isReal) : undefined,
+          isAutoCaptured: row.isAutoCaptured != null ? Boolean(row.isAutoCaptured) : undefined,
+        };
+      });
 
     return { data: trades, error: null };
   } catch (err: any) {

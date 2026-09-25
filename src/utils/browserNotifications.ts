@@ -52,7 +52,8 @@ export function checkAndTrigger80PercentPush(
     return;
   }
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const target80Key = `trader_push_80_target_${todayStr}`;
   const loss80Key = `trader_push_80_loss_${todayStr}`;
 

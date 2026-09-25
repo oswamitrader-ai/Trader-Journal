@@ -210,7 +210,7 @@ chrome.runtime.onInstalled.addListener(() => {
       antiFuriaStartTime: "${startTime}",
       antiFuriaEndTime: "${endTime}",
       todayPnl: 0,
-      lastDate: new Date().toISOString().split('T')[0],
+      lastDate: (function() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })(),
       strictMode: true,
       testMode: false,
     });
@@ -225,7 +225,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // Periodic check for new day (auto-unlock on the next morning)
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'midnightReset') {
-    const today = new Date().toISOString().split('T')[0];
+    const today = (function() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
     chrome.storage.local.get(['lastDate'], (data) => {
       if (data.lastDate && data.lastDate !== today) {
         console.log('[Anti-Fúria] Novo dia iniciado. Resetando trava de stop.');
@@ -321,7 +321,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const maxTradesPerDay = Number(msg.maxTradesPerDay) || 5;
       const pnl = Number(msg.todayPnl) || 0;
       const limit = Number(msg.dailyLossLimit) || ${dailyLossLimit};
-      const today = new Date().toISOString().split('T')[0];
+      const today = (function() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
 
       chrome.storage.local.set({
         isStopHit: isHit,
@@ -577,12 +577,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const roundedPnl = Math.round(pnl * 100) / 100;
     const result = isWin ? 'GAIN' : (isLoss ? 'LOSS' : 'BREAKEVEN');
     const tradeId = optionId || Date.now();
+    const localDateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 
     console.log('✅ [Anti-Fúria] Trade FECHADO (' + (isDemo ? 'DEMO 🧪' : 'REAL 💵') + '):', result, 'PnL:', roundedPnl, 'Amount:', amount, 'Asset:', asset, 'Dir:', type);
 
     return {
       id: 'auto-' + tradeId + '-' + Math.random().toString(36).substring(2, 6),
-      date: now.toISOString().split('T')[0],
+      date: localDateStr,
       time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
       asset: asset.replace(/[^A-Z0-9/._-]/g, '') || 'DIGITAL',
       type: type,

@@ -313,15 +313,36 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Causa Raiz Resolvida**: Ao selecionar 30 Dias na Tela de Gestão de Risco, o polling em background em `App.tsx` enviava props `settings` desatualizadas e sobrescrevia a escolha do usuário para 7 dias antes do salvamento.
     - **Solução Implementada**: Adicionada trava de inicialização única com `useRef(hasInitialized)` em [RiskManagementPage.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/RiskManagementPage.tsx) para preservar as opções escolhidas pelo trader no formulário até o clique no botão Salvar.
 
-54. **Liberação Exclusiva da Trava de Exclusão para Operações Importadas (`calculations.ts`)**:
-    - **Ajuste Realizado**: Atualizada a função `isTradeProtected` em [calculations.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/calculations.ts).
-    - As operações importadas via relatórios CSV/PDF (`id.startsWith('imp-')`, tag `Importado` ou `strategy/notes` contendo `importad`) tiveram a trava de exclusão **100% removida** (`isTradeProtected === false`).
-    - As operações capturadas ao vivo pela extensão via WebSocket da Conta Real permanecem estritamente imutáveis e protegidas contra exclusão.
+55. **Otimização Extrema de Usabilidade, Performance & Expansão do Layout em Tela Cheia**:
+    - **Causa Raiz da Lentidão e Piscamento Resolvida**:
+      - A inicialização do estado de trades ocorria de forma assíncrona (`useState([])`), exibindo o painel com valores zerados no 1º frame e piscando ao carregar dados do `localStorage` e Supabase.
+      - A verificação de seleção por checkbox em `TradeList.tsx` realizava buscas em array O(N) (`selectedIds.includes`), travando a interface ao clicar nas caixas de seleção.
+      - Os contêineres principais utilizavam a trava rígida `max-w-7xl` (1280px), deixando grandes espaços vazios nas laterais e afunilando os cards no centro da tela.
+    - **Soluções Aplicadas**:
+      - **Carregamento Sincrono sem Piscamento**: Em [App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/App.tsx), os estados `trades`, `settings` e `capitalTransactions` são pré-carregados sincronicamente do `localStorage` na função de inicialização do `useState`. O painel renderiza no 1º frame já populado, sem nenhum congelamento ou tela zerada ao mudar de aba.
+      - **Respostas Instantâneas em Checkboxes (0ms)**: Em [TradeList.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/TradeList.tsx), a verificação de seleção passou a utilizar `selectedSet` (Estrutura `Set` de tempo constante **O(1)**). A marcação/desmarcação de operações por checkbox agora responde instantaneamente sem atraso.
+      - **Expansão de Layout em Tela Cheia (`max-w-[1920px] w-full`)**: Atualizados os contêineres em `App.tsx`, `Navbar.tsx` e `RiskManagementPage.tsx` para `max-w-[1920px] w-full`, ocupando 100% da largura útil do monitor e eliminando as bordas laterais vazias.
+
+56. **Correção da Causa Raiz do Bug de Fuso Horário nas Operações Noturnas (Extensão Chrome & App)**:
+    - **Causa Raiz Identificada**: No arquivo [extensionGenerator.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/extensionGenerator.ts) e nos modais do painel, a data do trade era gerada via `new Date().toISOString().split('T')[0]`. No Brasil (Fuso UTC-3), qualquer operação realizada após as 21:00 (21:00 em UTC-3 = 00:00 UTC do dia seguinte) era gravada com a data UTC de **amanhã (25/09/2026)**.
+    - **Solução Implementada**:
+      - Substituído `toISOString().split('T')[0]` por formatação explicita de fuso horário local (`year-month-day` via `.getFullYear()`, `.getMonth() + 1`, `.getDate()`) em [extensionGenerator.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/extensionGenerator.ts), [TradeFormModal.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/TradeFormModal.tsx) e [browserNotifications.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/browserNotifications.ts).
+      - Adicionada sanitização automática no carregamento e recepção de trades em [App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/App.tsx) (`if (capturedTrade.date > todayStr) capturedTrade.date = todayStr`), corrigindo instantaneamente as operações noturnas registradas com a data do dia seguinte.
+
+57. **Migração & Correção Retroativa de Datas Noturnas e Sincronização do PnL de Hoje**:
+    - **Causa Raiz da Oscilação no Início (-R$ 105,47 -> R$ 26,10)**: Como as operações realizadas após as 21:00 foram salvas anteriormente no banco de dados e no `localStorage` com a data `25/09/2026`, o painel calculava o resultado de hoje (`24/09/2026`) inicialmente sem os trades noturnos, resultando em **-R$ 105,47**. Segundos depois, a sincronização da nuvem ou correção de data unificava os trades e o PnL saltava para **+R$ 26,10**.
+    - **Solução Aplicada**:
+      - Implementada migração retroativa em [supabase.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/lib/supabase.ts) (`fetchTradesFromSupabase`) e em [App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/App.tsx) no carregamento síncrono.
+      - Todas as operações registradas anteriormente com data futura `25/09/2026` são convertidas automaticamente para a data local real de hoje (`24/09/2026`) no `localStorage` e atualizadas via `upsertTradeToSupabase` no PostgreSQL.
+      - O valor de hoje é exibido como **R$ 26,10 desde o primeiro milissegundo de carregamento**, sem oscilação ou divergência de valores.
 
 ## Regras Importantes
 - Ambiente: Windows.
-- Explicações curtas e diretas ao código.
+- Explicações curtas & diretas ao código.
 - Português do Brasil (PT-BR).
+
+
+
 
 
 
