@@ -363,15 +363,9 @@ export default function App() {
         if (!isMounted) return;
         if (tradesRes.data) setTrades(tradesRes.data);
         if (settingsRes.data) setSettings(settingsRes.data);
-        if (capitalRes.data && capitalRes.data.length > 0) {
-          setCapitalTransactions((prev) => {
-            const map = new Map<string, CapitalTransaction>();
-            prev.forEach((t) => map.set(t.id, t));
-            capitalRes.data.forEach((t) => map.set(t.id, t));
-            const merged = Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
-            localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(merged));
-            return merged;
-          });
+        if (capitalRes.data) {
+          setCapitalTransactions(capitalRes.data);
+          localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(capitalRes.data));
         }
         if (usersRes) {
           const updatedMe = usersRes.find((u) => u.email.toLowerCase() === email.toLowerCase());

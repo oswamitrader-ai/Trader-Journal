@@ -467,6 +467,8 @@ export async function fetchCapitalTransactionsFromSupabase(userEmail?: string): 
     const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
     if (!cleanEmail) return { data: null, error: null };
 
+    const capMap = new Map<string, CapitalTransaction>();
+
     // 1. Tenta buscar da tabela principal capital_transactions
     const { data, error } = await supabase
       .from('capital_transactions')
@@ -475,45 +477,63 @@ export async function fetchCapitalTransactionsFromSupabase(userEmail?: string): 
       .order('date', { ascending: false });
 
     if (!error && data) {
-      const txs: CapitalTransaction[] = data.map((row: any) => ({
-        id: String(row.id),
-        type: row.type === 'DEPOSIT' ? 'DEPOSIT' : 'WITHDRAWAL',
-        amount: Number(row.amount) || 0,
-        fee: Number(row.fee) || 0,
-        date: String(row.date),
-        time: row.time ? String(row.time) : undefined,
-        broker: row.broker ? String(row.broker) : undefined,
-        notes: row.notes ? String(row.notes) : undefined,
-        status: row.status ? (row.status as import('../types').CapitalTransactionStatus) : 'COMPLETED',
-      }));
-      return { data: txs, error: null };
+      data.forEach((row: any) => {
+        let extractedNotes = row.notes ? String(row.notes) : undefined;
+        let extractedStatus: import('../types').CapitalTransactionStatus = row.status ? (row.status as import('../types').CapitalTransactionStatus) : 'COMPLETED';
+
+        if (extractedNotes && extractedNotes.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(extractedNotes);
+            if (parsed && typeof parsed === 'object') {
+              if (parsed.status) extractedStatus = parsed.status;
+              if (parsed.text !== undefined) extractedNotes = parsed.text;
+              else if (parsed.notes !== undefined) extractedNotes = parsed.notes;
+            }
+          } catch (e) {}
+        }
+
+        capMap.set(String(row.id), {
+          id: String(row.id),
+          type: row.type === 'DEPOSIT' ? 'DEPOSIT' : 'WITHDRAWAL',
+          amount: Number(row.amount) || 0,
+          fee: Number(row.fee) || 0,
+          date: String(row.date),
+          time: row.time ? String(row.time) : undefined,
+          broker: row.broker ? String(row.broker) : undefined,
+          notes: extractedNotes,
+          status: extractedStatus,
+        });
+      });
     }
 
     // 2. Backup fallback: busca em risk_settings com id captx_*
     const prefix = `captx_${cleanEmail}_`;
     const { data: backupRows } = await supabase.from('risk_settings').select('*').like('id', `${prefix}%`);
     if (backupRows && backupRows.length > 0) {
-      const txs: CapitalTransaction[] = backupRows.map((row: any) => {
-        let meta: any = {};
-        if (row.notes && row.notes.startsWith('{')) {
-          try { meta = JSON.parse(row.notes); } catch (e) {}
+      backupRows.forEach((row: any) => {
+        const txId = String(row.id.replace(prefix, ''));
+        if (!capMap.has(txId)) {
+          let meta: any = {};
+          if (row.notes && row.notes.startsWith('{')) {
+            try { meta = JSON.parse(row.notes); } catch (e) {}
+          }
+          capMap.set(txId, {
+            id: txId,
+            type: row.monthlyProfitTarget === 1 ? 'DEPOSIT' : 'WITHDRAWAL',
+            amount: Number(row.initialCapital) || 0,
+            fee: Number(row.dailyProfitTarget) || 0,
+            date: String(row.antiFuriaStartTime || new Date().toISOString().split('T')[0]),
+            time: meta.time || undefined,
+            broker: meta.broker || (typeof row.notes === 'string' && !row.notes.startsWith('{') ? row.notes : undefined),
+            notes: meta.notes || meta.text || undefined,
+            status: meta.status || 'COMPLETED',
+          });
         }
-        return {
-          id: String(row.id.replace(prefix, '')),
-          type: row.monthlyProfitTarget === 1 ? 'DEPOSIT' : 'WITHDRAWAL',
-          amount: Number(row.initialCapital) || 0,
-          fee: Number(row.dailyProfitTarget) || 0,
-          date: String(row.antiFuriaStartTime || new Date().toISOString().split('T')[0]),
-          time: meta.time || undefined,
-          broker: meta.broker || (typeof row.notes === 'string' && !row.notes.startsWith('{') ? row.notes : undefined),
-          notes: meta.notes || undefined,
-          status: meta.status || 'COMPLETED',
-        };
       });
-      return { data: txs, error: null };
     }
 
-    return { data: null, error: error?.message || null };
+    const txs = Array.from(capMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+    return { data: txs, error: null };
   } catch (err: any) {
     return { data: null, error: err?.message || 'Erro ao carregar movimentações de capital.' };
   }
@@ -527,21 +547,34 @@ export async function upsertCapitalTransactionToSupabase(tx: CapitalTransaction,
     const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
     if (!cleanEmail) return { success: false, error: 'User email required' };
 
-    const payload = {
+    const notesPayload = JSON.stringify({
+      text: tx.notes || '',
+      status: tx.status || 'COMPLETED',
+      broker: tx.broker,
+      time: tx.time,
+    });
+
+    const payload: any = {
       id: tx.id,
       user_email: cleanEmail,
       date: tx.date,
-      time: tx.time ?? null,
+      time: tx.time || '12:00',
       type: tx.type,
       amount: tx.amount,
       fee: tx.fee ?? 0,
       broker: tx.broker ?? null,
-      notes: tx.notes ?? null,
+      notes: notesPayload,
       status: tx.status ?? 'COMPLETED',
       updated_at: new Date().toISOString(),
     };
 
     let { error } = await supabase.from('capital_transactions').upsert(payload);
+
+    if (error && (error.code === 'PGRST204' || error.message.includes('column'))) {
+      delete payload.status;
+      const res = await supabase.from('capital_transactions').upsert(payload);
+      error = res.error;
+    }
 
     // Backup em risk_settings
     const backupId = `captx_${cleanEmail}_${tx.id}`;
@@ -556,14 +589,11 @@ export async function upsertCapitalTransactionToSupabase(tx: CapitalTransaction,
       alertSoundEnabled: true,
       antiFuriaCustomWindowEnabled: false,
       antiFuriaStartTime: tx.date,
-      notes: JSON.stringify({ broker: tx.broker, notes: tx.notes, status: tx.status, time: tx.time }),
+      notes: notesPayload,
       updated_at: new Date().toISOString(),
     };
     await supabase.from('risk_settings').upsert(backupPayload);
 
-    if (error && !error.message.includes('relation "capital_transactions" does not exist')) {
-      return { success: false, error: error.message };
-    }
     notifyRealtimeSync('capital_transactions', 'UPSERT');
     return { success: true, error: null };
   } catch (err: any) {
@@ -600,17 +630,26 @@ export async function syncAllCapitalTransactionsToSupabase(txs: CapitalTransacti
       id: tx.id,
       user_email: cleanEmail,
       date: tx.date,
-      time: tx.time ?? null,
+      time: tx.time || '12:00',
       type: tx.type,
       amount: tx.amount,
       fee: tx.fee ?? 0,
       broker: tx.broker ?? null,
-      notes: tx.notes ?? null,
+      notes: JSON.stringify({
+        text: tx.notes || '',
+        status: tx.status || 'COMPLETED',
+        broker: tx.broker,
+        time: tx.time,
+      }),
       status: tx.status ?? 'COMPLETED',
       updated_at: new Date().toISOString(),
     }));
 
-    await supabase.from('capital_transactions').upsert(payloadBatch);
+    let { error } = await supabase.from('capital_transactions').upsert(payloadBatch);
+    if (error && (error.code === 'PGRST204' || error.message.includes('column'))) {
+      const cleanBatch = payloadBatch.map(({ status, ...rest }) => rest);
+      await supabase.from('capital_transactions').upsert(cleanBatch);
+    }
   } catch (e) {}
 
   for (const tx of txs) {
@@ -618,6 +657,8 @@ export async function syncAllCapitalTransactionsToSupabase(txs: CapitalTransacti
       await upsertCapitalTransactionToSupabase(tx, cleanEmail);
     } catch (e) {}
   }
+
+  notifyRealtimeSync('capital_transactions', 'UPSERT');
 }
 
 /**
