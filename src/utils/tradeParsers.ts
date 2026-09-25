@@ -1,4 +1,5 @@
 import { Trade, TradeType, TradeResult } from '../types';
+import { getLocalDateStr } from './calculations';
 
 export type PlatformPreset = 'AUTO' | 'PROFITCHART' | 'METATRADER' | 'EXNOVA' | 'QUOTEX';
 
@@ -979,6 +980,186 @@ export async function parsePdfFile(
       ],
       platformDetected: 'PDF (erro)',
       totalPnl: 0,
+    };
+  }
+}
+
+// ─── PARSER DEDICADO PARA MOVIMENTAÇÕES DE CAPITAL (SAQUES & DEPÓSITOS) ─────────
+
+export interface ParseCapitalTransactionsResult {
+  transactions: import('../types').CapitalTransaction[];
+  errors: string[];
+  totalDeposits: number;
+  totalWithdrawals: number;
+  totalFees: number;
+}
+
+/**
+ * Parser Universal de arquivos CSV para Depósitos e Saques de Capital
+ */
+export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTransactionsResult {
+  const errors: string[] = [];
+  const transactions: import('../types').CapitalTransaction[] = [];
+  let totalDeposits = 0;
+  let totalWithdrawals = 0;
+  let totalFees = 0;
+
+  try {
+    const rawLines = csvContent.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (rawLines.length === 0) {
+      return { transactions: [], errors: ['Arquivo CSV vazio.'], totalDeposits: 0, totalWithdrawals: 0, totalFees: 0 };
+    }
+
+    // Auto-detecta delimitador (, ou ; ou tab)
+    const firstLine = rawLines[0];
+    let delimiter = ',';
+    if (firstLine.includes(';') && (firstLine.split(';').length > firstLine.split(',').length)) {
+      delimiter = ';';
+    } else if (firstLine.includes('\t') && (firstLine.split('\t').length > firstLine.split(',').length)) {
+      delimiter = '\t';
+    }
+
+    const headers = splitCsvLine(firstLine, delimiter).map((h) => h.toLowerCase().trim());
+
+    // Identificadores de colunas
+    let dateIdx = headers.findIndex((h) => h.includes('data') || h.includes('date') || h.includes('time') || h.includes('timestamp') || h.includes('horario') || h.includes('created'));
+    let typeIdx = headers.findIndex((h) => h.includes('tipo') || h.includes('type') || h.includes('operacao') || h.includes('operaçao') || h.includes('action') || h.includes('movimento') || h.includes('natureza') || h.includes('categoria'));
+    let amountIdx = headers.findIndex((h) => h.includes('valor') || h.includes('amount') || h.includes('total') || h.includes('quantia') || h.includes('montante') || h.includes('val'));
+    let feeIdx = headers.findIndex((h) => h.includes('taxa') || h.includes('fee') || h.includes('custo') || h.includes('corretagem') || h.includes('desconto'));
+    let brokerIdx = headers.findIndex((h) => h.includes('corretora') || h.includes('broker') || h.includes('banco') || h.includes('plataforma') || h.includes('origem') || h.includes('destino') || h.includes('exchange'));
+    let notesIdx = headers.findIndex((h) => h.includes('observa') || h.includes('notes') || h.includes('note') || h.includes('descricao') || h.includes('descrição') || h.includes('memo') || h.includes('historico'));
+
+    const hasHeader = headers.some(h => h.includes('valor') || h.includes('amount') || h.includes('tipo') || h.includes('type') || h.includes('data') || h.includes('date'));
+    const dataLines = hasHeader ? rawLines.slice(1) : rawLines;
+
+    const todayStr = getLocalDateStr();
+
+    for (let i = 0; i < dataLines.length; i++) {
+      const line = dataLines[i];
+      if (!line || line.startsWith('#')) continue;
+
+      const cols = splitCsvLine(line, delimiter).map((c) => c.trim());
+      if (cols.length < 2) continue;
+
+      // Valor
+      let rawAmountStr = amountIdx >= 0 && cols[amountIdx] ? cols[amountIdx] : '';
+      if (!rawAmountStr) {
+        for (const c of cols) {
+          if (/^[-+]?[\d.,R$\s]+$/.test(c) && parseFloat(c.replace(/[^0-9.-]/g, '')) > 0) {
+            rawAmountStr = c;
+            break;
+          }
+        }
+      }
+
+      const isNegative = rawAmountStr.includes('-') || (rawAmountStr.startsWith('(') && rawAmountStr.endsWith(')'));
+      const amount = parseNumber(rawAmountStr);
+      if (amount === 0) continue;
+
+      // Taxa
+      const fee = feeIdx >= 0 && cols[feeIdx] ? parseNumber(cols[feeIdx]) : 0;
+
+      // Tipo (DEPOSIT vs WITHDRAWAL)
+      let type: import('../types').CapitalTransactionType = 'DEPOSIT';
+      let typeCell = (typeIdx >= 0 && cols[typeIdx] ? cols[typeIdx] : '').toLowerCase();
+      if (!typeCell) typeCell = cols.join(' ').toLowerCase();
+
+      if (
+        isNegative ||
+        typeCell.includes('saque') ||
+        typeCell.includes('withdrawal') ||
+        typeCell.includes('withdraw') ||
+        typeCell.includes('saida') ||
+        typeCell.includes('saída') ||
+        typeCell.includes('debito') ||
+        typeCell.includes('débito') ||
+        typeCell.includes('retirada') ||
+        typeCell === 'out' ||
+        typeCell === '-'
+      ) {
+        type = 'WITHDRAWAL';
+      } else {
+        type = 'DEPOSIT';
+      }
+
+      // Data e Hora
+      let rawDateStr = dateIdx >= 0 && cols[dateIdx] ? cols[dateIdx] : '';
+      if (!rawDateStr) {
+        for (const c of cols) {
+          if (/\d{1,4}[-./]\d{1,2}[-./]\d{1,4}/.test(c)) {
+            rawDateStr = c;
+            break;
+          }
+        }
+      }
+
+      let date = todayStr;
+      let time = '12:00';
+
+      if (rawDateStr) {
+        const parsedDt = parseIsoDatetime(rawDateStr);
+        date = parsedDt.date || todayStr;
+        if (parsedDt.time && parsedDt.time !== '00:00') {
+          time = parsedDt.time;
+        } else {
+          const timeMatch = rawDateStr.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+          if (timeMatch) {
+            time = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+          }
+        }
+      }
+
+      // Corretora
+      let broker = brokerIdx >= 0 && cols[brokerIdx] ? cols[brokerIdx].trim() : '';
+      if (!broker) {
+        const rowStr = cols.join(' ');
+        if (rowStr.match(/exnova/i)) broker = 'Exnova';
+        else if (rowStr.match(/quotex/i)) broker = 'Quotex';
+        else if (rowStr.match(/iq\s*option/i)) broker = 'IQ Option';
+        else if (rowStr.match(/binance/i)) broker = 'Binance';
+        else if (rowStr.match(/clear/i)) broker = 'Clear';
+        else if (rowStr.match(/xp/i)) broker = 'XP Investimentos';
+        else broker = 'Outra Corretora';
+      }
+
+      // Observações
+      let notes = notesIdx >= 0 && cols[notesIdx] ? cols[notesIdx].trim() : 'Importado via CSV';
+
+      const tx: import('../types').CapitalTransaction = {
+        id: `imp-tx-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+        type,
+        amount: Math.abs(amount),
+        fee: fee > 0 ? Math.abs(fee) : undefined,
+        date,
+        time,
+        broker,
+        notes,
+      };
+
+      transactions.push(tx);
+
+      if (type === 'DEPOSIT') {
+        totalDeposits += Math.abs(amount);
+      } else {
+        totalWithdrawals += Math.abs(amount);
+      }
+      if (fee > 0) {
+        totalFees += Math.abs(fee);
+      }
+    }
+
+    if (transactions.length === 0) {
+      errors.push('Nenhuma movimentação de capital válida foi identificada no arquivo CSV.');
+    }
+
+    return { transactions, errors, totalDeposits, totalWithdrawals, totalFees };
+  } catch (err: any) {
+    return {
+      transactions: [],
+      errors: [`Erro ao processar o CSV de movimentações: ${err?.message || 'Erro desconhecido'}`],
+      totalDeposits: 0,
+      totalWithdrawals: 0,
+      totalFees: 0,
     };
   }
 }

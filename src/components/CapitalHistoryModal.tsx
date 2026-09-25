@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   X,
   Wallet,
@@ -14,9 +14,14 @@ import {
   TrendingUp,
   Percent,
   Receipt,
+  Upload,
+  FileSpreadsheet,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { CapitalTransaction, CapitalTransactionType } from '../types';
 import { formatCurrency, formatDate, getLocalDateStr } from '../utils/calculations';
+import { parseCapitalTransactionsCsv, ParseCapitalTransactionsResult } from '../utils/tradeParsers';
 
 interface CapitalHistoryModalProps {
   isOpen: boolean;
@@ -48,6 +53,13 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
   const [customBroker, setCustomBroker] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // Estados de Importação de CSV
+  const [showImportSection, setShowImportSection] = useState(false);
+  const [isReadingFile, setIsReadingFile] = useState(false);
+  const [parsedResult, setParsedResult] = useState<ParseCapitalTransactionsResult | null>(null);
+  const [fileName, setFileName] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -91,6 +103,47 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
     setNotes('');
     setShowFeeInput(false);
     setShowAddForm(false);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    setIsReadingFile(true);
+    setParsedResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        const res = parseCapitalTransactionsCsv(content);
+        setParsedResult(res);
+      }
+      setIsReadingFile(false);
+    };
+    reader.onerror = () => {
+      setParsedResult({
+        transactions: [],
+        errors: ['Erro ao ler o arquivo CSV.'],
+        totalDeposits: 0,
+        totalWithdrawals: 0,
+        totalFees: 0,
+      });
+      setIsReadingFile(false);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConfirmImport = () => {
+    if (!parsedResult || parsedResult.transactions.length === 0) return;
+    parsedResult.transactions.forEach((tx) => {
+      onAddTransaction(tx);
+    });
+    alert(`✅ ${parsedResult.transactions.length} movimentações de capital importadas com sucesso!`);
+    setParsedResult(null);
+    setFileName('');
+    setShowImportSection(false);
   };
 
   return (
@@ -168,7 +221,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
             </div>
           </div>
 
-          {/* Action Bar (Novo Saque / Depósito) */}
+          {/* Action Bar (Novo Saque / Depósito / Importar CSV) */}
           <div className="flex items-center justify-between gap-2 border-t border-slate-800/80 pt-4">
             <h4 className="text-xs font-bold text-white uppercase tracking-wider">
               Histórico de Lançamentos ({transactions.length})
@@ -178,10 +231,22 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  setShowImportSection(!showImportSection);
+                  setShowAddForm(false);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition shadow-md cursor-pointer"
+              >
+                <Upload className="h-3.5 w-3.5" /> 📥 Importar CSV
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
                   setActiveType('DEPOSIT');
                   setShowAddForm(true);
+                  setShowImportSection(false);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition shadow-md"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition shadow-md cursor-pointer"
               >
                 <PlusCircle className="h-3.5 w-3.5" /> + Depósito
               </button>
@@ -191,13 +256,152 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                 onClick={() => {
                   setActiveType('WITHDRAWAL');
                   setShowAddForm(true);
+                  setShowImportSection(false);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs transition shadow-md"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs transition shadow-md cursor-pointer"
               >
                 <MinusCircle className="h-3.5 w-3.5" /> - Saque
               </button>
             </div>
           </div>
+
+          {/* CSV Import Drawer */}
+          {showImportSection && (
+            <div className="p-4 rounded-xl border border-blue-500/40 bg-blue-950/20 space-y-4 animate-fadeIn">
+              <div className="flex items-center justify-between pb-2 border-b border-blue-500/30">
+                <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                  <FileSpreadsheet className="h-4 w-4 text-blue-400" />
+                  Importar Histórico de Depósitos & Saques (CSV)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowImportSection(false);
+                    setParsedResult(null);
+                  }}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Upload Drop Zone */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="p-6 rounded-xl border-2 border-dashed border-blue-500/40 bg-black/60 hover:bg-blue-950/30 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <Upload className="h-7 w-7 text-blue-400 animate-bounce" />
+                <span className="text-xs font-bold text-white">
+                  {fileName ? `Arquivo: ${fileName}` : 'Clique para selecionar seu arquivo CSV'}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Suporta arquivos de extrato de depósitos e saques exportados de qualquer corretora ou banco (Exnova, Quotex, IQ Option, Binance, XP, etc.)
+                </span>
+              </div>
+
+              {isReadingFile && (
+                <div className="text-center py-3 text-blue-400 font-mono font-bold animate-pulse">
+                  Processando arquivo CSV...
+                </div>
+              )}
+
+              {/* Errors (if any) */}
+              {parsedResult && parsedResult.errors.length > 0 && (
+                <div className="p-3 rounded-lg border border-rose-500/40 bg-rose-950/30 text-rose-300 text-xs space-y-1">
+                  <div className="font-bold flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4 text-rose-400" /> Erro de Leitura:
+                  </div>
+                  {parsedResult.errors.map((err, i) => (
+                    <p key={i} className="text-[11px]">{err}</p>
+                  ))}
+                </div>
+              )}
+
+              {/* Preview Summary */}
+              {parsedResult && parsedResult.transactions.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <div className="grid grid-cols-3 gap-2 bg-black/80 p-3 rounded-xl border border-slate-800">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-mono">Movimentações</span>
+                      <span className="text-sm font-bold text-white font-mono">
+                        {parsedResult.transactions.length} Lançamentos
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-emerald-400 block font-mono">Total Depósitos</span>
+                      <span className="text-sm font-bold text-emerald-400 font-mono">
+                        +{formatCurrency(parsedResult.totalDeposits)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-amber-400 block font-mono">Total Saques</span>
+                      <span className="text-sm font-bold text-amber-400 font-mono">
+                        -{formatCurrency(parsedResult.totalWithdrawals)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Preview Table */}
+                  <div className="max-h-40 overflow-y-auto border border-slate-800 rounded-lg bg-black/40 p-2">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="border-b border-slate-800 text-slate-400 font-bold uppercase">
+                        <tr>
+                          <th className="p-1">Tipo</th>
+                          <th className="p-1">Data</th>
+                          <th className="p-1">Corretora</th>
+                          <th className="p-1 text-right">Valor (R$)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/50">
+                        {parsedResult.transactions.slice(0, 10).map((t, idx) => (
+                          <tr key={idx}>
+                            <td className={`p-1 font-bold ${t.type === 'DEPOSIT' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                              {t.type === 'DEPOSIT' ? 'Depósito' : 'Saque'}
+                            </td>
+                            <td className="p-1 font-mono text-slate-300">{formatDate(t.date)}</td>
+                            <td className="p-1 text-slate-300">{t.broker}</td>
+                            <td className={`p-1 text-right font-mono font-bold ${t.type === 'DEPOSIT' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                              {t.type === 'DEPOSIT' ? '+' : '-'}{formatCurrency(t.amount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {parsedResult.transactions.length > 10 && (
+                      <p className="text-[10px] text-center text-slate-500 pt-1">
+                        ...e mais {parsedResult.transactions.length - 10} lançamentos.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setParsedResult(null)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-white"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmImport}
+                      className="px-4 py-1.5 font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition shadow-md flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Confirmar Importação ({parsedResult.transactions.length})
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Add Transaction Form Drawer */}
           {showAddForm && (

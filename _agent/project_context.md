@@ -362,6 +362,10 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - **Rejeição Automática de Alterações de E-mail**: Se o usuário tentar alterar o e-mail via formulário ou código enquanto a trava estiver ativa, `setUserEmail` e `fetchDataAndSubscribe` em `mobileSyncService.ts` **bloqueiam e rejeitam a troca**, mantendo a consulta ancorada no e-mail travado com `isLockActive = true`.
       - **Interface Visual Bloqueada no Mobile App**: Em [mobile/src/App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/mobile/src/App.tsx), o campo de entrada de e-mail e o botão "Sincronizar" ficam desabilitados (`disabled={lockState.isLockActive}`) com aviso em vermelho `🔒 BLOQUEADO`, impedindo qualquer tentativa de desativar o bloqueio no celular.
 
+56. **Importação de CSV de Saques & Depósitos (`CapitalHistoryModal.tsx` & `tradeParsers.ts`)**:
+    - Criada a função `parseCapitalTransactionsCsv` com detecção dinâmica de delimitadores (`,`, `;`, `\t`) e colunas.
+    - Adicionada a importação explicita da função utilitária `getLocalDateStr` em `tradeParsers.ts`.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas & diretas ao código.
