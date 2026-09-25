@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Shield,
   ShieldCheck,
@@ -320,6 +320,30 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
   // Time remaining calculation for active lock
   const [timeRemainingStr, setTimeRemainingStr] = useState<string>('');
   const [isCurrentlyLocked, setIsCurrentlyLocked] = useState<boolean>(false);
+
+  const hasInitialized = useRef(false);
+
+  useEffect(() => {
+    if (settings && !hasInitialized.current) {
+      hasInitialized.current = true;
+      setInitialCapital(settings.initialCapital ?? 10000);
+      setDailyProfitTarget(settings.dailyProfitTarget ?? 500);
+      setDailyLossLimit(settings.dailyLossLimit ?? 300);
+      setMonthlyProfitTarget(settings.monthlyProfitTarget ?? 5000);
+      setMonthlyLossLimit(settings.monthlyLossLimit ?? 2000);
+      setMaxTradesPerDay(settings.maxTradesPerDay ?? 5);
+      setAlertSoundEnabled(settings.alertSoundEnabled ?? true);
+      setAntiFuriaCustomWindowEnabled(settings.antiFuriaCustomWindowEnabled ?? false);
+      setAntiFuriaStartTime(settings.antiFuriaStartTime ?? '07:00');
+      setAntiFuriaEndTime(settings.antiFuriaEndTime ?? '11:30');
+      setLockDurationDays(settings.riskLockDurationDays ?? 7);
+      setRiskLockUntil(settings.riskLockUntil);
+      setManagementStyle(settings.managementStyle ?? 'MAO_FIXA');
+      setPayout(settings.estimatedPayout ?? 87);
+      setWinRate(settings.estimatedWinRate ?? 65);
+      setStakeValue(settings.stakePercent ?? 2);
+    }
+  }, [settings]);
 
   useEffect(() => {
     const updateLockStatus = () => {

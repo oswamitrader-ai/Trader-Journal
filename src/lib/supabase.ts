@@ -355,6 +355,16 @@ export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise
       return { data: null, error: null };
     }
 
+    let extraManagement: Partial<RiskSettings> = {};
+    if (data.notes && typeof data.notes === 'string' && data.notes.trim().startsWith('{')) {
+      try {
+        const parsedNotes = JSON.parse(data.notes);
+        if (parsedNotes && typeof parsedNotes === 'object') {
+          extraManagement = parsedNotes;
+        }
+      } catch (e) {}
+    }
+
     const settings: RiskSettings = {
       initialCapital: data.initialCapital != null ? Number(data.initialCapital) : 0,
       dailyProfitTarget: data.dailyProfitTarget != null ? Number(data.dailyProfitTarget) : 500,
@@ -366,6 +376,12 @@ export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise
       antiFuriaCustomWindowEnabled: Boolean(data.antiFuriaCustomWindowEnabled),
       antiFuriaStartTime: data.antiFuriaStartTime || '07:00',
       antiFuriaEndTime: data.antiFuriaEndTime || '11:30',
+      riskLockUntil: data.riskLockUntil || extraManagement.riskLockUntil || undefined,
+      riskLockDurationDays: data.riskLockDurationDays != null ? Number(data.riskLockDurationDays) : (extraManagement.riskLockDurationDays ?? 7),
+      managementStyle: data.managementStyle || extraManagement.managementStyle || 'MAO_FIXA',
+      estimatedPayout: data.estimatedPayout != null ? Number(data.estimatedPayout) : (extraManagement.estimatedPayout ?? 87),
+      estimatedWinRate: data.estimatedWinRate != null ? Number(data.estimatedWinRate) : (extraManagement.estimatedWinRate ?? 65),
+      stakePercent: data.stakePercent != null ? Number(data.stakePercent) : (extraManagement.stakePercent ?? 2),
     };
 
     return { data: settings, error: null };
@@ -382,6 +398,15 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
     const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
     const settingId = cleanEmail ? `settings_${cleanEmail}` : `settings_${getClientDeviceId()}`;
 
+    const managementJson = JSON.stringify({
+      riskLockUntil: settings.riskLockUntil,
+      riskLockDurationDays: settings.riskLockDurationDays,
+      managementStyle: settings.managementStyle,
+      estimatedPayout: settings.estimatedPayout,
+      estimatedWinRate: settings.estimatedWinRate,
+      stakePercent: settings.stakePercent,
+    });
+
     const payload: any = {
       id: settingId,
       initialCapital: settings.initialCapital,
@@ -394,6 +419,13 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       antiFuriaCustomWindowEnabled: settings.antiFuriaCustomWindowEnabled ?? false,
       antiFuriaStartTime: settings.antiFuriaStartTime || '07:00',
       antiFuriaEndTime: settings.antiFuriaEndTime || '11:30',
+      riskLockUntil: settings.riskLockUntil ?? null,
+      riskLockDurationDays: settings.riskLockDurationDays ?? 7,
+      managementStyle: settings.managementStyle || 'MAO_FIXA',
+      estimatedPayout: settings.estimatedPayout ?? 87,
+      estimatedWinRate: settings.estimatedWinRate ?? 65,
+      stakePercent: settings.stakePercent ?? 2,
+      notes: managementJson,
       updated_at: new Date().toISOString(),
     };
 
@@ -403,6 +435,12 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       delete payload.antiFuriaCustomWindowEnabled;
       delete payload.antiFuriaStartTime;
       delete payload.antiFuriaEndTime;
+      delete payload.riskLockUntil;
+      delete payload.riskLockDurationDays;
+      delete payload.managementStyle;
+      delete payload.estimatedPayout;
+      delete payload.estimatedWinRate;
+      delete payload.stakePercent;
       await supabase.from('risk_settings').upsert(payload);
     }
     notifyRealtimeSync('risk_settings', 'UPSERT');

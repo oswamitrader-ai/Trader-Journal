@@ -680,6 +680,13 @@ export default function App() {
     }
 
     setSettings(newSettings);
+    if (currentUser && SETTINGS_STORAGE_KEY) {
+      try {
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(newSettings));
+      } catch (e) {
+        console.warn('Erro ao salvar settings no localStorage:', e);
+      }
+    }
     // Save to Supabase in background
     saveRiskSettingsToSupabase(newSettings, currentUser?.email).then((res) => {
       if (res.error) {

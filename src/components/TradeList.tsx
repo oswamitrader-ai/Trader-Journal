@@ -489,15 +489,13 @@ export const TradeList: React.FC<TradeListProps> = ({
                       <span>Editar</span>
                     </button>
                     {isTradeProtected(trade) ? (
-                      <button
-                        type="button"
-                        onClick={() => onDeleteTrade(trade.id)}
-                        title="🔒 Operação de Conta Real capturada. Protegida pelo Sistema Anti-Fúria contra exclusão."
-                        className="flex items-center gap-1 rounded-xl bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/20"
+                      <span
+                        title="🔒 Operação de Conta Real capturada ao vivo pela Extensão. Protegida pelo Sistema Anti-Fúria contra exclusão."
+                        className="flex items-center gap-1 rounded-xl bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 text-xs font-bold text-amber-300"
                       >
                         <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
                         <span>Protegido 🔒</span>
-                      </button>
+                      </span>
                     ) : (
                       <button
                         type="button"
@@ -656,14 +654,12 @@ export const TradeList: React.FC<TradeListProps> = ({
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
                         {isTradeProtected(trade) ? (
-                          <button
-                            type="button"
-                            onClick={() => onDeleteTrade(trade.id)}
-                            title="🔒 Operação de Conta Real capturada. Protegida pelo Sistema Anti-Fúria contra exclusão."
-                            className="rounded p-1 text-amber-400 hover:bg-amber-950/40 transition"
+                          <span
+                            title="🔒 Operação de Conta Real capturada ao vivo pela Extensão. Protegida pelo Sistema Anti-Fúria contra exclusão."
+                            className="inline-flex items-center justify-center p-1 text-amber-400"
                           >
                             <ShieldCheck className="h-4 w-4 text-amber-400" />
-                          </button>
+                          </span>
                         ) : (
                           <button
                             type="button"

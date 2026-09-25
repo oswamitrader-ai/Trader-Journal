@@ -11,6 +11,11 @@ export const DEFAULT_RISK_SETTINGS: RiskSettings = {
   antiFuriaCustomWindowEnabled: false,
   antiFuriaStartTime: '07:00',
   antiFuriaEndTime: '11:30',
+  riskLockDurationDays: 7,
+  managementStyle: 'MAO_FIXA',
+  estimatedPayout: 87,
+  estimatedWinRate: 65,
+  stakePercent: 2,
 };
 
 // 100% Real data - Sem dados mockados ou pré-carregados

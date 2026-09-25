@@ -292,6 +292,16 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - Operações criadas manualmente pelo botão "Novo Trade" (`isAutoCaptured !== true`) e operações importadas via CSV/PDF ficam **completamente liberadas para exclusão e edição pelo trader**.
     - A trava de proteção imutável Anti-Fúria permanece aplicada **estritamente** para operações de Conta Real capturadas ao vivo pela extensão Chrome em tempo real (`isAutoCaptured === true` ou `id.startsWith('live-')`).
 
+50. **Persistência Completa da Tela de Gestão de Risco & Regras de Gerenciamento (`RiskManagementPage.tsx`)**:
+    - **Causa Raiz Identificada**: Os campos avançados da tela de Gestão de Risco (`riskLockUntil`, `riskLockDurationDays`, `managementStyle`, `estimatedPayout`, `estimatedWinRate`, `stakePercent`) eram omitidos ao salvar no Supabase em [supabase.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/lib/supabase.ts) e não eram sincronizados via `localStorage.setItem(SETTINGS_STORAGE_KEY)`. Ao recarregar a página, as opções selecionadas voltavam para os valores padrão.
+    - **Solução Implementada**:
+      - Atualizadas as funções `saveRiskSettingsToSupabase` e `fetchRiskSettingsFromSupabase` em [supabase.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/lib/supabase.ts#L324-L415) com serialização/desserialização JSON via coluna `notes` para compatibilidade total com o Supabase Postgres.
+      - Adicionada persistência imediata em `localStorage` e re-hidratação via `useEffect` em [App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/App.tsx#L680) e [RiskManagementPage.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/RiskManagementPage.tsx#L324).
+
+51. **Ocultação do Botão Excluir e Blindagem de Edição em Operações da Conta Real Capturadas via WebSocket**:
+    - **Remoção do Botão de Excluir**: Para todas as operações da Conta Real capturadas ao vivo pela extensão (`isTradeProtected === true`), o botão "Excluir" **nem aparece na interface** em [TradeList.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/TradeList.tsx#L491) e [DayDetailModal.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/DayDetailModal.tsx#L293). Exibe apenas o selo estático de proteção `<ShieldCheck className="text-amber-400" /> Protegido 🔒`.
+    - **Imutabilidade Financeira**: No modal [TradeFormModal.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/TradeFormModal.tsx#L725), todos os campos financeiros (**Valor de Entrada**, **Resultado Líquido P&L R$**, **Tipo de Conta Real vs Demo** e **Direção Compra vs Venda**) permanecem **desabilitados (disabled)** para operações capturadas ao vivo da Conta Real, permitindo ajustar apenas o setup, anotações e estado emocional.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.

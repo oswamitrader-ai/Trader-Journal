@@ -291,15 +291,13 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                             Editar
                           </button>
                           {isTradeProtected(t) ? (
-                            <button
-                              type="button"
-                              onClick={() => onDeleteTrade(t.id)}
-                              title="🔒 Operação de Conta Real capturada. Protegida pelo Sistema Anti-Fúria contra exclusão."
-                              className="text-amber-400 hover:text-amber-300 px-1.5 py-0.5 rounded hover:bg-amber-950/40 text-[11px] font-bold flex items-center gap-1"
+                            <span
+                              title="🔒 Operação de Conta Real capturada ao vivo pela Extensão. Protegida pelo Sistema Anti-Fúria contra exclusão."
+                              className="text-amber-400 px-1.5 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 cursor-default select-none"
                             >
                               <ShieldCheck className="h-3 w-3" />
                               <span>Protegido 🔒</span>
-                            </button>
+                            </span>
                           ) : (
                             <button
                               type="button"

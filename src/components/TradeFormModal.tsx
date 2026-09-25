@@ -722,12 +722,17 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
             </div>
 
             <div>
-              <label className="mb-1 block font-semibold text-slate-300">Direção da Operação</label>
+              <label className="mb-1 block font-semibold text-slate-300">
+                Direção da Operação {isEditingProtected && '🔒'}
+              </label>
               <div className="grid grid-cols-2 gap-2 mt-1">
                 <button
                   type="button"
+                  disabled={isEditingProtected}
                   onClick={() => setType('BUY')}
                   className={`flex items-center justify-center gap-1 rounded-xl py-2 font-bold transition ${
+                    isEditingProtected ? 'cursor-not-allowed opacity-60' : ''
+                  } ${
                     type === 'BUY'
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
                       : 'border border-slate-800 bg-black text-slate-400 hover:text-white'
@@ -737,8 +742,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </button>
                 <button
                   type="button"
+                  disabled={isEditingProtected}
                   onClick={() => setType('SELL')}
                   className={`flex items-center justify-center gap-1 rounded-xl py-2 font-bold transition ${
+                    isEditingProtected ? 'cursor-not-allowed opacity-60' : ''
+                  } ${
                     type === 'SELL'
                       ? 'bg-amber-600 text-white shadow-md shadow-amber-900/30'
                       : 'border border-slate-800 bg-black text-slate-400 hover:text-white'
