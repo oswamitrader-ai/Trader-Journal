@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Trade, RiskSettings, SystemUser, CapitalTransaction } from '../types';
-import { isTradeProtected, getLocalDateStr } from '../utils/calculations';
+import { isTradeProtected, getLocalDateStr, sortAndSanitizeTrades } from '../utils/calculations';
 
 // Default configuration provided by the user
 export const SUPABASE_URL =
@@ -152,7 +152,7 @@ export async function fetchTradesFromSupabase(userEmail?: string): Promise<{ dat
 
         return {
           id: String(row.id),
-          date: tradeDate,
+          date: String(row.date),
           time: String(row.time),
           asset: String(row.asset),
           type: row.type === 'BUY' ? 'BUY' : 'SELL',
@@ -170,7 +170,8 @@ export async function fetchTradesFromSupabase(userEmail?: string): Promise<{ dat
         };
       });
 
-    return { data: trades, error: null };
+    const sanitizedTrades = sortAndSanitizeTrades(trades);
+    return { data: sanitizedTrades, error: null };
   } catch (err: any) {
     return { data: null, error: err?.message || 'Erro inesperado ao carregar trades.' };
   }

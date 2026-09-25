@@ -13,6 +13,9 @@ export const TradeLockMobileApp: React.FC = () => {
     mobileSyncService.setUserEmail(inputEmail);
     const unsubscribe = mobileSyncService.subscribe((state) => {
       setLockState(state);
+      if (state.userEmail && state.userEmail !== inputEmail) {
+        setInputEmail(state.userEmail);
+      }
     });
 
     const timerInterval = setInterval(() => {
@@ -41,15 +44,34 @@ export const TradeLockMobileApp: React.FC = () => {
 
   const handleSyncSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+
+    // 🔒 ANTI-BYPASS: Se a Trava Anti-Fúria estiver ativa, impede a alteração de e-mail
+    if (lockState.isLockActive && inputEmail.trim().toLowerCase() !== (lockState.userEmail || '').toLowerCase()) {
+      alert(
+        '🔒 Ação Bloqueada pelo Sistema Anti-Fúria!\n\nVocê NÃO pode alterar o e-mail de sincronização enquanto a trava de segurança estiver ativa para proteger sua gestão de risco.'
+      );
+      setInputEmail(lockState.userEmail);
+      return;
+    }
+
     if (!inputEmail.trim()) return;
 
     setIsSyncing(true);
     setSyncFeedback('Sincronizando...');
 
     try {
-      await mobileSyncService.fetchDataAndSubscribe(inputEmail.trim());
-      mobileSyncService.setUserEmail(inputEmail.trim());
-      setSyncFeedback('✅ Sincronizado!');
+      const success = mobileSyncService.setUserEmail(inputEmail.trim());
+      if (success) {
+        setSyncFeedback('✅ Sincronizado!');
+      } else {
+        alert(
+          '🔒 Troca de E-mail Bloqueada!\n\nA Trava Anti-Fúria está ativada para o e-mail atual (' +
+            lockState.userEmail +
+            '). A sincronização continuará mantida neste e-mail para proteger seu capital.'
+        );
+        setInputEmail(lockState.userEmail);
+        setSyncFeedback('🔒 Bloqueado');
+      }
     } catch (err) {
       setSyncFeedback('❌ Erro na Sincronização');
     } finally {
@@ -109,33 +131,55 @@ export const TradeLockMobileApp: React.FC = () => {
           </div>
         </header>
 
-        {/* User Email Sync Box - 100% Clicável e Funcional */}
+        {/* User Email Sync Box - Bloqueado contra bypass quando a trava ativa */}
         <form
           onSubmit={handleSyncSubmit}
-          className="mb-4 bg-black/90 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-2 shadow-xl"
+          className={`mb-4 bg-black/90 p-3 rounded-xl border flex flex-col gap-2 shadow-xl ${
+            lockState.isLockActive
+              ? 'border-rose-600/60 bg-rose-950/10'
+              : 'border-slate-800'
+          }`}
         >
-          <div className="flex-1">
-            <label className="text-[10px] font-mono text-slate-400 uppercase block mb-1">
-              E-mail do Trader no Painel Web:
-            </label>
-            <input
-              type="email"
-              value={inputEmail}
-              onChange={(e) => setInputEmail(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
-              placeholder="seu-email@gmail.com"
-            />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1">
+              <label className="text-[10px] font-mono text-slate-400 uppercase flex items-center justify-between mb-1">
+                <span>E-mail do Trader no Painel Web:</span>
+                {lockState.isLockActive && (
+                  <span className="text-rose-400 font-bold">🔒 BLOQUEADO</span>
+                )}
+              </label>
+              <input
+                type="email"
+                disabled={lockState.isLockActive}
+                value={inputEmail}
+                onChange={(e) => setInputEmail(e.target.value)}
+                className={`w-full border rounded px-2.5 py-1.5 text-xs font-mono focus:outline-none ${
+                  lockState.isLockActive
+                    ? 'bg-slate-900 border-rose-600/50 text-slate-400 cursor-not-allowed opacity-80'
+                    : 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                }`}
+                placeholder="seu-email@gmail.com"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isSyncing || lockState.isLockActive}
+              onClick={() => handleSyncSubmit()}
+              className={`self-end py-2 px-3.5 font-black rounded-lg text-xs uppercase tracking-wider shrink-0 transition-all cursor-pointer shadow-lg ${
+                lockState.isLockActive
+                  ? 'bg-rose-950/80 text-rose-300 border border-rose-600/50 cursor-not-allowed opacity-70'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white active:scale-95'
+              } ${isSyncing ? 'opacity-50 cursor-wait' : ''}`}
+            >
+              {syncFeedback || (lockState.isLockActive ? '🔒 Protegido' : isSyncing ? 'Sincronizando...' : 'Sincronizar')}
+            </button>
           </div>
-          <button
-            type="submit"
-            disabled={isSyncing}
-            onClick={() => handleSyncSubmit()}
-            className={`self-end py-2 px-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black rounded-lg text-xs uppercase tracking-wider shrink-0 transition-all cursor-pointer shadow-lg ${
-              isSyncing ? 'opacity-50 cursor-wait' : ''
-            }`}
-          >
-            {syncFeedback || (isSyncing ? 'Sincronizando...' : 'Sincronizar')}
-          </button>
+
+          {lockState.isLockActive && (
+            <div className="text-[10px] text-rose-400 font-mono font-bold border-t border-rose-900/40 pt-1.5 flex items-center gap-1">
+              <span>🔒 Troca de e-mail desabilitada para impedir burlar a Trava Anti-Fúria.</span>
+            </div>
+          )}
         </form>
 
         {/* Segment Navigation (2 Colunas) */}

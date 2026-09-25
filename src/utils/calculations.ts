@@ -154,6 +154,61 @@ export function getLocalDateStr(dateInput: Date | string | number = new Date()):
   return `${year}-${month}-${day}`;
 }
 
+export function getYesterdayLocalDateStr(baseDateStr?: string): string {
+  const d = baseDateStr ? new Date(baseDateStr + 'T12:00:00') : new Date();
+  d.setDate(d.getDate() - 1);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Sanitiza datas de operações noturnas (corrigindo desvio UTC pós-21h) e ordena por data desc e hora desc
+ */
+export function sortAndSanitizeTrades(trades: Trade[]): Trade[] {
+  if (!Array.isArray(trades)) return [];
+
+  const todayStr = getLocalDateStr();
+  const yesterdayStr = getYesterdayLocalDateStr();
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMin = now.getMinutes();
+  const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`;
+
+  const sanitized = trades.map((t) => {
+    if (!t) return t;
+    let date = t.date;
+    const time = t.time || '00:00';
+
+    // 1. Se a data gravada for maior que HOJE
+    if (date > todayStr) {
+      date = time >= '18:00' ? yesterdayStr : todayStr;
+    }
+    // 2. Se a data for HOJE, mas estivermos na madrugada (ex: 00:02 AM) e a operação for noturna (ex: 21:45 PM),
+    // ou se o horário da operação for maior que o horário atual na mesma data (impossível no presente):
+    else if (date === todayStr) {
+      if ((currentHour < 6 && time >= '18:00') || time > currentTimeStr) {
+        date = yesterdayStr;
+      }
+    }
+
+    if (date !== t.date) {
+      return { ...t, date };
+    }
+    return t;
+  });
+
+  // Ordena estritamente por data decrescente e hora decrescente (ex: 21:48 acima de 21:45)
+  return sanitized.sort((a, b) => {
+    const dateComp = (b.date || '').localeCompare(a.date || '');
+    if (dateComp !== 0) return dateComp;
+    const timeA = a.time || '00:00';
+    const timeB = b.time || '00:00';
+    return timeB.localeCompare(timeA);
+  });
+}
+
 export function formatShortDate(dateString: string): string {
   if (!dateString) return '';
   const parts = dateString.split('-');

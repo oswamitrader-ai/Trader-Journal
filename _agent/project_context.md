@@ -347,6 +347,21 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - Adicionada a função utilitária `isOtcTrade(trade)` em [calculations.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/calculations.ts).
       - Criado badge visual com brilho neon roxo `<Zap className="h-3 w-3 text-purple-400 fill-purple-400" /> OTC` em [TradeList.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/TradeList.tsx) e [DayDetailModal.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/DayDetailModal.tsx) para identificar instantaneamente operações realizadas em mercado OTC.
 
+59. **Normalização Definitiva de Datas Noturnas e Ordenação Global na Recarga (F5 Refresh)**:
+    - **Causa Raiz Resolvida**: Ao passar da meia-noite no fuso local (`00:00`), a data de hoje mudava (ex: de `24/09` para `25/09`). As operações realizadas na noite anterior (ex: 21:45 / 21:48) que haviam sido salvas originalmente com data UTC de `25/09` deixavam de ser sanitizadas e saltavam para "amanhã" (`25/09`), fazendo com que o recarregamento com F5 alterasse a ordem e o dia da operação.
+    - **Solução Implementada**:
+      - Criadas as funções `getYesterdayLocalDateStr()` e `sortAndSanitizeTrades(trades)` em [calculations.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/calculations.ts).
+      - `sortAndSanitizeTrades` identifica inteligentemente operações noturnas registradas com fuso UTC e converte a data para o dia operacional correto do trader (ex: 21:45/21:48 em `24/09`), além de aplicar a ordenação estrita por `date` decrescente e `time` decrescente (`timeB.localeCompare(timeA)`).
+      - Integrado `sortAndSanitizeTrades` no carregamento inicial (`useState`), no `useEffect` de reidratação do usuário, na consulta do Supabase ([supabase.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/lib/supabase.ts)), na captura ao vivo pela extensão e no salvamento/importação de trades em [App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/App.tsx).
+      - A ordem (21:48 acima de 21:45 no dia 24/09) e as datas permanecem **100% imutáveis e idênticas mesmo após apertar F5**.
+
+60. **Blindagem Inviolável Contra Troca de E-mail no App Mobile TradeLock**:
+    - **Causa Raiz de Burlar Resolvida**: Quando a Trava Anti-Fúria ativava no celular (`isLockActive = true`), o trader em estado de fúria podia alterar o campo de e-mail no aplicativo móvel para um e-mail diferente/fictício. Ao sincronizar, os dados desse novo e-mail (sem stop hit) eram retornados, desativando a trava nativa do celular (`AccessibilityService` e `VpnService`) e destravando as corretoras.
+    - **Solução Implementada**:
+      - **Ancoragem Persistente do E-mail Travado**: Em [mobileSyncService.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/services/mobileSyncService.ts), quando `isLockActive` torna-se `true`, o e-mail travado e a data de hoje são gravados de forma inviolável no `localStorage` do celular (`tradelock_locked_user_email` e `tradelock_locked_date`).
+      - **Rejeição Automática de Alterações de E-mail**: Se o usuário tentar alterar o e-mail via formulário ou código enquanto a trava estiver ativa, `setUserEmail` e `fetchDataAndSubscribe` em `mobileSyncService.ts` **bloqueiam e rejeitam a troca**, mantendo a consulta ancorada no e-mail travado com `isLockActive = true`.
+      - **Interface Visual Bloqueada no Mobile App**: Em [mobile/src/App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/mobile/src/App.tsx), o campo de entrada de e-mail e o botão "Sincronizar" ficam desabilitados (`disabled={lockState.isLockActive}`) com aviso em vermelho `🔒 BLOQUEADO`, impedindo qualquer tentativa de desativar o bloqueio no celular.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas & diretas ao código.

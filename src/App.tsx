@@ -26,6 +26,7 @@ import {
   setGlobalCurrency,
   isTradeProtected,
   getLocalDateStr,
+  sortAndSanitizeTrades,
 } from './utils/calculations';
 import { Navbar } from './components/Navbar';
 import { RiskAlertBanner } from './components/RiskAlertBanner';
@@ -97,15 +98,12 @@ export default function App() {
   const [trades, setTrades] = useState<Trade[]>(() => {
     try {
       const savedTrades = localStorage.getItem(TRADES_STORAGE_KEY);
-      const todayStr = getLocalDateStr();
-      const sanitizeDates = (list: Trade[]) =>
-        list.map((t) => (t.date && t.date > todayStr ? { ...t, date: todayStr } : t));
 
       if (savedTrades && savedTrades !== 'undefined' && savedTrades !== 'null') {
         const parsed = JSON.parse(savedTrades);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const valid = parsed.filter((t: any) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
-          return sanitizeDates(valid);
+          return sortAndSanitizeTrades(valid);
         }
       }
       if (userEmailKey === 'oswamitrader@gmail.com') {
@@ -114,7 +112,7 @@ export default function App() {
           const parsed = JSON.parse(legacySaved);
           if (Array.isArray(parsed)) {
             const valid = parsed.filter((t: any) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
-            return sanitizeDates(valid);
+            return sortAndSanitizeTrades(valid);
           }
         }
       }
@@ -179,7 +177,7 @@ export default function App() {
         }
       }
 
-      if (loadedTrades.length > 0) setTrades(loadedTrades);
+      if (loadedTrades.length > 0) setTrades(sortAndSanitizeTrades(loadedTrades));
     } catch {}
 
     // Load user's isolated risk settings
@@ -281,21 +279,10 @@ export default function App() {
           if (!isMounted) return;
 
           if (cloudTrades.data && cloudTrades.data.length > 0) {
-            const todayStr = getLocalDateStr();
-            let correctedCount = 0;
-            const sanitizedCloudTrades = cloudTrades.data.map((t) => {
-              if (t.date && t.date > todayStr) {
-                correctedCount++;
-                const corrected = { ...t, date: todayStr };
-                upsertTradeToSupabase(corrected, currentUser.email).catch(() => {});
-                return corrected;
-              }
-              return t;
+            const sanitizedCloudTrades = sortAndSanitizeTrades(cloudTrades.data);
+            sanitizedCloudTrades.forEach((t) => {
+              upsertTradeToSupabase(t, currentUser.email).catch(() => {});
             });
-
-            if (correctedCount > 0) {
-              console.log(`✅ [Anti-Fúria Fix] ${correctedCount} operações noturnas com data UTC corrigidas para ${todayStr}`);
-            }
 
             setTrades(sanitizedCloudTrades);
             localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(sanitizedCloudTrades));
@@ -600,7 +587,7 @@ export default function App() {
                 t.type === capturedTrade.type)
           );
           if (isDuplicate) return prev;
-          return [capturedTrade, ...prev];
+          return sortAndSanitizeTrades([capturedTrade, ...prev]);
         });
 
         upsertTradeToSupabase(capturedTrade, currentUser?.email).catch(() => {});
@@ -633,9 +620,9 @@ export default function App() {
       if (existsIndex >= 0) {
         const updated = [...prev];
         updated[existsIndex] = tradeData;
-        return updated;
+        return sortAndSanitizeTrades(updated);
       }
-      return [tradeData, ...prev];
+      return sortAndSanitizeTrades([tradeData, ...prev]);
     });
 
     // Sync to Supabase in background with userEmail scope
@@ -662,7 +649,7 @@ export default function App() {
       return;
     }
 
-    setTrades((prev) => [...importedTrades, ...prev]);
+    setTrades((prev) => sortAndSanitizeTrades([...importedTrades, ...prev]));
     // Sync each imported trade to Supabase in background with userEmail scope
     importedTrades.forEach((trade) => {
       upsertTradeToSupabase(trade, currentUser?.email).catch((err) => {

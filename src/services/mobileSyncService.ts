@@ -72,14 +72,38 @@ class MobileSyncService {
     return { ...this.currentState };
   }
 
-  public setUserEmail(email: string): void {
+  private getLockedEmailInfo(): { lockedEmail: string; date: string } | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const lockedEmail = localStorage.getItem('tradelock_locked_user_email');
+      const lockDate = localStorage.getItem('tradelock_locked_date');
+      const todayStr = getLocalDateStr();
+      if (lockedEmail && lockDate === todayStr) {
+        return { lockedEmail, date: lockDate };
+      }
+    } catch {}
+    return null;
+  }
+
+  public setUserEmail(email: string): boolean {
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail) return;
+    if (!cleanEmail) return false;
+
+    // 🔒 ANTI-BYPASS: Se a Trava Anti-Fúria estiver ativa hoje para o e-mail cadastrado, impede a troca de e-mail no mobile
+    const lockedInfo = this.getLockedEmailInfo();
+    if (lockedInfo && lockedInfo.lockedEmail !== cleanEmail) {
+      console.warn(`🔒 [MobileSyncService] Bloqueada tentativa de alterar e-mail de ${lockedInfo.lockedEmail} para ${cleanEmail} enquanto a Trava Anti-Fúria estiver ativa.`);
+      this.currentState.userEmail = lockedInfo.lockedEmail;
+      this.fetchDataAndSubscribe(lockedInfo.lockedEmail);
+      return false;
+    }
+
     this.currentState.userEmail = cleanEmail;
     if (typeof window !== 'undefined') {
       localStorage.setItem('tradelock_user_email', cleanEmail);
     }
     this.fetchDataAndSubscribe(cleanEmail);
+    return true;
   }
 
   public updateState(partial: Partial<MobileLockState>): void {
@@ -100,6 +124,15 @@ class MobileSyncService {
       updated.reason = null;
     }
 
+    // 🔒 ANCORAGEM PERSISTENTE: Salva o e-mail travado no localStorage do celular quando a trava ativa hoje
+    if (updated.isLockActive && updated.userEmail) {
+      if (typeof window !== 'undefined') {
+        const todayStr = getLocalDateStr();
+        localStorage.setItem('tradelock_locked_user_email', updated.userEmail.toLowerCase().trim());
+        localStorage.setItem('tradelock_locked_date', todayStr);
+      }
+    }
+
     this.currentState = updated;
     this.notifyNativeBridge(updated);
     this.listeners.forEach((fn) => fn(updated));
@@ -107,6 +140,15 @@ class MobileSyncService {
 
   public async fetchDataAndSubscribe(email: string): Promise<void> {
     if (!email) return;
+
+    // 🔒 ANTI-BYPASS: Redireciona a busca para o e-mail travado caso a trava esteja ativa hoje
+    const lockedInfo = this.getLockedEmailInfo();
+    let activeEmail = email.trim().toLowerCase();
+    if (lockedInfo && lockedInfo.lockedEmail !== activeEmail) {
+      console.warn(`🔒 [MobileSyncService] Forçando sincronização com o e-mail travado: ${lockedInfo.lockedEmail}`);
+      activeEmail = lockedInfo.lockedEmail;
+      this.currentState.userEmail = activeEmail;
+    }
 
     try {
       // 1. Fetch user subscription status
