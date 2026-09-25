@@ -41,6 +41,7 @@ import { DayDetailModal } from './components/DayDetailModal';
 import { AiTraderMentorModal } from './components/AiTraderMentorModal';
 import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { AntiFuriaExtensionPage } from './components/AntiFuriaExtensionPage';
+import { DEFAULT_BLOCKED_DOMAINS } from './utils/extensionGenerator';
 import { RiskManagementPage } from './components/RiskManagementPage';
 import { CapitalHistoryModal } from './components/CapitalHistoryModal';
 import { KellyCalculatorModal } from './components/KellyCalculatorModal';
@@ -268,6 +269,18 @@ export default function App() {
   }, [settings, SETTINGS_STORAGE_KEY, currentUser, isDataLoaded]);
 
   // 3. Modals and Views
+  const [blockedDomains, setBlockedDomains] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('trader_journal_blocked_domains_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Falha ao carregar domínios salvos do storage:', e);
+    }
+    return DEFAULT_BLOCKED_DOMAINS;
+  });
   const [activeView, setActiveView] = useState<ActiveView>('all');
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
@@ -571,6 +584,7 @@ export default function App() {
           todayTradesCount,
           currentCapital: metrics.currentCapital,
           maxDrawdownPercent: metrics.maxDrawdownPercent,
+          blockedDomains: blockedDomains,
         },
         '*'
       );
@@ -586,8 +600,13 @@ export default function App() {
           profitFactor: metrics.profitFactor,
           todayTradesCount,
           currentCapital: metrics.currentCapital,
+          blockedDomains: blockedDomains,
           updatedAt: Date.now(),
         })
+      );
+      localStorage.setItem(
+        'trader_journal_blocked_domains_v1',
+        JSON.stringify(blockedDomains)
       );
       // Sync with server endpoint
       fetch('/api/extension/sync', {
@@ -603,6 +622,7 @@ export default function App() {
           profitFactor: metrics.profitFactor,
           todayTradesCount,
           currentCapital: metrics.currentCapital,
+          blockedDomains: blockedDomains,
         }),
       }).catch(() => {});
       // Sync with Electron Main process & Windows Daemon
@@ -617,6 +637,7 @@ export default function App() {
           profitFactor: metrics.profitFactor,
           todayTradesCount,
           currentCapital: metrics.currentCapital,
+          blockedDomains: blockedDomains,
         });
       }
     } catch (e) {
@@ -628,6 +649,7 @@ export default function App() {
     settings.dailyLossLimit,
     metrics.winRate,
     todayTradesCount,
+    blockedDomains,
   ]);
 
   // Ouvinte de trades capturados automaticamente pela Extensão Chrome em tempo real
@@ -1200,6 +1222,8 @@ export default function App() {
         todayTradesCount={todayPerformance?.tradesCount || 0}
         currentCapital={metrics.currentCapital}
         currentUser={currentUser}
+        blockedDomains={blockedDomains}
+        onUpdateBlockedDomains={(newDomains) => setBlockedDomains(newDomains)}
       />
     );
   }
@@ -1279,6 +1303,7 @@ export default function App() {
         data-profit-factor={metrics.profitFactor}
         data-trades-count={todayPerformance?.tradesCount || 0}
         data-capital={metrics.currentCapital}
+        data-blocked-domains={JSON.stringify(blockedDomains)}
         style={{ display: 'none' }}
       />
 

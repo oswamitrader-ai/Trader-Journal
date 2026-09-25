@@ -41,6 +41,8 @@ interface AntiFuriaExtensionPageProps {
   todayTradesCount?: number;
   currentCapital?: number;
   currentUser?: SystemUser | null;
+  blockedDomains?: string[];
+  onUpdateBlockedDomains?: (domains: string[]) => void;
 }
 
 export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
@@ -55,14 +57,17 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
   todayTradesCount = 0,
   currentCapital = 0,
   currentUser,
+  blockedDomains,
+  onUpdateBlockedDomains,
 }) => {
   const isAdmin = currentUser?.role === 'ADMIN';
   const [domains, setDomains] = useState<string[]>(() => {
+    if (blockedDomains && blockedDomains.length > 0) return blockedDomains;
     try {
       const saved = localStorage.getItem('trader_journal_blocked_domains_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {
       console.warn('Falha ao carregar domínios salvos do storage:', e);
@@ -80,7 +85,13 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
   const [isFullscreenPreviewOpen, setIsFullscreenPreviewOpen] = useState(false);
   const [countdownText, setCountdownText] = useState('');
 
-  // Persistir domínios customizados no LocalStorage
+  // Persistir domínios customizados no LocalStorage e notificar o sistema
+  useEffect(() => {
+    if (blockedDomains && blockedDomains.length > 0) {
+      setDomains(blockedDomains);
+    }
+  }, [blockedDomains]);
+
   useEffect(() => {
     try {
       localStorage.setItem('trader_journal_blocked_domains_v1', JSON.stringify(domains));
@@ -153,15 +164,82 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
   };
 
   const handleAddDomain = () => {
-    const clean = newDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    const clean = newDomain
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/^www\./, '')
+      .replace(/\/.*$/, '');
     if (clean && !domains.includes(clean)) {
-      setDomains([...domains, clean]);
+      const updated = [...domains, clean];
+      setDomains(updated);
       setNewDomain('');
+      
+      try {
+        localStorage.setItem('trader_journal_blocked_domains_v1', JSON.stringify(updated));
+      } catch (e) {}
+
+      onUpdateBlockedDomains?.(updated);
+
+      // Disparar sincronização em tempo real via postMessage para a Extensão Chrome
+      window.postMessage(
+        {
+          type: 'ANTI_FURIA_SYNC',
+          isStopHit,
+          isMaxTradesHit,
+          todayPnl,
+          dailyLossLimit,
+          blockedDomains: updated,
+        },
+        '*'
+      );
+
+      // Disparar sincronização IPC com o App Desktop Electron & Windows Daemon
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.syncLockState) {
+        (window as any).electronAPI.syncLockState({
+          isStopHit,
+          isMaxTradesHit,
+          todayPnl,
+          dailyLossLimit,
+          blockedDomains: updated,
+        });
+      }
     }
   };
 
   const handleRemoveDomain = (dom: string) => {
-    setDomains(domains.filter((d) => d !== dom));
+    const updated = domains.filter((d) => d !== dom);
+    setDomains(updated);
+
+    try {
+      localStorage.setItem('trader_journal_blocked_domains_v1', JSON.stringify(updated));
+    } catch (e) {}
+
+    onUpdateBlockedDomains?.(updated);
+
+    // Disparar sincronização em tempo real via postMessage para a Extensão Chrome
+    window.postMessage(
+      {
+        type: 'ANTI_FURIA_SYNC',
+        isStopHit,
+        isMaxTradesHit,
+        todayPnl,
+        dailyLossLimit,
+        blockedDomains: updated,
+      },
+      '*'
+    );
+
+    // Disparar sincronização IPC com o App Desktop Electron & Windows Daemon
+    if (typeof window !== 'undefined' && (window as any).electronAPI?.syncLockState) {
+      (window as any).electronAPI.syncLockState({
+        isStopHit,
+        isMaxTradesHit,
+        todayPnl,
+        dailyLossLimit,
+        blockedDomains: updated,
+      });
+    }
   };
 
   // Renderizador Interno da Tela de Bloqueio com o Duelo Touro vs Urso Integrado

@@ -33,6 +33,15 @@ const END_MARKER = '# --- TRADELOCK ANTI-FURIA SHIELD END ---';
 
 let watchdogInterval = null;
 
+function getBaseDomain(domainStr) {
+  const clean = domainStr.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+  const parts = clean.split('.');
+  if (parts.length >= 2) {
+    return parts.slice(-2).join('.');
+  }
+  return clean;
+}
+
 /**
  * Atualiza o arquivo hosts do Windows adicionando ou removendo os domínios de corretoras
  */
@@ -48,10 +57,29 @@ function updateHostsFile(isLockActive, domains = DEFAULT_BROKER_DOMAINS) {
 
     if (isLockActive) {
       const uniqueDomains = Array.from(new Set([...DEFAULT_BROKER_DOMAINS, ...domains]));
-      const lines = [START_MARKER];
+      const entries = new Set();
+
       uniqueDomains.forEach((dom) => {
-        lines.push(`127.0.0.1 ${dom}`);
-        lines.push(`127.0.0.1 www.${dom}`);
+        const clean = dom.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+        if (!clean) return;
+        const base = getBaseDomain(clean);
+
+        entries.add(clean);
+        entries.add(`www.${clean}`);
+        entries.add(base);
+        entries.add(`www.${base}`);
+        entries.add(`trade.${base}`);
+        entries.add(`app.${base}`);
+        entries.add(`platform.${base}`);
+        entries.add(`client.${base}`);
+        entries.add(`api.${base}`);
+        entries.add(`ws.${base}`);
+        entries.add(`web.${base}`);
+      });
+
+      const lines = [START_MARKER];
+      entries.forEach((hostEntry) => {
+        lines.push(`127.0.0.1 ${hostEntry}`);
       });
       lines.push(END_MARKER);
       lines.push(''); // nova linha

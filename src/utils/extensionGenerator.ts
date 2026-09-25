@@ -181,7 +181,10 @@ function isUrlBlocked(url, domains) {
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
-    return domains.some(d => host === d.toLowerCase() || host.endsWith('.' + d.toLowerCase()));
+    return domains.some(d => {
+      const cleanD = d.toLowerCase().replace(/^https?:\\/\\//, '').replace(/^www\./, '').replace(/\\/.*$/, '');
+      return host === cleanD || host === 'www.' + cleanD || host.endsWith('.' + cleanD);
+    });
   } catch (e) {
     return false;
   }
@@ -253,8 +256,42 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   });
 });
 
+// Intercept tab updates (URL changes, SPA navigations, reloads)
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  const targetUrl = changeInfo.url || tab.url;
+  if (targetUrl && !targetUrl.includes('blocked.html') && !targetUrl.startsWith('chrome-extension://')) {
+    chrome.storage.local.get(['isStopHit', 'isMaxTradesHit', 'isSubBlocked', 'blockedDomains'], (data) => {
+      if ((data.isStopHit || data.isMaxTradesHit || data.isSubBlocked) && Array.isArray(data.blockedDomains)) {
+        enforceTabBlock(tabId, targetUrl, data.blockedDomains, data.isSubBlocked);
+      }
+    });
+  }
+});
+
+// Intercept tab activations (switching tabs)
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  chrome.tabs.get(activeInfo.tabId, (tab) => {
+    if (tab && tab.url && !tab.url.includes('blocked.html') && !tab.url.startsWith('chrome-extension://')) {
+      chrome.storage.local.get(['isStopHit', 'isMaxTradesHit', 'isSubBlocked', 'blockedDomains'], (data) => {
+        if ((data.isStopHit || data.isMaxTradesHit || data.isSubBlocked) && Array.isArray(data.blockedDomains)) {
+          enforceTabBlock(activeInfo.tabId, tab.url, data.blockedDomains, data.isSubBlocked);
+        }
+      });
+    }
+  });
+});
+
 // Message listener from web app, popup, or auto-capture
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'CHECK_URL_BLOCKED' && msg.url) {
+    chrome.storage.local.get(['isStopHit', 'isMaxTradesHit', 'isSubBlocked', 'blockedDomains'], (data) => {
+      const isLockActive = Boolean(data.isStopHit || data.isMaxTradesHit || data.isSubBlocked);
+      const doms = Array.isArray(data.blockedDomains) ? data.blockedDomains : DEFAULT_DOMAINS;
+      const isBlocked = isLockActive && isUrlBlocked(msg.url, doms);
+      sendResponse({ isBlocked: isBlocked, isSubBlocked: Boolean(data.isSubBlocked) });
+    });
+    return true;
+  }
   if (msg.type === 'AUTO_TRADE_CAPTURED' && msg.trade) {
     console.log('[Anti-Fúria Service Worker] Auto trade capturado:', msg.trade);
 
@@ -309,7 +346,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'UPDATE_STOP_STATUS') {
-    chrome.storage.local.get(['testMode'], (st) => {
+    chrome.storage.local.get(['testMode', 'blockedDomains'], (st) => {
       if (st && st.testMode && !msg.isStopHit && !msg.isSubBlocked) {
         sendResponse({ success: true, testMode: true });
         return;
@@ -323,6 +360,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const limit = Number(msg.dailyLossLimit) || ${dailyLossLimit};
       const today = (function() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
 
+      const updatedBlockedDomains = (Array.isArray(msg.blockedDomains) && msg.blockedDomains.length > 0)
+        ? msg.blockedDomains
+        : (Array.isArray(st.blockedDomains) ? st.blockedDomains : DEFAULT_DOMAINS);
+
       chrome.storage.local.set({
         isStopHit: isHit,
         isMaxTradesHit: isMaxTradesHit,
@@ -335,25 +376,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         profitFactor: Number(msg.profitFactor) || 0,
         todayTradesCount: Number(msg.todayTradesCount) || 0,
         currentCapital: Number(msg.currentCapital) || 0,
+        blockedDomains: updatedBlockedDomains,
       }, () => {
         const isLockActive = isHit || isMaxTradesHit || isSubBlocked;
         if (isLockActive) {
           // Stop loss hit or Overtrading hit or Subscription blocked -> Redirect broker tabs to blocked.html
-          chrome.storage.local.get(['blockedDomains'], (res) => {
-            const doms = Array.isArray(res.blockedDomains) ? res.blockedDomains : DEFAULT_DOMAINS;
-            chrome.tabs.query({}, (tabs) => {
-              tabs.forEach((tab) => {
-                if (tab.id && tab.url && !tab.url.includes('blocked.html') && !tab.url.startsWith('chrome-extension://') && isUrlBlocked(tab.url, doms)) {
-                  enforceTabBlock(tab.id, tab.url, doms, isSubBlocked);
-                }
-              });
+          chrome.tabs.query({}, (tabs) => {
+            tabs.forEach((tab) => {
+              if (tab.id && tab.url && !tab.url.includes('blocked.html') && !tab.url.startsWith('chrome-extension://') && isUrlBlocked(tab.url, updatedBlockedDomains)) {
+                enforceTabBlock(tab.id, tab.url, updatedBlockedDomains, isSubBlocked);
+              }
             });
           });
         } else {
           // Only unblock tabs if NO lock condition is active!
           unblockAllTabs();
         }
-        sendResponse({ success: true, isStopHit: isHit, isMaxTradesHit: isMaxTradesHit, isSubBlocked: isSubBlocked });
+        sendResponse({ success: true, isStopHit: isHit, isMaxTradesHit: isMaxTradesHit, isSubBlocked: isSubBlocked, blockedDomains: updatedBlockedDomains });
       });
     });
     return true;
@@ -958,6 +997,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const todayTradesCount = parseInt(bridgeEl.getAttribute('data-trades-count') || '0', 10);
       const currentCapital = parseFloat(bridgeEl.getAttribute('data-capital') || '0');
 
+      const rawBlocked = bridgeEl.getAttribute('data-blocked-domains');
+      let blockedDomains = null;
+      if (rawBlocked) {
+        try { blockedDomains = JSON.parse(rawBlocked); } catch(e) {}
+      }
+
       const isSubBlocked = (userRole === 'CLIENT' && (!userActive || subStatus === 'OVERDUE' || subStatus === 'INACTIVE'));
 
       // Forward status to injected script on broker pages
@@ -984,6 +1029,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         profitFactor: profitFactor,
         todayTradesCount: todayTradesCount,
         currentCapital: currentCapital,
+        blockedDomains: blockedDomains,
       });
     }
   }
@@ -994,12 +1040,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       chrome.runtime.sendMessage({
         type: 'UPDATE_STOP_STATUS',
         isStopHit: event.data.isStopHit,
+        isMaxTradesHit: event.data.isMaxTradesHit,
+        maxTradesPerDay: event.data.maxTradesPerDay,
         todayPnl: event.data.todayPnl,
         dailyLossLimit: event.data.dailyLossLimit,
         winRate: event.data.winRate,
         profitFactor: event.data.profitFactor,
         todayTradesCount: event.data.todayTradesCount,
         currentCapital: event.data.currentCapital,
+        blockedDomains: event.data.blockedDomains || event.data.domains,
       });
     }
 
@@ -1022,6 +1071,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }, '*');
     }
   });
+
+  // Check if current page is blocked whenever content script loads
+  if (typeof window !== 'undefined' && window.location && window.location.href && !window.location.href.includes('blocked.html') && !window.location.href.startsWith('chrome-extension://')) {
+    try {
+      chrome.runtime.sendMessage({ type: 'CHECK_URL_BLOCKED', url: window.location.href }, (res) => {
+        if (res && res.isBlocked) {
+          const param = res.isSubBlocked ? '?type=sub_blocked&orig=' : '?orig=';
+          window.location.href = chrome.runtime.getURL('blocked.html' + param + encodeURIComponent(window.location.href));
+        }
+      });
+    } catch (e) {}
+  }
 
   // Observe DOM for changes in the status bridge
   const observer = new MutationObserver(() => syncFromPage());
