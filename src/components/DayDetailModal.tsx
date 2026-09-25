@@ -23,6 +23,7 @@ interface DayDetailModalProps {
   onEditTrade: (trade: Trade) => void;
   onDeleteTrade: (id: string) => void;
   onDeleteMultipleTrades?: (ids: string[]) => void;
+  isAntiFuriaActive?: boolean;
 }
 
 export const DayDetailModal: React.FC<DayDetailModalProps> = ({
@@ -34,6 +35,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
   onEditTrade,
   onDeleteTrade,
   onDeleteMultipleTrades,
+  isAntiFuriaActive = false,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -53,14 +55,15 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
   const breakevens = dayTrades.filter((t) => Math.abs(t.pnl) <= 0.001).length;
   const winRate = dayTrades.length > 0 ? (wins / dayTrades.length) * 100 : 0;
 
+  const deletableTrades = dayTrades.filter((t) => !isTradeProtected(t, isAntiFuriaActive));
   const isAllSelected =
-    dayTrades.length > 0 && dayTrades.every((t) => selectedIds.includes(t.id));
+    deletableTrades.length > 0 && deletableTrades.every((t) => selectedIds.includes(t.id));
 
   const toggleSelectAll = () => {
     if (isAllSelected) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(dayTrades.map((t) => t.id));
+      setSelectedIds(deletableTrades.map((t) => t.id));
     }
   };
 
@@ -191,7 +194,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                   Operações ({dayTrades.length})
                 </h4>
 
-                {dayTrades.length > 0 && (
+                {deletableTrades.length > 0 && (
                   <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -235,6 +238,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                 dayTrades.map((t) => {
                   const isGain = t.result === 'GAIN';
                   const isLoss = t.result === 'LOSS';
+                  const isProtected = isTradeProtected(t, isAntiFuriaActive);
                   const isSelected = selectedIds.includes(t.id);
 
                   return (
@@ -247,12 +251,19 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       }`}
                     >
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelectTrade(t.id)}
-                          className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer shrink-0"
-                        />
+                        {!isProtected ? (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectTrade(t.id)}
+                            className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer shrink-0"
+                          />
+                        ) : (
+                          <ShieldCheck
+                            className="h-4 w-4 text-amber-500/70 shrink-0"
+                            title="Operação protegida pelo Anti-Fúria"
+                          />
+                        )}
                         <span className="font-mono text-slate-400 text-[11px]">{t.time || '--:--'}</span>
                         <span className="font-mono font-bold text-white text-sm">{t.asset}</span>
                         <span
@@ -290,9 +301,9 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                           >
                             Editar
                           </button>
-                          {isTradeProtected(t) ? (
+                          {isProtected ? (
                             <span
-                              title="🔒 Operação de Conta Real capturada ao vivo pela Extensão. Protegida pelo Sistema Anti-Fúria contra exclusão."
+                              title="🔒 Operação de Conta Real ou Anti-Fúria ativo. Protegida contra exclusão."
                               className="text-amber-400 px-1.5 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 cursor-default select-none"
                             >
                               <ShieldCheck className="h-3 w-3" />

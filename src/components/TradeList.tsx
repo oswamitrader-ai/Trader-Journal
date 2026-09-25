@@ -24,6 +24,7 @@ import { formatCurrency, formatDate, isTradeProtected, getLocalDateStr } from '.
 
 interface TradeListProps {
   trades: Trade[];
+  isAntiFuriaActive?: boolean;
   onOpenNewTrade: () => void;
   onOpenImportModal?: () => void;
   onEditTrade: (trade: Trade) => void;
@@ -34,6 +35,7 @@ interface TradeListProps {
 
 export const TradeList: React.FC<TradeListProps> = ({
   trades,
+  isAntiFuriaActive = false,
   onOpenNewTrade,
   onOpenImportModal,
   onEditTrade,
@@ -401,12 +403,18 @@ export const TradeList: React.FC<TradeListProps> = ({
                 {/* Top Row: Select Checkbox, Date, Time & PnL */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelectTrade(trade.id)}
-                      className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer shrink-0"
-                    />
+                    {isTradeProtected(trade, isAntiFuriaActive) ? (
+                      <span title="🔒 Operação protegida contra exclusão" className="shrink-0">
+                        <ShieldCheck className="h-4 w-4 text-amber-400 opacity-60" />
+                      </span>
+                    ) : (
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectTrade(trade.id)}
+                        className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer shrink-0"
+                      />
+                    )}
                     <span className="font-mono text-xs font-bold text-white">
                       {formatDate(trade.date)}
                     </span>
@@ -488,9 +496,9 @@ export const TradeList: React.FC<TradeListProps> = ({
                       <Edit2 className="h-3.5 w-3.5 text-slate-300" />
                       <span>Editar</span>
                     </button>
-                    {isTradeProtected(trade) ? (
+                    {isTradeProtected(trade, isAntiFuriaActive) ? (
                       <span
-                        title="🔒 Operação de Conta Real capturada ao vivo pela Extensão. Protegida pelo Sistema Anti-Fúria contra exclusão."
+                        title="🔒 Operação protegida pelo Sistema Anti-Fúria contra exclusão."
                         className="flex items-center gap-1 rounded-xl bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 text-xs font-bold text-amber-300"
                       >
                         <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
@@ -562,12 +570,18 @@ export const TradeList: React.FC<TradeListProps> = ({
                   >
                     {/* Checkbox */}
                     <td className="px-3 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelectTrade(trade.id)}
-                        className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer"
-                      />
+                      {isTradeProtected(trade, isAntiFuriaActive) ? (
+                        <span title="🔒 Operação protegida contra exclusão" className="inline-flex items-center justify-center">
+                          <ShieldCheck className="h-4 w-4 text-amber-400 opacity-60" />
+                        </span>
+                      ) : (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectTrade(trade.id)}
+                          className="h-4 w-4 rounded border-slate-700 bg-black text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      )}
                     </td>
 
                     {/* Date / Time */}
@@ -653,9 +667,9 @@ export const TradeList: React.FC<TradeListProps> = ({
                         >
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
-                        {isTradeProtected(trade) ? (
+                        {isTradeProtected(trade, isAntiFuriaActive) ? (
                           <span
-                            title="🔒 Operação de Conta Real capturada ao vivo pela Extensão. Protegida pelo Sistema Anti-Fúria contra exclusão."
+                            title="🔒 Operação protegida pelo Sistema Anti-Fúria contra exclusão."
                             className="inline-flex items-center justify-center p-1 text-amber-400"
                           >
                             <ShieldCheck className="h-4 w-4 text-amber-400" />

@@ -33,20 +33,33 @@ export function setGlobalCurrency(code: CurrencyCode): void {
 
 /**
   Regra Anti-Burlar do Sistema Anti-Fúria:
-  Todas as operações da Conta Real (capturadas ao vivo pela extensão ou importadas via relatórios CSV/PDF)
-  são estritamente protegidas e IMUTÁVEIS contra exclusão e alteração de valores financeiros.
-  Apenas operações de Conta DEMO / Prática / Simulador podem ser excluídas.
+  - Operações IMPORTADAS (via relatórios CSV/PDF) NÃO possuem trava de exclusão (liberadas para o trader apagar/gerenciar).
+  - Operações de Conta DEMO / Prática / Simulador também são liberadas para exclusão.
+  - Operações da Conta REAL capturadas ao vivo pela extensão via WebSocket são estritamente protegidas contra exclusão.
+  - Se o Anti-Fúria estiver ativo hoje, operações ao vivo de hoje permanecem protegidas.
  */
-export function isTradeProtected(trade: Trade): boolean {
+export function isTradeProtected(trade: Trade, isAntiFuriaActiveToday: boolean = false): boolean {
   if (!trade) return false;
 
   const strat = (trade.strategy || '').toLowerCase();
   const notes = (trade.notes || '').toLowerCase();
-  const idStr = String(trade.id || '');
   const hasDemoTag = Array.isArray(trade.tags) && trade.tags.some((t) => t.toUpperCase().includes('DEMO'));
+  const hasImportedTag = Array.isArray(trade.tags) && trade.tags.some((t) => t.toUpperCase().includes('IMPORTAD'));
 
-  // 1. Operações de Conta DEMO / Prática / Simulador -> PERMITE EXCLUSÃO
-  if (
+  // 1. Operações IMPORTADAS (via relatório CSV/PDF) não têm trava de exclusão
+  const isImported = (
+    (trade.id && trade.id.startsWith('imp-')) ||
+    hasImportedTag ||
+    strat.includes('importad') ||
+    notes.includes('importad')
+  );
+
+  if (isImported) {
+    return false;
+  }
+
+  // 2. Identifica se a operação é da Conta DEMO / Prática / Simulador
+  const isDemo = (
     trade.accountType === 'DEMO' ||
     trade.isReal === false ||
     hasDemoTag ||
@@ -56,17 +69,20 @@ export function isTradeProtected(trade: Trade): boolean {
     notes.includes('demo') ||
     notes.includes('pratic') ||
     notes.includes('prátic')
-  ) {
+  );
+
+  if (isDemo) {
     return false;
   }
 
-  // 2. Apenas operações de Conta Real capturadas AO VIVO em tempo real pela Extensão Chrome são protegidas contra exclusão
-  if (trade.isAutoCaptured === true || idStr.startsWith('live-')) {
+  // 3. 🔒 Se a trava Anti-Fúria estiver ativa HOJE, operações de Conta Real capturadas ao vivo hoje não podem ser excluídas
+  const todayStr = getLocalDateStr();
+  if (isAntiFuriaActiveToday && trade.date === todayStr) {
     return true;
   }
 
-  // 3. Operações inseridas manualmente pelo botão "Novo Trade" ou importadas via relatório CSV/PDF -> PERMITEM EXCLUSÃO E EDIÇÃO
-  return false;
+  // 4. Operações de Conta Real capturadas ao vivo via WebSocket são estritamente protegidas
+  return true;
 }
 
 export function formatCurrency(value: number, overrideCurrency?: CurrencyCode): string {

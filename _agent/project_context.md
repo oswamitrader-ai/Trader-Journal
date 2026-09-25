@@ -302,10 +302,28 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Remoção do Botão de Excluir**: Para todas as operações da Conta Real capturadas ao vivo pela extensão (`isTradeProtected === true`), o botão "Excluir" **nem aparece na interface** em [TradeList.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/TradeList.tsx#L491) e [DayDetailModal.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/DayDetailModal.tsx#L293). Exibe apenas o selo estático de proteção `<ShieldCheck className="text-amber-400" /> Protegido 🔒`.
     - **Imutabilidade Financeira**: No modal [TradeFormModal.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/TradeFormModal.tsx#L725), todos os campos financeiros (**Valor de Entrada**, **Resultado Líquido P&L R$**, **Tipo de Conta Real vs Demo** e **Direção Compra vs Venda**) permanecem **desabilitados (disabled)** para operações capturadas ao vivo da Conta Real, permitindo ajustar apenas o setup, anotações e estado emocional.
 
+52. **Proteção Total Contra Exclusão de Operações de Hoje no Anti-Fúria (Anti-Rage Deletion)**:
+    - **Causa Raiz Resolvida**: Quando um trader atinge o Stop Loss no dia, a exclusão manual de operações de hoje reduzia a perda acumulada no diário e burlava a trava Anti-Fúria.
+    - **Solução Implementada**:
+      - Atualizada a função `isTradeProtected(trade, isAntiFuriaActiveToday)` em [calculations.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/calculations.ts). Se `isAntiFuriaActiveToday === true`, qualquer operação realizada hoje (`trade.date === todayStr`) torna-se automaticamente protegida contra exclusão (`isTradeProtected === true`).
+      - Passado `isAntiFuriaActive` para `<TradeList>` e `<DayDetailModal>`. O botão "Excluir" e a checkbox de seleção em lote são completamente removidos e substituídos por um badge/ícone estático `Protegido 🔒`.
+      - Atualizados os manipuladores `handleDeleteTrade` e `handleDeleteMultipleTrades` em `App.tsx` para bloquear a exclusão via API ou teclas de atalho.
+
+53. **Preservação de Seleção do Período de Compromisso (30 Dias) (`RiskManagementPage.tsx`)**:
+    - **Causa Raiz Resolvida**: Ao selecionar 30 Dias na Tela de Gestão de Risco, o polling em background em `App.tsx` enviava props `settings` desatualizadas e sobrescrevia a escolha do usuário para 7 dias antes do salvamento.
+    - **Solução Implementada**: Adicionada trava de inicialização única com `useRef(hasInitialized)` em [RiskManagementPage.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/RiskManagementPage.tsx) para preservar as opções escolhidas pelo trader no formulário até o clique no botão Salvar.
+
+54. **Liberação Exclusiva da Trava de Exclusão para Operações Importadas (`calculations.ts`)**:
+    - **Ajuste Realizado**: Atualizada a função `isTradeProtected` em [calculations.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/calculations.ts).
+    - As operações importadas via relatórios CSV/PDF (`id.startsWith('imp-')`, tag `Importado` ou `strategy/notes` contendo `importad`) tiveram a trava de exclusão **100% removida** (`isTradeProtected === false`).
+    - As operações capturadas ao vivo pela extensão via WebSocket da Conta Real permanecem estritamente imutáveis e protegidas contra exclusão.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas e diretas ao código.
 - Português do Brasil (PT-BR).
+
+
 
 
 

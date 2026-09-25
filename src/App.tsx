@@ -620,9 +620,9 @@ export default function App() {
 
   const handleDeleteTrade = (id: string) => {
     const targetTrade = trades.find((t) => t.id === id);
-    if (targetTrade && isTradeProtected(targetTrade)) {
+    if (targetTrade && isTradeProtected(targetTrade, isAntiFuriaActive)) {
       alert(
-        '🔒 Ação Bloqueada pelo Sistema Anti-Fúria!\n\nOperações de Conta Real capturadas pelas corretoras são imutáveis e não podem ser excluídas para impedir a burla da Trava Anti-Fúria e proteger sua gestão de risco.'
+        '🔒 Ação Bloqueada pelo Sistema Anti-Fúria!\n\nOperações de Conta Real ou registradas durante ativação do Anti-Fúria são imutáveis e não podem ser excluídas para proteger sua gestão de risco.'
       );
       return;
     }
@@ -639,12 +639,12 @@ export default function App() {
     if (!ids || ids.length === 0) return;
 
     const targetTrades = trades.filter((t) => ids.includes(t.id));
-    const protectedCount = targetTrades.filter((t) => isTradeProtected(t)).length;
-    const deletableIds = targetTrades.filter((t) => !isTradeProtected(t)).map((t) => t.id);
+    const protectedCount = targetTrades.filter((t) => isTradeProtected(t, isAntiFuriaActive)).length;
+    const deletableIds = targetTrades.filter((t) => !isTradeProtected(t, isAntiFuriaActive)).map((t) => t.id);
 
     if (protectedCount > 0) {
       alert(
-        `🔒 Proteção Anti-Fúria Ativada:\n\n${protectedCount} operação(ões) de Conta Real foram preservadas e NÃO puderam ser excluídas para manter a integridade da sua trava de risco.`
+        `🔒 Proteção Anti-Fúria Ativada:\n\n${protectedCount} operação(ões) foram preservadas e NÃO puderam ser excluídas para manter a integridade da sua trava de risco.`
       );
     }
 
@@ -1261,6 +1261,7 @@ export default function App() {
               onDeleteTrade={handleDeleteTrade}
               onDeleteMultipleTrades={handleDeleteMultipleTrades}
               onResetData={handleResetData}
+              isAntiFuriaActive={isAntiFuriaActive}
             />
           </div>
         )}
@@ -1309,6 +1310,7 @@ export default function App() {
               onDeleteTrade={handleDeleteTrade}
               onDeleteMultipleTrades={handleDeleteMultipleTrades}
               onResetData={handleResetData}
+              isAntiFuriaActive={isAntiFuriaActive}
             />
           </div>
         )}
@@ -1416,6 +1418,7 @@ export default function App() {
           handleDeleteTrade(id);
         }}
         onDeleteMultipleTrades={handleDeleteMultipleTrades}
+        isAntiFuriaActive={isAntiFuriaActive}
       />
 
       <AiTraderMentorModal
