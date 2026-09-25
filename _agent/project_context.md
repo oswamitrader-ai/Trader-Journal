@@ -336,6 +336,17 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - Todas as operações registradas anteriormente com data futura `25/09/2026` são convertidas automaticamente para a data local real de hoje (`24/09/2026`) no `localStorage` e atualizadas via `upsertTradeToSupabase` no PostgreSQL.
       - O valor de hoje é exibido como **R$ 26,10 desde o primeiro milissegundo de carregamento**, sem oscilação ou divergência de valores.
 
+58. **Ordenação Estrita por Hora, Captura de Ativo WebSocket, Tags Verde/Vermelho & Feedback Visual OTC**:
+    - **Ordenação por Data/Hora Decrescente**: Em [TradeList.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/TradeList.tsx) e [DayDetailModal.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/DayDetailModal.tsx), `filteredTrades` e `dayTrades` foram atualizados para ordenar estritamente por `date` decrescente e `time` decrescente (`(b.time || '00:00').localeCompare(a.time || '00:00')`). Operações no mesmo dia (ex: 21:48 importada e 21:45 websocket) aparecem rigorosamente na ordem cronológica correta (21:48 acima de 21:45).
+    - **Captura do Nome do Ativo via WebSocket**: Expandido o dicionário `activeMap` e adicionado fallback de varredura `getDomActiveName()` em [extensionGenerator.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/extensionGenerator.ts). O sistema extrai nomes reais do ativo de `raw.active_name`, `raw.asset_name`, `raw.symbol`, `raw.pair`, `document.title` ou seletores DOM em vez de salvar IDs genéricos (`ID_12345`).
+    - **Cores das Tags de Compra (Verde) e Venda (Vermelho) & Tipos de Conta**:
+      - Compra (`BUY`): Tag verde esmeralda (`bg-emerald-500/20 text-emerald-300 border-emerald-500/40`).
+      - Venda (`SELL`): Tag vermelha rosa (`bg-rose-500/20 text-rose-300 border-rose-500/40`).
+      - Tipo de Conta: Exibição explícita do badge `REAL 💵` (verde/esmeralda) vs `DEMO 🧪` (âmbar).
+    - **Feedback Visual para Mercado OTC**:
+      - Adicionada a função utilitária `isOtcTrade(trade)` em [calculations.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/calculations.ts).
+      - Criado badge visual com brilho neon roxo `<Zap className="h-3 w-3 text-purple-400 fill-purple-400" /> OTC` em [TradeList.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/TradeList.tsx) e [DayDetailModal.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/DayDetailModal.tsx) para identificar instantaneamente operações realizadas em mercado OTC.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas & diretas ao código.

@@ -10,9 +10,10 @@ import {
   Plus,
   Trash2,
   ShieldCheck,
+  Zap,
 } from 'lucide-react';
 import { Trade, DayPerformance } from '../types';
-import { formatCurrency, formatPercent, formatDate, isTradeProtected } from '../utils/calculations';
+import { formatCurrency, formatPercent, formatDate, isTradeProtected, isOtcTrade } from '../utils/calculations';
 
 interface DayDetailModalProps {
   date: string | null;
@@ -46,7 +47,9 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
 
   if (!date) return null;
 
-  const dayTrades = trades.filter((t) => t.date === date);
+  const dayTrades = trades
+    .filter((t) => t.date === date)
+    .sort((a, b) => (b.time || '00:00').localeCompare(a.time || '00:00'));
   const totalPnl = dayTrades.reduce((acc, t) => acc + (Number(t.pnl) || 0), 0);
   const isPositive = totalPnl >= 0;
 
@@ -266,15 +269,31 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                         )}
                         <span className="font-mono text-slate-400 text-[11px]">{t.time || '--:--'}</span>
                         <span className="font-mono font-bold text-white text-sm">{t.asset}</span>
+                        {isOtcTrade(t) && (
+                          <span className="inline-flex items-center gap-0.5 rounded bg-purple-500/20 border border-purple-500/40 px-1.5 py-0.5 text-[9px] font-black text-purple-300 shadow-[0_0_8px_rgba(168,85,247,0.35)] animate-pulse">
+                            <Zap className="h-2.5 w-2.5 text-purple-400 fill-purple-400" /> OTC
+                          </span>
+                        )}
                         <span
-                          className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                          className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold border ${
                             t.type === 'BUY'
-                              ? 'bg-blue-500/20 text-blue-300'
-                              : 'bg-amber-500/20 text-amber-300'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                              : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                           }`}
                         >
                           {t.type === 'BUY' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {t.type === 'BUY' ? 'C' : 'V'}
+                          {t.type === 'BUY' ? 'Compra' : 'Venda'}
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold border ${
+                            t.accountType === 'DEMO' || t.isReal === false || (t.tags && t.tags.some(tag => tag.toUpperCase().includes('DEMO')))
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          }`}
+                        >
+                          {t.accountType === 'DEMO' || t.isReal === false || (t.tags && t.tags.some(tag => tag.toUpperCase().includes('DEMO')))
+                            ? 'DEMO 🧪'
+                            : 'REAL 💵'}
                         </span>
                         <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
                           {t.strategy}

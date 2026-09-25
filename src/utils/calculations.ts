@@ -85,6 +85,19 @@ export function isTradeProtected(trade: Trade, isAntiFuriaActiveToday: boolean =
   return true;
 }
 
+/**
+ * Identifica se a operação ocorreu em Mercado OTC
+ */
+export function isOtcTrade(trade: Trade): boolean {
+  if (!trade) return false;
+  const asset = (trade.asset || '').toUpperCase();
+  const strat = (trade.strategy || '').toUpperCase();
+  const notes = (trade.notes || '').toUpperCase();
+  const tags = (Array.isArray(trade.tags) ? trade.tags : []).join(' ').toUpperCase();
+  return asset.includes('OTC') || strat.includes('OTC') || notes.includes('OTC') || tags.includes('OTC');
+}
+
+
 export function formatCurrency(value: number, overrideCurrency?: CurrencyCode): string {
   const code = overrideCurrency || globalCurrency;
   const num = Number(value) || 0;

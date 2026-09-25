@@ -546,11 +546,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       pnl = 0;
     }
 
-    // Asset mapping (Exnova uses active_id for pairs)
-    const activeMap = { 1: 'EUR/USD', 2: 'EUR/GBP', 4: 'GBP/USD', 5: 'USD/JPY', 76: 'AUD/CAD', 81: 'EUR/JPY' };
-    const activeId = raw.active_id || raw.act || '';
-    const rawAsset = String(raw.active || raw.asset || raw.instrument || raw.active_name || '').toUpperCase();
-    const asset = rawAsset || (activeMap[activeId] || (activeId ? 'ID_' + activeId : 'DIGITAL'));
+    // Expanded Asset mapping for Exnova / IQ Option / Quotex
+    const activeMap = {
+      1: 'EUR/USD', 2: 'EUR/GBP', 3: 'EUR/JPY', 4: 'GBP/USD', 5: 'USD/JPY', 6: 'AUD/CAD',
+      7: 'NZD/USD', 8: 'USD/CAD', 9: 'USD/CHF', 10: 'GBP/JPY', 11: 'EUR/CAD', 12: 'AUD/JPY',
+      76: 'AUD/CAD (OTC)', 81: 'EUR/JPY (OTC)', 99: 'EUR/USD (OTC)', 100: 'GBP/USD (OTC)',
+      101: 'EUR/GBP (OTC)', 102: 'USD/JPY (OTC)', 103: 'GBP/JPY (OTC)', 104: 'USD/CAD (OTC)',
+      105: 'AUD/USD (OTC)', 106: 'NZD/USD (OTC)', 107: 'USD/CHF (OTC)', 108: 'AUD/CAD (OTC)'
+    };
+
+    function getDomActiveName() {
+      try {
+        const title = document.title || '';
+        const match = title.match(/([A-Z]{3}\/[A-Z]{3}(\s*\(OTC\))?)/i) || title.match(/([A-Z]{6}(\s*\(OTC\))?)/i);
+        if (match && match[1]) return match[1].toUpperCase();
+        const sel = document.querySelector('.active-name, .asset-name, .current-pair, .sidebar-asset-name, .header-asset-name, [data-test="asset-name"]');
+        if (sel && sel.textContent && sel.textContent.trim()) return sel.textContent.trim().toUpperCase();
+      } catch(e) {}
+      return '';
+    }
+
+    const activeId = raw.active_id || raw.act_id || raw.act || raw.asset_id || '';
+    const rawAssetCandidates = [
+      raw.active_name, raw.asset_name, raw.active, raw.asset, raw.instrument, raw.pair, raw.symbol, raw.underlying, raw.option_name, raw.act_name
+    ];
+    let foundRawAsset = '';
+    for (const cand of rawAssetCandidates) {
+      if (cand && typeof cand === 'string' && !cand.startsWith('ID_') && isNaN(Number(cand))) {
+        foundRawAsset = cand.trim().toUpperCase();
+        break;
+      }
+    }
+
+    let asset = foundRawAsset || (activeId && activeMap[activeId]) || getDomActiveName() || (activeId ? 'ID_' + activeId : 'DIGITAL');
+    if (asset.includes('OTC') && !asset.includes('(OTC)')) {
+      asset = asset.replace(/\bOTC\b|\(OTC\)/gi, '').trim() + ' (OTC)';
+    }
+    const cleanAsset = asset.replace(/[^A-Z0-9/._\s()-]/g, '').replace(/\s+/g, ' ').trim() || 'DIGITAL';
 
     // Direction
     const dir = String(raw.dir || raw.direction || raw.type || '').toLowerCase();
@@ -579,13 +611,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const tradeId = optionId || Date.now();
     const localDateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 
-    console.log('✅ [Anti-Fúria] Trade FECHADO (' + (isDemo ? 'DEMO 🧪' : 'REAL 💵') + '):', result, 'PnL:', roundedPnl, 'Amount:', amount, 'Asset:', asset, 'Dir:', type);
+    console.log('✅ [Anti-Fúria] Trade FECHADO (' + (isDemo ? 'DEMO 🧪' : 'REAL 💵') + '):', result, 'PnL:', roundedPnl, 'Amount:', amount, 'Asset:', cleanAsset, 'Dir:', type);
 
     return {
       id: 'auto-' + tradeId + '-' + Math.random().toString(36).substring(2, 6),
       date: localDateStr,
       time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
-      asset: asset.replace(/[^A-Z0-9/._-]/g, '') || 'DIGITAL',
+      asset: cleanAsset,
       type: type,
       strategy: 'Captura Automática (' + source + (isDemo ? ' - Conta DEMO 🧪' : ' - Conta REAL 💵') + ')',
       result: result,

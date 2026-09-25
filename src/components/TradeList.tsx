@@ -18,9 +18,10 @@ import {
   CheckSquare,
   Square,
   ShieldCheck,
+  Zap,
 } from 'lucide-react';
 import { Trade } from '../types';
-import { formatCurrency, formatDate, isTradeProtected, getLocalDateStr } from '../utils/calculations';
+import { formatCurrency, formatDate, isTradeProtected, isOtcTrade, getLocalDateStr } from '../utils/calculations';
 
 interface TradeListProps {
   trades: Trade[];
@@ -97,6 +98,12 @@ export const TradeList: React.FC<TradeListProps> = ({
       }
 
       return true;
+    }).sort((a, b) => {
+      const dateComp = (b.date || '').localeCompare(a.date || '');
+      if (dateComp !== 0) return dateComp;
+      const timeA = a.time || '00:00';
+      const timeB = b.time || '00:00';
+      return timeB.localeCompare(timeA);
     });
   }, [trades, searchTerm, filterResult, filterAsset, filterStrategy, filterPeriod, todayDate]);
 
@@ -434,17 +441,25 @@ export const TradeList: React.FC<TradeListProps> = ({
                   </div>
                 </div>
 
-                {/* Middle Badges Row: Asset, Buy/Sell, Strategy, Entry */}
+                {/* Middle Badges Row: Asset, Buy/Sell, Account Type, OTC, Strategy, Entry */}
                 <div className="flex flex-wrap items-center gap-1.5 text-xs pl-6">
                   <span className="rounded-lg bg-slate-800 px-2 py-1 font-mono font-bold text-slate-200 border border-slate-700/60">
                     {trade.asset}
                   </span>
 
+                  {/* OTC Visual Badge */}
+                  {isOtcTrade(trade) && (
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-purple-500/20 border border-purple-500/40 px-2 py-1 text-[10px] font-extrabold text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.35)] animate-pulse">
+                      <Zap className="h-3 w-3 text-purple-400 fill-purple-400" /> OTC
+                    </span>
+                  )}
+
+                  {/* Buy / Sell Badge (Green for BUY, Red for SELL) */}
                   <span
-                    className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                    className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider border ${
                       trade.type === 'BUY'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'bg-amber-600 text-white shadow-sm'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+                        : 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm'
                     }`}
                   >
                     {trade.type === 'BUY' ? (
@@ -456,6 +471,19 @@ export const TradeList: React.FC<TradeListProps> = ({
                         <ArrowDown className="h-3 w-3" /> Venda
                       </>
                     )}
+                  </span>
+
+                  {/* Account Type Badge (REAL vs DEMO) */}
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold border ${
+                      trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                    }`}
+                  >
+                    {trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
+                      ? 'DEMO 🧪'
+                      : 'REAL 💵'}
                   </span>
 
                   <span className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-2 py-1 text-[11px] font-bold text-slate-200 border border-slate-700">
@@ -596,28 +624,49 @@ export const TradeList: React.FC<TradeListProps> = ({
 
                     {/* Asset */}
                     <td className="px-3 py-3 whitespace-nowrap font-mono font-bold text-slate-200">
-                      {trade.asset}
+                      <div className="flex items-center gap-1.5">
+                        <span>{trade.asset}</span>
+                        {isOtcTrade(trade) && (
+                          <span className="inline-flex items-center gap-0.5 rounded bg-purple-500/20 border border-purple-500/40 px-1.5 py-0.5 text-[9px] font-black text-purple-300 shadow-[0_0_8px_rgba(168,85,247,0.35)] animate-pulse">
+                            <Zap className="h-2.5 w-2.5 text-purple-400 fill-purple-400" /> OTC
+                          </span>
+                        )}
+                      </div>
                     </td>
 
-                    {/* Type: BUY / SELL */}
+                    {/* Type: BUY / SELL & Account Type */}
                     <td className="px-3 py-3 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                          trade.type === 'BUY'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'bg-amber-600 text-white shadow-sm'
-                        }`}
-                      >
-                        {trade.type === 'BUY' ? (
-                          <>
-                            <ArrowUp className="h-3 w-3" /> Compra
-                          </>
-                        ) : (
-                          <>
-                            <ArrowDown className="h-3 w-3" /> Venda
-                          </>
-                        )}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${
+                            trade.type === 'BUY'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+                              : 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm'
+                          }`}
+                        >
+                          {trade.type === 'BUY' ? (
+                            <>
+                              <ArrowUp className="h-3 w-3" /> Compra
+                            </>
+                          ) : (
+                            <>
+                              <ArrowDown className="h-3 w-3" /> Venda
+                            </>
+                          )}
+                        </span>
+
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold border ${
+                            trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          }`}
+                        >
+                          {trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
+                            ? 'DEMO 🧪'
+                            : 'REAL 💵'}
+                        </span>
+                      </div>
                     </td>
 
                     {/* Strategy */}
