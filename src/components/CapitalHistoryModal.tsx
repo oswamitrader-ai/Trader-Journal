@@ -251,28 +251,28 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black text-white flex flex-col overflow-hidden w-screen h-screen">
-      {/* Top Header Bar - Full Screen Style */}
-      <div className="border-b border-slate-800 bg-black px-4 sm:px-8 py-4 flex items-center justify-between shrink-0 shadow-xl">
+    <div className="min-h-screen bg-black text-white flex flex-col w-full selection:bg-emerald-500 selection:text-white pb-12">
+      {/* Top Header Bar - Full Page Style */}
+      <div className="sticky top-0 z-40 border-b border-slate-800 bg-black/95 backdrop-blur-md px-4 sm:px-8 py-4 flex items-center justify-between shrink-0 shadow-xl">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/80 text-slate-300 hover:text-white hover:bg-slate-800 font-bold text-xs transition cursor-pointer"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-800 bg-slate-900/90 text-slate-200 hover:text-white hover:bg-slate-800 font-bold text-xs transition cursor-pointer font-mono"
           >
-            <ArrowLeft className="h-4 w-4" /> Voltar ao Diário de Trade
+            <ArrowLeft className="h-4 w-4 text-emerald-400" /> ← Voltar ao Diário de Trade
           </button>
 
           <div className="h-6 w-px bg-slate-800 hidden sm:block" />
 
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 shadow-md">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 shadow-md shrink-0">
               <Wallet className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-black tracking-tight text-white uppercase">
+              <h1 className="text-base sm:text-lg font-black tracking-tight text-white uppercase font-mono">
                 Gestão de Capital & Movimentações
               </h1>
-              <p className="text-xs text-slate-400 font-medium">
+              <p className="text-xs text-slate-400 font-medium hidden sm:block">
                 Controle integral de saques, depósitos, comissões de corretoras e extratos de conta
               </p>
             </div>
@@ -283,7 +283,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
           <button
             onClick={onClose}
             className="rounded-xl border border-slate-800 p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer"
-            title="Fechar Tela"
+            title="Fechar e Voltar ao Diário"
           >
             <X className="h-5 w-5" />
           </button>
@@ -291,7 +291,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
       </div>
 
       {/* Main Workspace Body - Occupies 100% space */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 w-full max-w-[1920px] mx-auto">
+      <div className="flex-1 p-4 sm:p-8 space-y-6 w-full max-w-[1920px] mx-auto">
         {/* KPI Cards Grid - Spans 100% Width */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Capital Atual */}
@@ -393,6 +393,20 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
 
             {/* Lado Direito: Ações Principais */}
             <div className="flex flex-wrap items-center gap-2">
+              {transactions.length > 0 && onAddMultipleTransactions && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onAddMultipleTransactions(transactions);
+                    alert(`⚡ ${transactions.length} movimentações enviadas e sincronizadas com a nuvem com sucesso!`);
+                  }}
+                  title="Enviar e sincronizar todas as movimentações locais com o banco de dados na nuvem"
+                  className="flex items-center gap-1.5 px-3 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-xl text-xs transition shadow-md cursor-pointer font-mono"
+                >
+                  <RefreshCw className="h-4 w-4" /> ⚡ Sincronizar Nuvem
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {

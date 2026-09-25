@@ -74,7 +74,7 @@ type ActiveView = 'all' | 'charts' | 'calendar' | 'weekly' | 'trades';
 export default function App() {
   // 0. Auth State
   const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => getCurrentSession());
-  const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS' | 'ANTI_FURIA' | 'RISK_MANAGEMENT'>('JOURNAL');
+  const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS' | 'ANTI_FURIA' | 'RISK_MANAGEMENT' | 'CAPITAL_MANAGEMENT'>('JOURNAL');
 
   const handleLogout = () => {
     if (isAntiFuriaActive) {
@@ -135,12 +135,23 @@ export default function App() {
     return DEFAULT_RISK_SETTINGS;
   });
 
-  // 3. Capital Transactions State
+  // 3. Capital Transactions State (com resgate de chaves legadas e escopadas)
   const [capitalTransactions, setCapitalTransactions] = useState<CapitalTransaction[]>(() => {
     try {
       const savedTxs = localStorage.getItem(CAPITAL_STORAGE_KEY);
       if (savedTxs && savedTxs !== 'undefined' && savedTxs !== 'null') {
-        return JSON.parse(savedTxs);
+        const parsed = JSON.parse(savedTxs);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      const keys = Object.keys(localStorage).filter((k) => k.toLowerCase().includes('capital'));
+      for (const k of keys) {
+        const val = localStorage.getItem(k);
+        if (val && val !== 'undefined' && val !== 'null') {
+          try {
+            const parsed = JSON.parse(val);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          } catch (e) {}
+        }
       }
     } catch {}
     return [];
@@ -188,12 +199,30 @@ export default function App() {
       }
     } catch {}
 
-    // Load user's isolated capital transactions
+    // Load user's isolated capital transactions (com fallback para chaves legadas)
     try {
       const savedTxs = localStorage.getItem(CAPITAL_STORAGE_KEY);
+      let loadedCap: CapitalTransaction[] = [];
       if (savedTxs && savedTxs !== 'undefined' && savedTxs !== 'null') {
-        setCapitalTransactions(JSON.parse(savedTxs));
+        const parsed = JSON.parse(savedTxs);
+        if (Array.isArray(parsed) && parsed.length > 0) loadedCap = parsed;
       }
+      if (loadedCap.length === 0) {
+        const keys = Object.keys(localStorage).filter((k) => k.toLowerCase().includes('capital'));
+        for (const k of keys) {
+          const val = localStorage.getItem(k);
+          if (val && val !== 'undefined' && val !== 'null') {
+            try {
+              const parsed = JSON.parse(val);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                loadedCap = parsed;
+                break;
+              }
+            } catch (e) {}
+          }
+        }
+      }
+      if (loadedCap.length > 0) setCapitalTransactions(loadedCap);
     } catch {}
 
     setIsDataLoaded(true);
@@ -315,11 +344,21 @@ export default function App() {
             setSettings(cloudSettings.data);
           }
 
-          // 3. Carrega movimentações de capital do Supabase e mescla com o localStorage local
+          // 3. Carrega movimentações de capital do Supabase e mescla com o localStorage local (varrendo todas as chaves legadas)
           let localSavedCapital: CapitalTransaction[] = [];
           try {
-            const savedCapStr = localStorage.getItem(CAPITAL_STORAGE_KEY);
-            if (savedCapStr) localSavedCapital = JSON.parse(savedCapStr);
+            const keys = Object.keys(localStorage).filter((k) => k.toLowerCase().includes('capital'));
+            for (const k of keys) {
+              const val = localStorage.getItem(k);
+              if (val && val !== 'undefined' && val !== 'null') {
+                try {
+                  const parsed = JSON.parse(val);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    parsed.forEach((t: any) => localSavedCapital.push(t));
+                  }
+                } catch (e) {}
+              }
+            }
           } catch (e) {}
 
           const cloudCapital = await fetchCapitalTransactionsFromSupabase(currentUser.email);
@@ -361,11 +400,31 @@ export default function App() {
           fetchUsersFromSupabase(),
         ]);
         if (!isMounted) return;
-        if (tradesRes.data) setTrades(tradesRes.data);
+        if (tradesRes.data && tradesRes.data.length > 0) {
+          setTrades(tradesRes.data);
+        } else if (tradesRes.data && tradesRes.data.length === 0) {
+          setTrades((prev) => {
+            if (prev.length > 0) {
+              syncAllTradesToSupabase(prev, email);
+              return prev;
+            }
+            return [];
+          });
+        }
+
         if (settingsRes.data) setSettings(settingsRes.data);
-        if (capitalRes.data) {
+
+        if (capitalRes.data && capitalRes.data.length > 0) {
           setCapitalTransactions(capitalRes.data);
           localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(capitalRes.data));
+        } else if (capitalRes.data && capitalRes.data.length === 0) {
+          setCapitalTransactions((prev) => {
+            if (prev.length > 0) {
+              syncAllCapitalTransactionsToSupabase(prev, email);
+              return prev;
+            }
+            return [];
+          });
         }
         if (usersRes) {
           const updatedMe = usersRes.find((u) => u.email.toLowerCase() === email.toLowerCase());
@@ -1160,6 +1219,22 @@ export default function App() {
     );
   }
 
+  if (currentView === 'CAPITAL_MANAGEMENT' && currentUser) {
+    return (
+      <CapitalHistoryModal
+        isOpen={true}
+        onClose={() => setCurrentView('JOURNAL')}
+        transactions={capitalTransactions}
+        onAddTransaction={handleAddCapitalTransaction}
+        onAddMultipleTransactions={handleAddMultipleCapitalTransactions}
+        onDeleteTransaction={handleDeleteCapitalTransaction}
+        onDeleteMultipleTransactions={handleDeleteMultipleCapitalTransactions}
+        currentCapital={metrics.currentCapital}
+        initialCapital={settings.initialCapital}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-slate-100 selection:bg-emerald-500 selection:text-white pb-16">
       {/* Top Navigation */}
@@ -1330,7 +1405,7 @@ export default function App() {
           todayPerformance={todayPerformance}
           dailyPerformance={dailyPerformance}
           dailyProfitTarget={settings.dailyProfitTarget}
-          onOpenCapitalModal={() => setIsCapitalModalOpen(true)}
+          onOpenCapitalModal={() => setCurrentView('CAPITAL_MANAGEMENT')}
           onOpenKellyCalculator={() => setIsKellyCalculatorOpen(true)}
         />
 
@@ -1535,18 +1610,6 @@ export default function App() {
         metrics={metrics}
         settings={settings}
         trades={trades}
-      />
-
-      <CapitalHistoryModal
-        isOpen={isCapitalModalOpen}
-        onClose={() => setIsCapitalModalOpen(false)}
-        transactions={capitalTransactions}
-        onAddTransaction={handleAddCapitalTransaction}
-        onAddMultipleTransactions={handleAddMultipleCapitalTransactions}
-        onDeleteTransaction={handleDeleteCapitalTransaction}
-        onDeleteMultipleTransactions={handleDeleteMultipleCapitalTransactions}
-        currentCapital={metrics.currentCapital}
-        initialCapital={settings.initialCapital}
       />
 
       <SupabaseSyncModal
