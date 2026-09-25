@@ -376,6 +376,10 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Sincronização Nativa em Kotlin (`TradeLockNativeSync.kt`)**: Thread nativa em Kotlin rodando a cada 15 segundos em segundo plano, consultando o REST API do Supabase diretamente em segundo plano sem depender da WebView React. Se o trader for stopado no computador desktop, o celular ativa a trava nativa (`isLockActive = true`) e a VPN local instantaneamente mesmo com o app fechado há dias.
     - **Isenção de Otimização de Bateria & Auto-Boot**: Implementado prompt automático de isenção de otimização de bateria (`ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`) e `BootReceiver.kt` para auto-inicialização no boot do celular.
 
+58. **Correção de Ocultação do Botão Sair & Compactação Global do Layout (~80% Zoom)**:
+    - **Correção da Ocultação do Botão "Sair"**: Ajustada a estrutura flex da [Navbar.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/Navbar.tsx). O grupo de perfil do usuário e o botão de Logout ("Sair") receberam a classe `shrink-0` e alinhamento dedicado na extrema direita. Os botões utilitários tiveram seus espaçamentos compactados (`gap-1 sm:gap-1.5`) e o container recebeu `overflow-x-hidden`. O botão "Sair" agora permanece 100% visível, acessível e com margem interna garantida em qualquer resolução ou exibição do banner de Stop Loss.
+    - **Compactação Geral do Layout (~80% Zoom)**: Adicionada a regra de escala CSS `zoom: 0.82` para telas `>= 640px` (Desktop / Tablet / Electron) em [index.css](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/index.css). O sistema agora renderiza nativamente no formato compacto equivalente a 80% de zoom do navegador, permitindo a visualização completa do painel, cards, calendário e gráficos sem necessidade de zoom manual.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas & diretas ao código.

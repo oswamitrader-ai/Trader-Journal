@@ -16,6 +16,13 @@
     background-color: #000000;
   }
 
+  /* Compact zoom scaling (~80% look on desktop and tablet) */
+  @media (min-width: 640px) {
+    #root {
+      zoom: 0.82;
+    }
+  }
+
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }

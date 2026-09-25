@@ -120,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Main Layer: Result Cards & Action Buttons */}
-      <div className="w-full max-w-[1920px] mx-auto flex items-center justify-between px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 gap-2">
+      <div className="w-full max-w-[1920px] mx-auto flex items-center justify-between px-2.5 sm:px-4 lg:px-6 py-2 gap-1.5 overflow-x-hidden">
         {/* Highlighted Today Result Badge (Mobile & Tablet) */}
         <div className="flex lg:hidden items-center shrink-0">
           <div
@@ -153,9 +153,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Live Day Status Indicators (Desktop) */}
-        <div className="hidden lg:flex items-center gap-4">
+        <div className="hidden lg:flex items-center gap-3 shrink-0">
           <div
-            className={`flex items-center gap-3.5 rounded-2xl border px-4 py-2 shadow-lg transition-all ${
+            className={`flex items-center gap-2.5 rounded-2xl border px-3 py-1.5 shadow-lg transition-all ${
               todayPnl > 0
                 ? 'border-emerald-600 bg-black text-emerald-400'
                 : todayPnl < 0
@@ -164,7 +164,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             <div className="flex flex-col">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                   Resultado Hoje
                 </span>
@@ -172,9 +172,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {todayTradesCount} {todayTradesCount === 1 ? 'trade' : 'trades'}
                 </span>
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-1.5 mt-0.5">
                 <span
-                  className={`text-xl font-black font-mono tracking-tight ${
+                  className={`text-lg font-black font-mono tracking-tight ${
                     todayPnl > 0
                       ? 'text-emerald-400'
                       : todayPnl < 0
@@ -186,48 +186,48 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {formatCurrency(todayPnl)}
                 </span>
                 {isTargetHit && (
-                  <span className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Meta Batida
+                  <span className="flex items-center gap-1 rounded-lg bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                    <CheckCircle2 className="h-3 w-3" /> Meta Batida
                   </span>
                 )}
                 {isStopHit && (
-                  <span className="flex items-center gap-1 rounded-lg bg-rose-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm animate-pulse">
-                    <XCircle className="h-3.5 w-3.5" /> Stop Atingido
+                  <span className="flex items-center gap-1 rounded-lg bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm animate-pulse">
+                    <XCircle className="h-3 w-3" /> Stop Atingido
                   </span>
                 )}
                 {!isStopHit && isNearStop && (
-                  <span className="flex items-center gap-1 rounded-lg bg-amber-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
-                    <AlertTriangle className="h-3.5 w-3.5" /> Alerta Stop
+                  <span className="flex items-center gap-1 rounded-lg bg-amber-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                    <AlertTriangle className="h-3 w-3" /> Alerta Stop
                   </span>
                 )}
               </div>
-            </div>
-
-            <div className="h-8 w-px bg-slate-800" />
-
-            <div className="flex flex-col">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                Saldo Atual
-              </span>
-              <span className="text-sm font-bold font-mono text-white">
-                {formatCurrency(displayCapital)}
-              </span>
             </div>
 
             <div className="h-7 w-px bg-slate-800" />
 
             <div className="flex flex-col">
               <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                Saldo Atual
+              </span>
+              <span className="text-xs sm:text-sm font-bold font-mono text-white">
+                {formatCurrency(displayCapital)}
+              </span>
+            </div>
+
+            <div className="h-6 w-px bg-slate-800" />
+
+            <div className="flex flex-col">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
                 Assertividade
               </span>
-              <span className="text-sm font-bold font-mono text-emerald-400">
+              <span className="text-xs sm:text-sm font-bold font-mono text-emerald-400">
                 {displayWinRate.toFixed(1)}%
               </span>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5 shrink-0 pb-1 sm:pb-0 max-w-full">
+        <div className="flex items-center justify-end gap-1 sm:gap-1.5 shrink-0 ml-auto max-w-full">
           {/* New Trade Button — 🔒 Bloqueado quando a Trava Anti-Fúria (Stop Loss ou Max Trades) é atingida */}
           <button
             id="btn-nova-operacao"
@@ -487,13 +487,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Current User Badge & Logout */}
-          <div className="flex items-center gap-1.5 border-l border-slate-800 pl-2 ml-1">
+          <div className="flex items-center gap-1.5 border-l border-slate-800 pl-2 ml-0.5 shrink-0">
             {currentUser && (
               <div
                 title={`${currentUser.name} (${currentUser.email})`}
-                className="hidden xl:flex items-center text-[11px]"
+                className="hidden 2xl:flex items-center text-[11px] shrink-0"
               >
-                <span className="font-bold text-slate-200 leading-tight max-w-[140px] truncate">
+                <span className="font-bold text-slate-200 leading-tight max-w-[110px] truncate">
                   {currentUser.name || currentUser.email.split('@')[0]}
                 </span>
               </div>
@@ -504,10 +504,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="btn-logout"
                 onClick={onLogout}
                 title="Sair da Conta / Desconectar"
-                className="flex h-8 sm:h-9 items-center gap-1.5 px-2.5 rounded-xl bg-rose-950/50 border border-rose-800/60 text-rose-300 hover:bg-rose-900 hover:text-white shadow-md transition active:scale-95 shrink-0 text-xs font-bold"
+                className="flex h-8 sm:h-9 items-center gap-1.5 px-2.5 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-300 hover:bg-rose-900 hover:text-white shadow-md transition active:scale-95 shrink-0 text-xs font-bold font-mono"
               >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Sair</span>
+                <LogOut className="h-4 w-4 shrink-0" />
+                <span className="inline font-bold">Sair</span>
               </button>
             )}
           </div>
