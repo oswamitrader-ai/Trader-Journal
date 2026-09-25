@@ -1021,6 +1021,17 @@ export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTra
     }
 
     const headers = splitCsvLine(firstLine, delimiter).map((h) => h.toLowerCase().trim());
+    const headerStr = headers.join(' ').toLowerCase();
+
+    const isWithdrawalHeader =
+      headerStr.includes('withdrawal') ||
+      headerStr.includes('saque') ||
+      headerStr.includes('retirada') ||
+      headerStr.includes('payout');
+
+    const isDepositHeader =
+      !isWithdrawalHeader &&
+      (headerStr.includes('deposit') || headerStr.includes('deposito') || headerStr.includes('depósito'));
 
     // Identificadores de colunas
     let dateIdx = headers.findIndex((h) => h.includes('data') || h.includes('date') || h.includes('time') || h.includes('timestamp') || h.includes('horario') || h.includes('created'));
@@ -1032,7 +1043,7 @@ export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTra
     let statusIdx = headers.findIndex((h) => h.includes('status') || h.includes('situacao') || h.includes('situação') || h.includes('estado') || h.includes('state'));
     let statusCommentIdx = headers.findIndex((h) => h.includes('status_comment') || h.includes('comment') || h.includes('motivo') || h.includes('justificativa'));
 
-    const hasHeader = headers.some(h => h.includes('valor') || h.includes('amount') || h.includes('tipo') || h.includes('type') || h.includes('data') || h.includes('date') || h.includes('status'));
+    const hasHeader = headers.some(h => h.includes('valor') || h.includes('amount') || h.includes('tipo') || h.includes('type') || h.includes('data') || h.includes('date') || h.includes('status') || h.includes('withdrawal') || h.includes('deposit'));
     const dataLines = hasHeader ? rawLines.slice(1) : rawLines;
 
     const todayStr = getLocalDateStr();
@@ -1064,25 +1075,42 @@ export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTra
 
       // Tipo (DEPOSIT vs WITHDRAWAL)
       let type: import('../types').CapitalTransactionType = 'DEPOSIT';
-      let typeCell = (typeIdx >= 0 && cols[typeIdx] ? cols[typeIdx] : '').toLowerCase();
-      if (!typeCell) typeCell = cols.join(' ').toLowerCase();
+      const typeCell = (typeIdx >= 0 && cols[typeIdx] ? cols[typeIdx] : '').toLowerCase();
 
-      if (
-        isNegative ||
-        typeCell.includes('saque') ||
-        typeCell.includes('withdrawal') ||
-        typeCell.includes('withdraw') ||
-        typeCell.includes('saida') ||
-        typeCell.includes('saída') ||
-        typeCell.includes('debito') ||
-        typeCell.includes('débito') ||
-        typeCell.includes('retirada') ||
-        typeCell === 'out' ||
-        typeCell === '-'
-      ) {
+      if (typeCell) {
+        if (
+          typeCell.includes('saque') ||
+          typeCell.includes('withdrawal') ||
+          typeCell.includes('withdraw') ||
+          typeCell.includes('saida') ||
+          typeCell.includes('saída') ||
+          typeCell.includes('debito') ||
+          typeCell.includes('débito') ||
+          typeCell.includes('retirada') ||
+          typeCell === 'out' ||
+          typeCell === '-'
+        ) {
+          type = 'WITHDRAWAL';
+        } else {
+          type = 'DEPOSIT';
+        }
+      } else if (isNegative || isWithdrawalHeader) {
         type = 'WITHDRAWAL';
-      } else {
+      } else if (isDepositHeader) {
         type = 'DEPOSIT';
+      } else {
+        const rowStr = cols.join(' ').toLowerCase();
+        if (
+          rowStr.includes('saque') ||
+          rowStr.includes('withdrawal') ||
+          rowStr.includes('withdraw') ||
+          rowStr.includes('debito') ||
+          rowStr.includes('retirada')
+        ) {
+          type = 'WITHDRAWAL';
+        } else {
+          type = 'DEPOSIT';
+        }
       }
 
       // Status

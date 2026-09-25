@@ -362,8 +362,11 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - **Rejeição Automática de Alterações de E-mail**: Se o usuário tentar alterar o e-mail via formulário ou código enquanto a trava estiver ativa, `setUserEmail` e `fetchDataAndSubscribe` em `mobileSyncService.ts` **bloqueiam e rejeitam a troca**, mantendo a consulta ancorada no e-mail travado com `isLockActive = true`.
       - **Interface Visual Bloqueada no Mobile App**: Em [mobile/src/App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/mobile/src/App.tsx), o campo de entrada de e-mail e o botão "Sincronizar" ficam desabilitados (`disabled={lockState.isLockActive}`) com aviso em vermelho `🔒 BLOQUEADO`, impedindo qualquer tentativa de desativar o bloqueio no celular.
 
-56. **Importação Avançada de CSV & Seleção em Massa em Gestão de Capital (`CapitalHistoryModal.tsx` & `tradeParsers.ts`)**:
+56. **Reformulação em Tela Completa & Importação Avançada em Gestão de Capital (`CapitalHistoryModal.tsx` & `tradeParsers.ts`)**:
+    - **Design em Tela Cheia (100% W/H)**: Removido o card flutuante. A tela de Gestão de Capital & Movimentações agora ocupa 100% da largura e altura da tela (`fixed inset-0 w-screen h-screen bg-black`), utilizando todo o comprimento do monitor com topbar nativa ("← Voltar ao Diário de Trade").
+    - **Filtros e Busca em Tempo Real**: Barra de pesquisa para filtrar lançamentos por corretora, valor, data ou observação, além de seletores rápidos por Tipo (Depósito/Saque) e Status.
     - Criada a função `parseCapitalTransactionsCsv` com detecção dinâmica de delimitadores (`,`, `;`, `\t`), colunas de valor, data, taxas/comissões (`withdrawal_comission`, `fee`) e status (`withdrawal_status`, `status`).
+    - **Identificação Precisa de Saques via Cabeçalho**: Inspeção das colunas do cabeçalho (`withdrawal_amount`, `withdrawal_date`, `withdrawal_status`) para classificar arquivos e registros como **Saque** mesmo na ausência de uma coluna explícita de tipo.
     - **Isolamento de Transações Canceladas**: Saques e depósitos com status de cancelado (`canceled`, `rejected`, `failed`) são identificados e desconsiderados automaticamente do saldo total da banca.
     - **Badges de Status Visuais**: Renderização de selos dinâmicos (`Concluído 🟢`, `Cancelado 🛑 (Fora do Saldo)` e `Pendente 🟡`) na pré-visualização e no histórico.
     - **Seleção e Exclusão em Massa (Batch Delete)**: Adicionadas caixas de seleção (checkboxes), opção "Selecionar Todos" e botão "Excluir Selecionados" no histórico de movimentações.
