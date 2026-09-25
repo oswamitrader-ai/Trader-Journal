@@ -68,7 +68,8 @@
     ],
     "win": {
       "target": ["nsis", "portable"],
-      "icon": "public/favicon.svg"
+      "icon": "public/favicon.svg",
+      "requestedExecutionLevel": "requireAdministrator"
     },
     "nsis": {
       "oneClick": false,

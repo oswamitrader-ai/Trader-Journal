@@ -53,6 +53,7 @@ class MobileSyncService {
   private listeners: Set<NativeLockCallback> = new Set();
   private tradesChannel: any = null;
   private usersChannel: any = null;
+  private pollInterval: any = null;
 
   constructor() {
     const savedEmail = typeof window !== 'undefined' ? localStorage.getItem('tradelock_user_email') || 'oswamitrader@gmail.com' : 'oswamitrader@gmail.com';
@@ -218,6 +219,7 @@ class MobileSyncService {
   private subscribeRealtime(email: string): void {
     if (this.tradesChannel) supabase.removeChannel(this.tradesChannel);
     if (this.usersChannel) supabase.removeChannel(this.usersChannel);
+    if (this.pollInterval) clearInterval(this.pollInterval);
 
     const cleanEmail = email.toLowerCase().trim();
 
@@ -251,7 +253,19 @@ class MobileSyncService {
           }
         }
       )
+      .on(
+        'broadcast',
+        { event: 'SYNC_MUTATION' },
+        () => {
+          this.fetchDataAndSubscribe(email);
+        }
+      )
       .subscribe();
+
+    // Polling heartbeat de 3s como garantia extra para o app mobile sem F5
+    this.pollInterval = setInterval(() => {
+      this.fetchDataAndSubscribe(email);
+    }, 3000);
   }
 
   private notifyNativeBridge(state: MobileLockState): void {

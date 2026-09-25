@@ -42,9 +42,10 @@ export function isTradeProtected(trade: Trade): boolean {
 
   const strat = (trade.strategy || '').toLowerCase();
   const notes = (trade.notes || '').toLowerCase();
-  const hasDemoTag = Array.isArray(trade.tags) && trade.tags.some(t => t.toUpperCase().includes('DEMO'));
+  const idStr = String(trade.id || '');
+  const hasDemoTag = Array.isArray(trade.tags) && trade.tags.some((t) => t.toUpperCase().includes('DEMO'));
 
-  // 1. Se a operação for explicitamente da Conta DEMO / Prática / Simulador, PERMITE EXCLUSÃO
+  // 1. Operações de Conta DEMO / Prática / Simulador -> PERMITE EXCLUSÃO
   if (
     trade.accountType === 'DEMO' ||
     trade.isReal === false ||
@@ -59,8 +60,13 @@ export function isTradeProtected(trade: Trade): boolean {
     return false;
   }
 
-  // 2. Qualquer outra operação (Conta Real capturada ao vivo ou importada via relatório CSV/PDF) É ESTRITAMENTE PROTEGIDA
-  return true;
+  // 2. Apenas operações de Conta Real capturadas AO VIVO em tempo real pela Extensão Chrome são protegidas contra exclusão
+  if (trade.isAutoCaptured === true || idStr.startsWith('live-')) {
+    return true;
+  }
+
+  // 3. Operações inseridas manualmente pelo botão "Novo Trade" ou importadas via relatório CSV/PDF -> PERMITEM EXCLUSÃO E EDIÇÃO
+  return false;
 }
 
 export function formatCurrency(value: number, overrideCurrency?: CurrencyCode): string {

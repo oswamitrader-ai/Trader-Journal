@@ -21,6 +21,27 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || 
   auth: { persistSession: false },
 });
 
+// Broadcast Channel dedicado para sincronização instantânea (<50ms) entre Web, Desktop (Electron) e Mobile
+export const syncBroadcastChannel = supabase.channel('tradelock_realtime_broadcast', {
+  config: { broadcast: { self: true } },
+});
+
+if (typeof window !== 'undefined') {
+  syncBroadcastChannel.subscribe();
+}
+
+export function notifyRealtimeSync(table: string, action: string = 'MUTATION') {
+  try {
+    syncBroadcastChannel.send({
+      type: 'broadcast',
+      event: 'SYNC_MUTATION',
+      payload: { table, action, timestamp: Date.now() },
+    });
+  } catch (e) {
+    console.warn('[Supabase Broadcast] Falha ao notificar sincronização:', e);
+  }
+}
+
 /**
  * Retorna ou gera um UUID único persistente por navegador/computador.
  * Garante que múltiplos usuários usando o mesmo projeto Supabase nunca misturem dados.
@@ -190,6 +211,7 @@ export async function upsertTradeToSupabase(trade: Trade, userEmail?: string): P
     if (error) {
       return { success: false, error: error.message };
     }
+    notifyRealtimeSync('trades', 'UPSERT');
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao salvar trade no Supabase.' };
@@ -214,6 +236,7 @@ export async function deleteTradeFromSupabase(tradeId: string): Promise<{ succes
     if (error) {
       return { success: false, error: error.message };
     }
+    notifyRealtimeSync('trades', 'DELETE');
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao remover trade do Supabase.' };
@@ -382,6 +405,7 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       delete payload.antiFuriaEndTime;
       await supabase.from('risk_settings').upsert(payload);
     }
+    notifyRealtimeSync('risk_settings', 'UPSERT');
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao salvar configurações de risco.' };
@@ -482,6 +506,7 @@ export async function upsertCapitalTransactionToSupabase(tx: CapitalTransaction,
     if (error && !error.message.includes('relation "capital_transactions" does not exist')) {
       return { success: false, error: error.message };
     }
+    notifyRealtimeSync('capital_transactions', 'UPSERT');
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao salvar movimentação no Supabase.' };
@@ -498,6 +523,7 @@ export async function deleteCapitalTransactionFromSupabase(txId: string, userEma
     if (cleanEmail) {
       await supabase.from('risk_settings').delete().eq('id', `captx_${cleanEmail}_${txId}`);
     }
+    notifyRealtimeSync('capital_transactions', 'DELETE');
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao excluir movimentação.' };

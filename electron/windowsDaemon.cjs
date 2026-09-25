@@ -59,7 +59,27 @@ function updateHostsFile(isLockActive, domains = DEFAULT_BROKER_DOMAINS) {
       content = content.trimEnd() + '\n\n' + lines.join('\n');
     }
 
-    fs.writeFileSync(HOSTS_PATH, content, 'utf8');
+    try {
+      fs.writeFileSync(HOSTS_PATH, content, 'utf8');
+    } catch (writeErr) {
+      if (writeErr && (writeErr.code === 'EPERM' || writeErr.code === 'EACCES')) {
+        const tempPath = path.join(require('os').tmpdir(), 'tradelock_hosts_tmp.txt');
+        fs.writeFileSync(tempPath, content, 'utf8');
+        const psCmd = `powershell -Command "Start-Process powershell -ArgumentList '-Command Copy-Item -Path ''${tempPath}'' -Destination ''${HOSTS_PATH}'' -Force' -Verb RunAs -WindowStyle Hidden"`;
+        exec(psCmd, (psErr) => {
+          if (!psErr) {
+            console.log('🛡️ [TradeLock Daemon] Arquivo hosts atualizado com privilégios de Administrador via UAC.');
+            if (process.platform === 'win32') {
+              exec('ipconfig /flushdns');
+            }
+          } else {
+            console.warn('[TradeLock Daemon] Privilégio de Administrador negado pelo usuário no UAC.');
+          }
+        });
+        return true;
+      }
+      throw writeErr;
+    }
 
     // Flush DNS no Windows
     if (process.platform === 'win32') {

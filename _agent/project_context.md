@@ -280,11 +280,17 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - `package.json`: Adicionados os comandos `"npm run electron:dev"` para desenvolvimento desktop e `"npm run electron:build"` para gerar o instalador `.exe` (NSIS/Portable).
       - `App.tsx`: Sincronização em tempo real via IPC enviando `syncLockState` diretamente ao Windows Daemon quando a trava ativa no React.
 
-48. **Sincronização Multidispositivo em Tempo Real via Supabase Realtime (Web, App Desktop e App Mobile)**:
-    - **Causa Raiz Identificada**: A escuta do Supabase no `App.tsx` assinava apenas a tabela `trades`, sem ouvir `risk_settings`, `capital_transactions` ou `system_users`. Quando uma operação de stop ou alteração era salva na Web, o aplicativo Desktop e o App Mobile não recebiam os eventos das outras tabelas para atualizar em tempo real sem F5.
-    - **Solução Implementada**:
-      - Atualizada a escuta do Supabase em [App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/App.tsx) e [mobileSyncService.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/services/mobileSyncService.ts) para assinar dinamicamente em tempo real as 4 tabelas (`trades`, `risk_settings`, `capital_transactions` e `system_users`).
-      - Qualquer operação adicionada ou editada na Web, Mobile ou Extensão é retransmitida instantaneamente para todos os dispositivos abertos (Web, Desktop Electron e Mobile App). Os cálculos de PnL do dia, Stop Loss, Overtrading e comandos IPC do Windows Daemon são recalculados na hora sem necessidade de F5 ou recarregamento.
+48. **Sincronização Multidispositivo em Tempo Real Tripla Camada (Broadcast + Postgres Changes + Polling Heartbeat)**:
+    - **Causa Raiz Identificada**: A sincronia em tempo real dependia exclusivamente de eventos `postgres_changes`. Em instâncias do Supabase onde a publicação de réplica das tabelas não estava ativada explicitamente no Postgres, os eventos WebSocket do PostgreSQL não eram distribuídos.
+    - **Solução de Sincronização Tripla Implementada**:
+      - **1. Canal de Broadcast Instantâneo (`tradelock_realtime_broadcast`)**: Criado em [supabase.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/lib/supabase.ts). A cada operação inserida, editada ou excluída no diário ou nas configurações de risco, um evento `SYNC_MUTATION` é disparado em sub-50ms para todas as telas e dispositivos conectados (Web, Desktop Electron e App Mobile).
+      - **2. Supabase Postgres Realtime (`postgres_changes`)**: Escuta nativa mantida em [App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/App.tsx) e [mobileSyncService.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/services/mobileSyncService.ts) para capturar edições no banco de dados.
+      - **3. Polling Heartbeat Silencioso (3s)**: Adicionado temporizador de 3 segundos em background no React e no App Mobile como garantia absoluta. Caso a conexão WebSocket seja interrompida ou enfrente instabilidade, o aplicativo desktop e o app mobile buscam os dados atualizados em no máximo 3 segundos, sem necessidade de recarregar a página (sem F5).
+
+49. **Liberação de Exclusão e Edição para Operações Inseridas Manualmente ("Novo Trade")**:
+    - **Ajuste de Regra**: Atualizada a função `isTradeProtected(trade)` em [calculations.ts](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/utils/calculations.ts#L40-L68).
+    - Operações criadas manualmente pelo botão "Novo Trade" (`isAutoCaptured !== true`) e operações importadas via CSV/PDF ficam **completamente liberadas para exclusão e edição pelo trader**.
+    - A trava de proteção imutável Anti-Fúria permanece aplicada **estritamente** para operações de Conta Real capturadas ao vivo pela extensão Chrome em tempo real (`isAutoCaptured === true` ou `id.startsWith('live-')`).
 
 ## Regras Importantes
 - Ambiente: Windows.

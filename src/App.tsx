@@ -300,8 +300,29 @@ export default function App() {
       initSupabase();
     }
 
-    // Inscreve em tempo real nas alterações de todas as tabelas no Supabase (multidispositivo sem F5)
+    // Sincronização em tempo real multidispositivo (Broadcast + Postgres Changes + Polling Heartbeat)
     const email = currentUser?.email;
+
+    const refetchAllData = async () => {
+      if (!email || !isMounted) return;
+      try {
+        const [tradesRes, settingsRes, capitalRes, usersRes] = await Promise.all([
+          fetchTradesFromSupabase(email),
+          fetchRiskSettingsFromSupabase(email),
+          fetchCapitalTransactionsFromSupabase(email),
+          fetchUsersFromSupabase(),
+        ]);
+        if (!isMounted) return;
+        if (tradesRes.data) setTrades(tradesRes.data);
+        if (settingsRes.data) setSettings(settingsRes.data);
+        if (capitalRes.data && capitalRes.data.length > 0) setCapitalTransactions(capitalRes.data);
+        if (usersRes) {
+          const updatedMe = usersRes.find((u) => u.email.toLowerCase() === email.toLowerCase());
+          if (updatedMe) setCurrentUser(updatedMe);
+        }
+      } catch (e) {}
+    };
+
     const channelName = `realtime_app_${email ? email.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'global'}_${Date.now()}`;
 
     const realtimeChannel = supabase
@@ -309,50 +330,40 @@ export default function App() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'trades' },
-        async () => {
-          if (email) {
-            const res = await fetchTradesFromSupabase(email);
-            if (res.data) setTrades(res.data);
-          }
-        }
+        () => refetchAllData()
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'risk_settings' },
-        async () => {
-          if (email) {
-            const res = await fetchRiskSettingsFromSupabase(email);
-            if (res.data) setSettings(res.data);
-          }
-        }
+        () => refetchAllData()
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'capital_transactions' },
-        async () => {
-          if (email) {
-            const res = await fetchCapitalTransactionsFromSupabase(email);
-            if (res.data) setCapitalTransactions(res.data);
-          }
-        }
+        () => refetchAllData()
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'system_users' },
-        async () => {
-          if (email) {
-            const users = await fetchUsersFromSupabase();
-            if (users) {
-              const updatedMe = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-              if (updatedMe) setCurrentUser(updatedMe);
-            }
-          }
-        }
+        () => refetchAllData()
+      )
+      .on(
+        'broadcast',
+        { event: 'SYNC_MUTATION' },
+        () => refetchAllData()
       )
       .subscribe();
 
+    // Heartbeat Polling de 3 segundos para garantir sincronia multidispositivo sem F5
+    const pollInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refetchAllData();
+      }
+    }, 3000);
+
     return () => {
       isMounted = false;
+      clearInterval(pollInterval);
       supabase.removeChannel(realtimeChannel);
     };
   }, [currentUser?.email]);
