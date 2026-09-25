@@ -5,7 +5,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Permissões Especiais de Blindagem Nativa -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -36,7 +41,17 @@
 
         </activity>
 
-        <!-- 1. Serviço de VPN Local para Bloqueio de Domínios -->
+        <!-- 1. Serviço de Primeiro Plano PERSISTENTE 24/7 -->
+        <service
+            android:name=".TradeLockForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Anti-Furia Trading Risk Shield Protection" />
+        </service>
+
+        <!-- 2. Serviço de VPN Local para Bloqueio de Domínios -->
         <service
             android:name=".TradeLockVpnService"
             android:exported="false"
@@ -46,7 +61,7 @@
             </intent-filter>
         </service>
 
-        <!-- 2. Serviço de Acessibilidade para Detecção dos Apps das Corretoras -->
+        <!-- 3. Serviço de Acessibilidade para Detecção dos Apps das Corretoras -->
         <service
             android:name=".TradeLockAccessibilityService"
             android:exported="true"
@@ -60,7 +75,19 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- 3. Overlay em Tela Cheia Nativo (Touro vs Urso) -->
+        <!-- 4. Receiver para Auto-Inicialização após Reiniciar o Celular -->
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 5. Overlay em Tela Cheia Nativo (Touro vs Urso) -->
         <activity
             android:name=".OverlayBlockActivity"
             android:excludeFromRecents="true"

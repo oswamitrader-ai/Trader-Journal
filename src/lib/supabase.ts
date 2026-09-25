@@ -484,6 +484,7 @@ export async function fetchCapitalTransactionsFromSupabase(userEmail?: string): 
         time: row.time ? String(row.time) : undefined,
         broker: row.broker ? String(row.broker) : undefined,
         notes: row.notes ? String(row.notes) : undefined,
+        status: row.status ? (row.status as import('../types').CapitalTransactionStatus) : 'COMPLETED',
       }));
       return { data: txs, error: null };
     }
@@ -492,14 +493,23 @@ export async function fetchCapitalTransactionsFromSupabase(userEmail?: string): 
     const prefix = `captx_${cleanEmail}_`;
     const { data: backupRows } = await supabase.from('risk_settings').select('*').like('id', `${prefix}%`);
     if (backupRows && backupRows.length > 0) {
-      const txs: CapitalTransaction[] = backupRows.map((row: any) => ({
-        id: String(row.id.replace(prefix, '')),
-        type: row.monthlyProfitTarget === 1 ? 'DEPOSIT' : 'WITHDRAWAL',
-        amount: Number(row.initialCapital) || 0,
-        fee: Number(row.dailyProfitTarget) || 0,
-        date: String(row.antiFuriaStartTime || new Date().toISOString().split('T')[0]),
-        broker: row.notes || undefined,
-      }));
+      const txs: CapitalTransaction[] = backupRows.map((row: any) => {
+        let meta: any = {};
+        if (row.notes && row.notes.startsWith('{')) {
+          try { meta = JSON.parse(row.notes); } catch (e) {}
+        }
+        return {
+          id: String(row.id.replace(prefix, '')),
+          type: row.monthlyProfitTarget === 1 ? 'DEPOSIT' : 'WITHDRAWAL',
+          amount: Number(row.initialCapital) || 0,
+          fee: Number(row.dailyProfitTarget) || 0,
+          date: String(row.antiFuriaStartTime || new Date().toISOString().split('T')[0]),
+          time: meta.time || undefined,
+          broker: meta.broker || (typeof row.notes === 'string' && !row.notes.startsWith('{') ? row.notes : undefined),
+          notes: meta.notes || undefined,
+          status: meta.status || 'COMPLETED',
+        };
+      });
       return { data: txs, error: null };
     }
 
@@ -527,6 +537,7 @@ export async function upsertCapitalTransactionToSupabase(tx: CapitalTransaction,
       fee: tx.fee ?? 0,
       broker: tx.broker ?? null,
       notes: tx.notes ?? null,
+      status: tx.status ?? 'COMPLETED',
       updated_at: new Date().toISOString(),
     };
 
@@ -545,7 +556,7 @@ export async function upsertCapitalTransactionToSupabase(tx: CapitalTransaction,
       alertSoundEnabled: true,
       antiFuriaCustomWindowEnabled: false,
       antiFuriaStartTime: tx.date,
-      notes: tx.broker ?? 'Movimentação',
+      notes: JSON.stringify({ broker: tx.broker, notes: tx.notes, status: tx.status, time: tx.time }),
       updated_at: new Date().toISOString(),
     };
     await supabase.from('risk_settings').upsert(backupPayload);
@@ -582,8 +593,30 @@ export async function deleteCapitalTransactionFromSupabase(txId: string, userEma
  */
 export async function syncAllCapitalTransactionsToSupabase(txs: CapitalTransaction[], userEmail?: string): Promise<void> {
   if (!txs || txs.length === 0 || !userEmail) return;
+  const cleanEmail = userEmail.toLowerCase().trim();
+
+  try {
+    const payloadBatch = txs.map((tx) => ({
+      id: tx.id,
+      user_email: cleanEmail,
+      date: tx.date,
+      time: tx.time ?? null,
+      type: tx.type,
+      amount: tx.amount,
+      fee: tx.fee ?? 0,
+      broker: tx.broker ?? null,
+      notes: tx.notes ?? null,
+      status: tx.status ?? 'COMPLETED',
+      updated_at: new Date().toISOString(),
+    }));
+
+    await supabase.from('capital_transactions').upsert(payloadBatch);
+  } catch (e) {}
+
   for (const tx of txs) {
-    await upsertCapitalTransactionToSupabase(tx, userEmail);
+    try {
+      await upsertCapitalTransactionToSupabase(tx, cleanEmail);
+    } catch (e) {}
   }
 }
 

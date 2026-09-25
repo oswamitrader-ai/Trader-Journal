@@ -315,14 +315,28 @@ export default function App() {
             setSettings(cloudSettings.data);
           }
 
-          // 3. Carrega movimentações de capital do Supabase
+          // 3. Carrega movimentações de capital do Supabase e mescla com o localStorage local
+          let localSavedCapital: CapitalTransaction[] = [];
+          try {
+            const savedCapStr = localStorage.getItem(CAPITAL_STORAGE_KEY);
+            if (savedCapStr) localSavedCapital = JSON.parse(savedCapStr);
+          } catch (e) {}
+
           const cloudCapital = await fetchCapitalTransactionsFromSupabase(currentUser.email);
           if (!isMounted) return;
+
+          const capMap = new Map<string, CapitalTransaction>();
+          localSavedCapital.forEach((t) => capMap.set(t.id, t));
           if (cloudCapital.data && cloudCapital.data.length > 0) {
-            setCapitalTransactions(cloudCapital.data);
-            localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(cloudCapital.data));
-          } else if (capitalTransactions.length > 0) {
-            syncAllCapitalTransactionsToSupabase(capitalTransactions, currentUser.email);
+            cloudCapital.data.forEach((t) => capMap.set(t.id, t));
+          }
+
+          const mergedCapital = Array.from(capMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+
+          if (mergedCapital.length > 0) {
+            setCapitalTransactions(mergedCapital);
+            localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(mergedCapital));
+            syncAllCapitalTransactionsToSupabase(mergedCapital, currentUser.email);
           }
         }
       } catch (err) {
@@ -349,7 +363,16 @@ export default function App() {
         if (!isMounted) return;
         if (tradesRes.data) setTrades(tradesRes.data);
         if (settingsRes.data) setSettings(settingsRes.data);
-        if (capitalRes.data && capitalRes.data.length > 0) setCapitalTransactions(capitalRes.data);
+        if (capitalRes.data && capitalRes.data.length > 0) {
+          setCapitalTransactions((prev) => {
+            const map = new Map<string, CapitalTransaction>();
+            prev.forEach((t) => map.set(t.id, t));
+            capitalRes.data.forEach((t) => map.set(t.id, t));
+            const merged = Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+            localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(merged));
+            return merged;
+          });
+        }
         if (usersRes) {
           const updatedMe = usersRes.find((u) => u.email.toLowerCase() === email.toLowerCase());
           if (updatedMe) setCurrentUser(updatedMe);
@@ -909,7 +932,13 @@ export default function App() {
   };
 
   const handleAddCapitalTransaction = (tx: CapitalTransaction) => {
-    setCapitalTransactions((prev) => [tx, ...prev]);
+    setCapitalTransactions((prev) => {
+      const updated = [tx, ...prev.filter((t) => t.id !== tx.id)];
+      try {
+        localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     if (currentUser?.email) {
       upsertCapitalTransactionToSupabase(tx, currentUser.email).catch((err) => {
         console.warn('Erro ao salvar movimentação de capital no Supabase:', err);
@@ -917,8 +946,33 @@ export default function App() {
     }
   };
 
+  const handleAddMultipleCapitalTransactions = (newTxs: CapitalTransaction[]) => {
+    if (!newTxs || newTxs.length === 0) return;
+    setCapitalTransactions((prev) => {
+      const map = new Map<string, CapitalTransaction>();
+      prev.forEach((t) => map.set(t.id, t));
+      newTxs.forEach((t) => map.set(t.id, t));
+      const updated = Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+      try {
+        localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    if (currentUser?.email) {
+      syncAllCapitalTransactionsToSupabase(newTxs, currentUser.email).catch((err) => {
+        console.warn('Erro ao sincronizar movimentações no Supabase:', err);
+      });
+    }
+  };
+
   const handleDeleteCapitalTransaction = (id: string) => {
-    setCapitalTransactions((prev) => prev.filter((t) => t.id !== id));
+    setCapitalTransactions((prev) => {
+      const updated = prev.filter((t) => t.id !== id);
+      try {
+        localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     if (currentUser?.email) {
       deleteCapitalTransactionFromSupabase(id, currentUser.email).catch((err) => {
         console.warn('Erro ao remover movimentação de capital no Supabase:', err);
@@ -928,7 +982,13 @@ export default function App() {
 
   const handleDeleteMultipleCapitalTransactions = (ids: string[]) => {
     if (!ids || ids.length === 0) return;
-    setCapitalTransactions((prev) => prev.filter((t) => !ids.includes(t.id)));
+    setCapitalTransactions((prev) => {
+      const updated = prev.filter((t) => !ids.includes(t.id));
+      try {
+        localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     if (currentUser?.email) {
       ids.forEach((id) => {
         deleteCapitalTransactionFromSupabase(id, currentUser.email).catch((err) => {
@@ -1488,6 +1548,7 @@ export default function App() {
         onClose={() => setIsCapitalModalOpen(false)}
         transactions={capitalTransactions}
         onAddTransaction={handleAddCapitalTransaction}
+        onAddMultipleTransactions={handleAddMultipleCapitalTransactions}
         onDeleteTransaction={handleDeleteCapitalTransaction}
         onDeleteMultipleTransactions={handleDeleteMultipleCapitalTransactions}
         currentCapital={metrics.currentCapital}

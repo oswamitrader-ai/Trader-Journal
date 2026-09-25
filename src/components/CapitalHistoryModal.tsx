@@ -36,6 +36,7 @@ interface CapitalHistoryModalProps {
   onClose: () => void;
   transactions: CapitalTransaction[];
   onAddTransaction: (tx: CapitalTransaction) => void;
+  onAddMultipleTransactions?: (txs: CapitalTransaction[]) => void;
   onDeleteTransaction: (id: string) => void;
   onDeleteMultipleTransactions?: (ids: string[]) => void;
   currentCapital: number;
@@ -49,6 +50,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
   onClose,
   transactions,
   onAddTransaction,
+  onAddMultipleTransactions,
   onDeleteTransaction,
   onDeleteMultipleTransactions,
   currentCapital,
@@ -212,9 +214,13 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
 
   const handleConfirmImport = () => {
     if (!parsedResult || parsedResult.transactions.length === 0) return;
-    parsedResult.transactions.forEach((tx) => {
-      onAddTransaction(tx);
-    });
+    if (onAddMultipleTransactions) {
+      onAddMultipleTransactions(parsedResult.transactions);
+    } else {
+      parsedResult.transactions.forEach((tx) => {
+        onAddTransaction(tx);
+      });
+    }
     const canceledMsg = parsedResult.canceledCount > 0 ? ` (${parsedResult.canceledCount} canceladas desconsideradas do saldo)` : '';
     alert(`✅ ${parsedResult.transactions.length} movimentações de capital importadas com sucesso!${canceledMsg}`);
     setParsedResult(null);
