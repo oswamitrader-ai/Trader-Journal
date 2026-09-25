@@ -405,6 +405,8 @@ export default function App() {
   // 4. Computed Analytics Engine
   const netCapitalTransactions = useMemo(() => {
     return capitalTransactions.reduce((acc, tx) => {
+      // Transações canceladas não afetam o saldo líquido da banca
+      if (tx.status === 'CANCELED') return acc;
       const amt = Number(tx.amount) || 0;
       const fee = Number(tx.fee) || 0;
       if (tx.type === 'DEPOSIT') {
@@ -920,6 +922,18 @@ export default function App() {
     if (currentUser?.email) {
       deleteCapitalTransactionFromSupabase(id, currentUser.email).catch((err) => {
         console.warn('Erro ao remover movimentação de capital no Supabase:', err);
+      });
+    }
+  };
+
+  const handleDeleteMultipleCapitalTransactions = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    setCapitalTransactions((prev) => prev.filter((t) => !ids.includes(t.id)));
+    if (currentUser?.email) {
+      ids.forEach((id) => {
+        deleteCapitalTransactionFromSupabase(id, currentUser.email).catch((err) => {
+          console.warn('Erro ao remover movimentação de capital no Supabase:', err);
+        });
       });
     }
   };
@@ -1473,8 +1487,9 @@ export default function App() {
         isOpen={isCapitalModalOpen}
         onClose={() => setIsCapitalModalOpen(false)}
         transactions={capitalTransactions}
-        onAddTransaction={(tx) => setCapitalTransactions((prev) => [tx, ...prev])}
-        onDeleteTransaction={(id) => setCapitalTransactions((prev) => prev.filter((t) => t.id !== id))}
+        onAddTransaction={handleAddCapitalTransaction}
+        onDeleteTransaction={handleDeleteCapitalTransaction}
+        onDeleteMultipleTransactions={handleDeleteMultipleCapitalTransactions}
         currentCapital={metrics.currentCapital}
         initialCapital={settings.initialCapital}
       />

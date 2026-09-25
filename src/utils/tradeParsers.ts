@@ -992,6 +992,7 @@ export interface ParseCapitalTransactionsResult {
   totalDeposits: number;
   totalWithdrawals: number;
   totalFees: number;
+  canceledCount: number;
 }
 
 /**
@@ -1007,7 +1008,7 @@ export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTra
   try {
     const rawLines = csvContent.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     if (rawLines.length === 0) {
-      return { transactions: [], errors: ['Arquivo CSV vazio.'], totalDeposits: 0, totalWithdrawals: 0, totalFees: 0 };
+      return { transactions: [], errors: ['Arquivo CSV vazio.'], totalDeposits: 0, totalWithdrawals: 0, totalFees: 0, canceledCount: 0 };
     }
 
     // Auto-detecta delimitador (, ou ; ou tab)
@@ -1025,11 +1026,13 @@ export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTra
     let dateIdx = headers.findIndex((h) => h.includes('data') || h.includes('date') || h.includes('time') || h.includes('timestamp') || h.includes('horario') || h.includes('created'));
     let typeIdx = headers.findIndex((h) => h.includes('tipo') || h.includes('type') || h.includes('operacao') || h.includes('operaçao') || h.includes('action') || h.includes('movimento') || h.includes('natureza') || h.includes('categoria'));
     let amountIdx = headers.findIndex((h) => h.includes('valor') || h.includes('amount') || h.includes('total') || h.includes('quantia') || h.includes('montante') || h.includes('val'));
-    let feeIdx = headers.findIndex((h) => h.includes('taxa') || h.includes('fee') || h.includes('custo') || h.includes('corretagem') || h.includes('desconto'));
-    let brokerIdx = headers.findIndex((h) => h.includes('corretora') || h.includes('broker') || h.includes('banco') || h.includes('plataforma') || h.includes('origem') || h.includes('destino') || h.includes('exchange'));
+    let feeIdx = headers.findIndex((h) => h.includes('taxa') || h.includes('fee') || h.includes('custo') || h.includes('corretagem') || h.includes('desconto') || h.includes('comission') || h.includes('commission'));
+    let brokerIdx = headers.findIndex((h) => h.includes('corretora') || h.includes('broker') || h.includes('banco') || h.includes('plataforma') || h.includes('origem') || h.includes('destino') || h.includes('exchange') || h.includes('payment_system'));
     let notesIdx = headers.findIndex((h) => h.includes('observa') || h.includes('notes') || h.includes('note') || h.includes('descricao') || h.includes('descrição') || h.includes('memo') || h.includes('historico'));
+    let statusIdx = headers.findIndex((h) => h.includes('status') || h.includes('situacao') || h.includes('situação') || h.includes('estado') || h.includes('state'));
+    let statusCommentIdx = headers.findIndex((h) => h.includes('status_comment') || h.includes('comment') || h.includes('motivo') || h.includes('justificativa'));
 
-    const hasHeader = headers.some(h => h.includes('valor') || h.includes('amount') || h.includes('tipo') || h.includes('type') || h.includes('data') || h.includes('date'));
+    const hasHeader = headers.some(h => h.includes('valor') || h.includes('amount') || h.includes('tipo') || h.includes('type') || h.includes('data') || h.includes('date') || h.includes('status'));
     const dataLines = hasHeader ? rawLines.slice(1) : rawLines;
 
     const todayStr = getLocalDateStr();
@@ -1056,7 +1059,7 @@ export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTra
       const amount = parseNumber(rawAmountStr);
       if (amount === 0) continue;
 
-      // Taxa
+      // Taxa / Comissão
       const fee = feeIdx >= 0 && cols[feeIdx] ? parseNumber(cols[feeIdx]) : 0;
 
       // Tipo (DEPOSIT vs WITHDRAWAL)
@@ -1080,6 +1083,36 @@ export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTra
         type = 'WITHDRAWAL';
       } else {
         type = 'DEPOSIT';
+      }
+
+      // Status
+      let rawStatusStr = statusIdx >= 0 && cols[statusIdx] ? cols[statusIdx].trim() : '';
+      let statusCommentStr = statusCommentIdx >= 0 && cols[statusCommentIdx] ? cols[statusCommentIdx].trim() : '';
+
+      let status: import('../types').CapitalTransactionStatus = 'COMPLETED';
+      const statusLower = (rawStatusStr || cols.join(' ')).toLowerCase();
+
+      if (
+        statusLower.includes('cancel') ||
+        statusLower.includes('reject') ||
+        statusLower.includes('recusad') ||
+        statusLower.includes('fail') ||
+        statusLower.includes('falh') ||
+        statusLower.includes('estorn') ||
+        statusLower.includes('anulad') ||
+        statusLower.includes('denied') ||
+        statusLower.includes('refused')
+      ) {
+        status = 'CANCELED';
+      } else if (
+        statusLower.includes('pend') ||
+        statusLower.includes('aguard') ||
+        statusLower.includes('process') ||
+        statusLower.includes('waiting')
+      ) {
+        status = 'PENDING';
+      } else {
+        status = 'COMPLETED';
       }
 
       // Data e Hora
@@ -1123,7 +1156,13 @@ export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTra
       }
 
       // Observações
-      let notes = notesIdx >= 0 && cols[notesIdx] ? cols[notesIdx].trim() : 'Importado via CSV';
+      let notes = notesIdx >= 0 && cols[notesIdx] ? cols[notesIdx].trim() : '';
+      if (statusCommentStr) {
+        notes = notes ? `${notes} (${statusCommentStr})` : statusCommentStr;
+      }
+      if (!notes) {
+        notes = 'Importado via CSV';
+      }
 
       const tx: import('../types').CapitalTransaction = {
         id: `imp-tx-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
@@ -1134,25 +1173,31 @@ export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTra
         time,
         broker,
         notes,
+        status,
       };
 
       transactions.push(tx);
 
-      if (type === 'DEPOSIT') {
-        totalDeposits += Math.abs(amount);
-      } else {
-        totalWithdrawals += Math.abs(amount);
-      }
-      if (fee > 0) {
-        totalFees += Math.abs(fee);
+      // Apenas transações NÃO canceladas entram no cálculo de depósitos, saques e taxas
+      if (status !== 'CANCELED') {
+        if (type === 'DEPOSIT') {
+          totalDeposits += Math.abs(amount);
+        } else {
+          totalWithdrawals += Math.abs(amount);
+        }
+        if (fee > 0) {
+          totalFees += Math.abs(fee);
+        }
       }
     }
+
+    const canceledCount = transactions.filter((t) => t.status === 'CANCELED').length;
 
     if (transactions.length === 0) {
       errors.push('Nenhuma movimentação de capital válida foi identificada no arquivo CSV.');
     }
 
-    return { transactions, errors, totalDeposits, totalWithdrawals, totalFees };
+    return { transactions, errors, totalDeposits, totalWithdrawals, totalFees, canceledCount };
   } catch (err: any) {
     return {
       transactions: [],
@@ -1160,6 +1205,7 @@ export function parseCapitalTransactionsCsv(csvContent: string): ParseCapitalTra
       totalDeposits: 0,
       totalWithdrawals: 0,
       totalFees: 0,
+      canceledCount: 0,
     };
   }
 }

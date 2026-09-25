@@ -18,8 +18,12 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   AlertCircle,
+  Ban,
+  Clock,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
-import { CapitalTransaction, CapitalTransactionType } from '../types';
+import { CapitalTransaction, CapitalTransactionType, CapitalTransactionStatus } from '../types';
 import { formatCurrency, formatDate, getLocalDateStr } from '../utils/calculations';
 import { parseCapitalTransactionsCsv, ParseCapitalTransactionsResult } from '../utils/tradeParsers';
 
@@ -29,11 +33,12 @@ interface CapitalHistoryModalProps {
   transactions: CapitalTransaction[];
   onAddTransaction: (tx: CapitalTransaction) => void;
   onDeleteTransaction: (id: string) => void;
+  onDeleteMultipleTransactions?: (ids: string[]) => void;
   currentCapital: number;
   initialCapital: number;
 }
 
-const DEFAULT_BROKERS = ['Exnova', 'XP Investimentos', 'Clear Corretora', 'BTG Pactual', 'Binance', 'IQ Option', 'Outra'];
+const DEFAULT_BROKERS = ['Exnova', 'XP Investimentos', 'Clear Corretora', 'BTG Pactual', 'Binance', 'IQ Option', 'Quotex', 'Outra'];
 
 export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
   isOpen,
@@ -41,6 +46,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
   transactions,
   onAddTransaction,
   onDeleteTransaction,
+  onDeleteMultipleTransactions,
   currentCapital,
   initialCapital,
 }) => {
@@ -52,7 +58,11 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
   const [broker, setBroker] = useState<string>('Exnova');
   const [customBroker, setCustomBroker] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [status, setStatus] = useState<CapitalTransactionStatus>('COMPLETED');
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // Estados de Seleção e Exclusão em Massa
+  const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
 
   // Estados de Importação de CSV
   const [showImportSection, setShowImportSection] = useState(false);
@@ -63,16 +73,51 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
 
   if (!isOpen) return null;
 
+  // CÁLCULOS DOS TOTAIS (Apenas transações NÃO canceladas afetam os depósitos, saques e taxas)
   const totalDeposits = transactions
-    .filter((t) => t.type === 'DEPOSIT')
+    .filter((t) => t.type === 'DEPOSIT' && t.status !== 'CANCELED')
     .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
   const totalWithdrawals = transactions
-    .filter((t) => t.type === 'WITHDRAWAL')
+    .filter((t) => t.type === 'WITHDRAWAL' && t.status !== 'CANCELED')
     .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
   const totalFees = transactions
+    .filter((t) => t.status !== 'CANCELED')
     .reduce((acc, t) => acc + (Number(t.fee) || 0), 0);
+
+  const totalCanceledCount = transactions.filter((t) => t.status === 'CANCELED').length;
+
+  // Lógica de Seleção em Massa
+  const handleToggleSelectTx = (id: string) => {
+    setSelectedTxIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedTxIds.length === transactions.length) {
+      setSelectedTxIds([]);
+    } else {
+      setSelectedTxIds(transactions.map((t) => t.id));
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedTxIds.length === 0) return;
+    if (
+      window.confirm(
+        `Deseja realmente excluir permanentemente as ${selectedTxIds.length} movimentações selecionadas?`
+      )
+    ) {
+      if (onDeleteMultipleTransactions) {
+        onDeleteMultipleTransactions(selectedTxIds);
+      } else {
+        selectedTxIds.forEach((id) => onDeleteTransaction(id));
+      }
+      setSelectedTxIds([]);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +138,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
       time: timeStr,
       broker: finalBroker,
       notes: notes.trim(),
+      status,
     };
 
     onAddTransaction(newTx);
@@ -101,6 +147,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
     setAmount('');
     setFee('');
     setNotes('');
+    setStatus('COMPLETED');
     setShowFeeInput(false);
     setShowAddForm(false);
   };
@@ -129,6 +176,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
         totalDeposits: 0,
         totalWithdrawals: 0,
         totalFees: 0,
+        canceledCount: 0,
       });
       setIsReadingFile(false);
     };
@@ -140,15 +188,38 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
     parsedResult.transactions.forEach((tx) => {
       onAddTransaction(tx);
     });
-    alert(`✅ ${parsedResult.transactions.length} movimentações de capital importadas com sucesso!`);
+    const canceledMsg = parsedResult.canceledCount > 0 ? ` (${parsedResult.canceledCount} canceladas desconsideradas do saldo)` : '';
+    alert(`✅ ${parsedResult.transactions.length} movimentações de capital importadas com sucesso!${canceledMsg}`);
     setParsedResult(null);
     setFileName('');
     setShowImportSection(false);
   };
 
+  const renderStatusBadge = (txStatus?: CapitalTransactionStatus) => {
+    if (txStatus === 'CANCELED') {
+      return (
+        <span className="inline-flex items-center gap-1 rounded bg-rose-950/60 px-1.5 py-0.5 text-[10px] font-bold text-rose-400 border border-rose-800/60">
+          <Ban className="h-3 w-3 text-rose-400 shrink-0" /> Cancelado
+        </span>
+      );
+    }
+    if (txStatus === 'PENDING') {
+      return (
+        <span className="inline-flex items-center gap-1 rounded bg-amber-950/60 px-1.5 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-800/60">
+          <Clock className="h-3 w-3 text-amber-400 shrink-0" /> Pendente
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 rounded bg-emerald-950/60 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-800/60">
+        <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" /> Concluído
+      </span>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-sm pt-safe pb-safe overflow-y-auto">
-      <div className="relative w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl border border-slate-800 bg-black shadow-2xl my-auto overflow-hidden">
+      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-2xl border border-slate-800 bg-black shadow-2xl my-auto overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 p-4 sm:p-5 shrink-0 bg-black/80">
           <div className="flex items-center gap-3">
@@ -160,7 +231,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                 Gestão de Capital & Movimentações
               </h3>
               <p className="text-xs text-slate-400">
-                Histórico completo de saques, depósitos e taxas das corretoras
+                Histórico de saques, depósitos, comissões e controle de status
               </p>
             </div>
           </div>
@@ -195,7 +266,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
               <div className="text-base sm:text-lg font-black font-mono text-emerald-400">
                 +{formatCurrency(totalDeposits)}
               </div>
-              <p className="text-[10px] text-slate-400">Total injetado na banca</p>
+              <p className="text-[10px] text-slate-400">Apenas concluídos</p>
             </div>
 
             {/* Total Saques */}
@@ -206,13 +277,13 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
               <div className="text-base sm:text-lg font-black font-mono text-amber-400">
                 -{formatCurrency(totalWithdrawals)}
               </div>
-              <p className="text-[10px] text-slate-400">Total retirado</p>
+              <p className="text-[10px] text-slate-400">Apenas concluídos</p>
             </div>
 
             {/* Total Taxas das Corretoras */}
             <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 p-3 space-y-1">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-400 flex items-center gap-1">
-                <Receipt className="h-3.5 w-3.5" /> Taxas Cobradas
+                <Receipt className="h-3.5 w-3.5" /> Taxas / Comissões
               </span>
               <div className="text-base sm:text-lg font-black font-mono text-rose-400">
                 {formatCurrency(totalFees)}
@@ -221,11 +292,35 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
             </div>
           </div>
 
-          {/* Action Bar (Novo Saque / Depósito / Importar CSV) */}
-          <div className="flex items-center justify-between gap-2 border-t border-slate-800/80 pt-4">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Histórico de Lançamentos ({transactions.length})
-            </h4>
+          {/* Action Bar (Novo Saque / Depósito / Importar CSV / Seleção em Massa) */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/80 pt-4">
+            <div className="flex items-center gap-2">
+              {transactions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAll}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900/60 hover:bg-slate-800 text-slate-300 font-medium text-xs transition cursor-pointer"
+                  title="Selecionar Todos"
+                >
+                  {selectedTxIds.length === transactions.length ? (
+                    <CheckSquare className="h-3.5 w-3.5 text-emerald-400" />
+                  ) : (
+                    <Square className="h-3.5 w-3.5 text-slate-400" />
+                  )}
+                  <span>Selecionar Todos ({selectedTxIds.length}/{transactions.length})</span>
+                </button>
+              )}
+
+              {selectedTxIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelected}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition shadow-md cursor-pointer animate-pulse"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Excluir Selecionados ({selectedTxIds.length})
+                </button>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
               <button
@@ -271,7 +366,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
               <div className="flex items-center justify-between pb-2 border-b border-blue-500/30">
                 <span className="font-bold text-white text-xs flex items-center gap-1.5">
                   <FileSpreadsheet className="h-4 w-4 text-blue-400" />
-                  Importar Histórico de Depósitos & Saques (CSV)
+                  Importar Histórico de Depósitos & Saques (CSV com Status e Taxas)
                 </span>
                 <button
                   type="button"
@@ -302,7 +397,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                   {fileName ? `Arquivo: ${fileName}` : 'Clique para selecionar seu arquivo CSV'}
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  Suporta arquivos de extrato de depósitos e saques exportados de qualquer corretora ou banco (Exnova, Quotex, IQ Option, Binance, XP, etc.)
+                  Identifica automaticamente saques/depósitos, taxas/comissões e descarta movimentações com status de <strong className="text-rose-400 font-bold">cancelado/recusado</strong> dos cálculos da banca.
                 </span>
               </div>
 
@@ -327,7 +422,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
               {/* Preview Summary */}
               {parsedResult && parsedResult.transactions.length > 0 && (
                 <div className="space-y-3 pt-2">
-                  <div className="grid grid-cols-3 gap-2 bg-black/80 p-3 rounded-xl border border-slate-800">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-black/80 p-3 rounded-xl border border-slate-800">
                     <div>
                       <span className="text-[10px] text-slate-400 block font-mono">Movimentações</span>
                       <span className="text-sm font-bold text-white font-mono">
@@ -346,37 +441,62 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                         -{formatCurrency(parsedResult.totalWithdrawals)}
                       </span>
                     </div>
+                    <div>
+                      <span className="text-[10px] text-rose-400 block font-mono">Taxas / Comissões</span>
+                      <span className="text-sm font-bold text-rose-400 font-mono">
+                        {formatCurrency(parsedResult.totalFees)}
+                      </span>
+                    </div>
                   </div>
 
+                  {/* Canceled Banner if any */}
+                  {parsedResult.canceledCount > 0 && (
+                    <div className="p-2.5 rounded-lg border border-amber-500/30 bg-amber-950/20 text-amber-300 text-xs font-semibold flex items-center gap-2">
+                      <Ban className="h-4 w-4 text-amber-400 shrink-0" />
+                      <span>
+                        <strong>{parsedResult.canceledCount} movimentação(ões) cancelada(s)</strong> foram identificadas. Elas serão importadas com a tag <span className="text-rose-400 font-bold">Cancelado 🛑</span> e <strong>não afetam o saldo da banca</strong>.
+                      </span>
+                    </div>
+                  )}
+
                   {/* Preview Table */}
-                  <div className="max-h-40 overflow-y-auto border border-slate-800 rounded-lg bg-black/40 p-2">
+                  <div className="max-h-48 overflow-y-auto border border-slate-800 rounded-lg bg-black/40 p-2">
                     <table className="w-full text-left text-[11px]">
                       <thead className="border-b border-slate-800 text-slate-400 font-bold uppercase">
                         <tr>
                           <th className="p-1">Tipo</th>
                           <th className="p-1">Data</th>
                           <th className="p-1">Corretora</th>
+                          <th className="p-1">Status</th>
+                          <th className="p-1 text-right">Taxa (R$)</th>
                           <th className="p-1 text-right">Valor (R$)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/50">
-                        {parsedResult.transactions.slice(0, 10).map((t, idx) => (
-                          <tr key={idx}>
-                            <td className={`p-1 font-bold ${t.type === 'DEPOSIT' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                              {t.type === 'DEPOSIT' ? 'Depósito' : 'Saque'}
-                            </td>
-                            <td className="p-1 font-mono text-slate-300">{formatDate(t.date)}</td>
-                            <td className="p-1 text-slate-300">{t.broker}</td>
-                            <td className={`p-1 text-right font-mono font-bold ${t.type === 'DEPOSIT' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                              {t.type === 'DEPOSIT' ? '+' : '-'}{formatCurrency(t.amount)}
-                            </td>
-                          </tr>
-                        ))}
+                        {parsedResult.transactions.slice(0, 15).map((t, idx) => {
+                          const isCanceled = t.status === 'CANCELED';
+                          return (
+                            <tr key={idx} className={isCanceled ? 'opacity-60 bg-rose-950/10' : ''}>
+                              <td className={`p-1 font-bold ${t.type === 'DEPOSIT' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {t.type === 'DEPOSIT' ? 'Depósito' : 'Saque'}
+                              </td>
+                              <td className="p-1 font-mono text-slate-300">{formatDate(t.date)}</td>
+                              <td className="p-1 text-slate-300">{t.broker}</td>
+                              <td className="p-1">{renderStatusBadge(t.status)}</td>
+                              <td className="p-1 text-right font-mono text-rose-400">
+                                {t.fee && t.fee > 0 ? formatCurrency(t.fee) : '-'}
+                              </td>
+                              <td className={`p-1 text-right font-mono font-bold ${isCanceled ? 'line-through text-slate-500' : t.type === 'DEPOSIT' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {t.type === 'DEPOSIT' ? '+' : '-'}{formatCurrency(t.amount)}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
-                    {parsedResult.transactions.length > 10 && (
+                    {parsedResult.transactions.length > 15 && (
                       <p className="text-[10px] text-center text-slate-500 pt-1">
-                        ...e mais {parsedResult.transactions.length - 10} lançamentos.
+                        ...e mais {parsedResult.transactions.length - 15} lançamentos.
                       </p>
                     )}
                   </div>
@@ -427,7 +547,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 {/* Valor */}
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Valor (R$)</label>
@@ -462,6 +582,20 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                   </select>
                 </div>
 
+                {/* Status */}
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">Status</label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as CapitalTransactionStatus)}
+                    className="w-full rounded-xl border border-slate-800 bg-black px-3 py-2 text-white focus:border-emerald-500 focus:outline-none font-medium"
+                  >
+                    <option value="COMPLETED">Concluído 🟢</option>
+                    <option value="PENDING">Pendente 🟡</option>
+                    <option value="CANCELED">Cancelado 🛑 (Fora do Saldo)</option>
+                  </select>
+                </div>
+
                 {/* Data */}
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Data</label>
@@ -483,7 +617,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-amber-500/30 bg-amber-950/30 text-[11px] font-bold text-amber-300 hover:bg-amber-900/40 transition"
                 >
                   <Percent className="h-3.5 w-3.5 text-amber-400" />
-                  {showFeeInput ? 'Ocultar Campo de Taxa' : '+ Registrar Taxa da Corretora / Saque'}
+                  {showFeeInput ? 'Ocultar Campo de Taxa' : '+ Registrar Taxa / Comissão da Corretora'}
                 </button>
               </div>
 
@@ -491,7 +625,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
               {showFeeInput && (
                 <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-950/20 space-y-1">
                   <label className="block font-semibold text-amber-300 text-xs">
-                    Taxa da Corretora / Taxa de Saque (R$)
+                    Taxa da Corretora / Comissão de Saque (R$)
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-2 font-mono font-bold text-slate-400">R$</span>
@@ -499,7 +633,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                       type="number"
                       min="0"
                       step="any"
-                      placeholder="0,00 (Ex: taxa PIX, TED ou corretagem)"
+                      placeholder="0,00 (Ex: comissão ou taxa cobrada)"
                       value={fee}
                       onChange={(e) => setFee(e.target.value)}
                       className="w-full rounded-xl border border-amber-500/40 bg-black pl-10 pr-3 py-1.5 text-white font-mono text-xs font-bold focus:border-amber-400 focus:outline-none"
@@ -565,31 +699,56 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
               <Building2 className="mx-auto h-8 w-8 text-slate-600" />
               <p className="font-semibold text-slate-300">Nenhum depósito ou saque registrado ainda.</p>
               <p className="text-xs text-slate-500">
-                Utilize os botões acima para cadastrar saques e depósitos feitos em suas corretoras.
+                Utilize os botões acima para cadastrar ou importar saques e depósitos das corretoras.
               </p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
               {transactions
                 .sort((a, b) => b.date.localeCompare(a.date))
                 .map((t) => {
                   const isDeposit = t.type === 'DEPOSIT';
+                  const isCanceled = t.status === 'CANCELED';
+                  const isSelected = selectedTxIds.includes(t.id);
                   const hasFee = Boolean(t.fee && t.fee > 0);
 
                   return (
                     <div
                       key={t.id}
-                      className="flex items-center justify-between p-3 rounded-xl border border-slate-800/80 bg-black/50 hover:bg-slate-800/40 transition"
+                      className={`flex items-center justify-between p-3 rounded-xl border transition ${
+                        isSelected
+                          ? 'border-blue-500/60 bg-blue-950/20'
+                          : isCanceled
+                          ? 'border-slate-800/50 bg-black/30 opacity-75'
+                          : 'border-slate-800/80 bg-black/50 hover:bg-slate-800/40'
+                      }`}
                     >
                       <div className="flex items-center gap-3">
+                        {/* Checkbox de Seleção em Massa */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSelectTx(t.id)}
+                          className="text-slate-400 hover:text-white transition p-0.5 cursor-pointer"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="h-4 w-4 text-blue-400" />
+                          ) : (
+                            <Square className="h-4 w-4 text-slate-600 hover:text-slate-400" />
+                          )}
+                        </button>
+
                         <div
                           className={`flex h-8 w-8 items-center justify-center rounded-lg border ${
-                            isDeposit
+                            isCanceled
+                              ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                              : isDeposit
                               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                               : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                           }`}
                         >
-                          {isDeposit ? (
+                          {isCanceled ? (
+                            <Ban className="h-4 w-4 text-rose-400" />
+                          ) : isDeposit ? (
                             <ArrowUpRight className="h-4 w-4" />
                           ) : (
                             <ArrowDownRight className="h-4 w-4" />
@@ -597,10 +756,14 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                         </div>
 
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span
                               className={`font-bold text-xs ${
-                                isDeposit ? 'text-emerald-400' : 'text-amber-400'
+                                isCanceled
+                                  ? 'text-rose-400 line-through'
+                                  : isDeposit
+                                  ? 'text-emerald-400'
+                                  : 'text-amber-400'
                               }`}
                             >
                               {isDeposit ? 'Depósito' : 'Saque'}
@@ -608,6 +771,7 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                             <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300 font-medium">
                               {t.broker || 'Corretora'}
                             </span>
+                            {renderStatusBadge(t.status)}
                             {hasFee && (
                               <span className="rounded bg-rose-500/20 px-1.5 py-0.5 text-[9px] font-bold text-rose-300 border border-rose-500/30">
                                 Taxa: {formatCurrency(t.fee!)}
@@ -625,15 +789,24 @@ export const CapitalHistoryModal: React.FC<CapitalHistoryModalProps> = ({
                         <div className="text-right">
                           <span
                             className={`font-mono font-bold text-sm block ${
-                              isDeposit ? 'text-emerald-400' : 'text-amber-400'
+                              isCanceled
+                                ? 'line-through text-slate-500'
+                                : isDeposit
+                                ? 'text-emerald-400'
+                                : 'text-amber-400'
                             }`}
                           >
                             {isDeposit ? '+' : '-'}
                             {formatCurrency(t.amount)}
                           </span>
-                          {hasFee && (
+                          {hasFee && !isCanceled && (
                             <span className="text-[10px] font-mono text-slate-400 block">
                               Total: {formatCurrency(isDeposit ? t.amount - t.fee! : t.amount + t.fee!)}
+                            </span>
+                          )}
+                          {isCanceled && (
+                            <span className="text-[9px] font-mono text-rose-400 block font-bold">
+                              (Desconsiderado)
                             </span>
                           )}
                         </div>

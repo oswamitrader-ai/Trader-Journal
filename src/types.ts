@@ -44,6 +44,7 @@ export interface Trade {
 }
 
 export type CapitalTransactionType = 'DEPOSIT' | 'WITHDRAWAL';
+export type CapitalTransactionStatus = 'COMPLETED' | 'CANCELED' | 'PENDING';
 
 export interface CapitalTransaction {
   id: string;
@@ -54,6 +55,7 @@ export interface CapitalTransaction {
   time?: string; // HH:mm
   broker?: string; // Ex: 'Exnova', 'XP', 'Clear'
   notes?: string;
+  status?: CapitalTransactionStatus;
 }
 
 export interface RiskSettings {
