@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ListFilter,
   PlusCircle,
@@ -19,6 +19,10 @@ import {
   Square,
   ShieldCheck,
   Zap,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { Trade } from '../types';
 import { formatCurrency, formatDate, isTradeProtected, isOtcTrade, getLocalDateStr } from '../utils/calculations';
@@ -50,6 +54,15 @@ export const TradeList: React.FC<TradeListProps> = ({
   const [filterStrategy, setFilterStrategy] = useState<string>('ALL');
   const [filterPeriod, setFilterPeriod] = useState<'ALL' | 'TODAY' | 'WEEK' | 'MONTH'>('ALL');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterResult, filterAsset, filterStrategy, filterPeriod]);
 
   // Extract unique assets & strategies
   const assets = useMemo(() => {
@@ -106,6 +119,18 @@ export const TradeList: React.FC<TradeListProps> = ({
       return timeB.localeCompare(timeA);
     });
   }, [trades, searchTerm, filterResult, filterAsset, filterStrategy, filterPeriod, todayDate]);
+
+  // Pagination calculation
+  const totalPages = Math.max(1, Math.ceil(filteredTrades.length / itemsPerPage));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedTrades = useMemo(() => {
+    const startIndex = (validCurrentPage - 1) * itemsPerPage;
+    return filteredTrades.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredTrades, validCurrentPage, itemsPerPage]);
+
+  const startIndexDisplay = filteredTrades.length === 0 ? 0 : (validCurrentPage - 1) * itemsPerPage + 1;
+  const endIndexDisplay = Math.min(validCurrentPage * itemsPerPage, filteredTrades.length);
 
   // Multi-select Set helper for O(1) instant lookup & 0ms lag
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -390,12 +415,12 @@ export const TradeList: React.FC<TradeListProps> = ({
 
       {/* Mobile Card-Based Feed (Visible on Mobile & Tablet < md) */}
       <div className="mt-4 space-y-3 md:hidden">
-        {filteredTrades.length === 0 ? (
+        {paginatedTrades.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-800 p-8 text-center text-xs text-slate-500">
             Nenhuma operação encontrada com os filtros selecionados.
           </div>
         ) : (
-          filteredTrades.map((trade) => {
+          paginatedTrades.map((trade) => {
             const isGain = trade.result === 'GAIN';
             const isLoss = trade.result === 'LOSS';
             const isSelected = selectedSet.has(trade.id);
@@ -577,14 +602,14 @@ export const TradeList: React.FC<TradeListProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 bg-black/40">
-            {filteredTrades.length === 0 ? (
+            {paginatedTrades.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-12 text-center text-slate-500">
                   Nenhuma operação encontrada com os filtros selecionados.
                 </td>
               </tr>
             ) : (
-              filteredTrades.map((trade) => {
+              paginatedTrades.map((trade) => {
                 const isGain = trade.result === 'GAIN';
                 const isLoss = trade.result === 'LOSS';
                 const isSelected = selectedSet.has(trade.id);
@@ -744,6 +769,110 @@ export const TradeList: React.FC<TradeListProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Bar */}
+      {filteredTrades.length > 0 && (
+        <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800/80 pt-4 text-xs font-bold text-slate-300">
+          <div className="flex items-center gap-3">
+            <span className="text-slate-400">
+              Exibindo <strong className="text-white">{startIndexDisplay}</strong> a{' '}
+              <strong className="text-white">{endIndexDisplay}</strong> de{' '}
+              <strong className="text-emerald-400">{filteredTrades.length}</strong> operações
+            </span>
+
+            <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800">
+              <span className="text-[11px] text-slate-400">Por página:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer"
+              >
+                <option value={10} className="bg-slate-900 text-white">10</option>
+                <option value={25} className="bg-slate-900 text-white">25</option>
+                <option value={50} className="bg-slate-900 text-white">50</option>
+                <option value={100} className="bg-slate-900 text-white">100</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {/* First Page */}
+            <button
+              type="button"
+              disabled={validCurrentPage === 1}
+              onClick={() => setCurrentPage(1)}
+              title="Primeira página"
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </button>
+
+            {/* Prev Page */}
+            <button
+              type="button"
+              disabled={validCurrentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              title="Página anterior"
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            {/* Page Buttons */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((page) => {
+                if (totalPages <= 7) return true;
+                return Math.abs(page - validCurrentPage) <= 2 || page === 1 || page === totalPages;
+              })
+              .map((page, idx, arr) => {
+                const prevPageNumber = arr[idx - 1];
+                const showEllipsis = prevPageNumber && page - prevPageNumber > 1;
+
+                return (
+                  <React.Fragment key={page}>
+                    {showEllipsis && <span className="px-1 text-slate-500 font-bold">...</span>}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      className={`flex h-8 min-w-[32px] items-center justify-center rounded-xl px-2 text-xs font-extrabold transition ${
+                        validCurrentPage === page
+                          ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
+                          : 'border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+
+            {/* Next Page */}
+            <button
+              type="button"
+              disabled={validCurrentPage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              title="Próxima página"
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+
+            {/* Last Page */}
+            <button
+              type="button"
+              disabled={validCurrentPage === totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+              title="Última página"
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
