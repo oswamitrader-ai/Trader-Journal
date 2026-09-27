@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   CalendarRange,
   Trophy,
@@ -8,6 +8,8 @@ import {
   ArrowDownRight,
   BarChart,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { WeeklyPerformance, RiskSettings } from '../types';
 import { formatCurrency, formatPercent } from '../utils/calculations';
@@ -22,11 +24,16 @@ export const WeeklyPerformancePanel: React.FC<WeeklyPerformancePanelProps> = ({
   settings,
 }) => {
   const dailyProfitTarget = settings?.dailyProfitTarget ?? 500;
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+
+  // Slice to show only the 3 most recent weeks when collapsed
+  const visibleWeeks = isExpanded ? weeklyData : weeklyData.slice(0, 3);
+  const hiddenCount = Math.max(0, weeklyData.length - 3);
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-black p-5 shadow-xl">
       {/* Header */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md">
             <CalendarRange className="h-5 w-5" />
@@ -41,8 +48,30 @@ export const WeeklyPerformancePanel: React.FC<WeeklyPerformancePanelProps> = ({
           </div>
         </div>
 
-        <div className="text-xs text-slate-400">
-          Total de <strong className="text-white">{weeklyData.length} semanas</strong> registradas
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-slate-400 hidden sm:block">
+            Total de <strong className="text-white">{weeklyData.length} semanas</strong> registradas
+          </div>
+
+          {weeklyData.length > 3 && (
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 hover:text-white transition shadow-sm"
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronUp className="h-3.5 w-3.5 text-teal-400" />
+                  <span>Encolher (Mostrar 3 semanas)</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5 text-teal-400" />
+                  <span>Expandir Resumos (+{hiddenCount} semanas)</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -54,108 +83,132 @@ export const WeeklyPerformancePanel: React.FC<WeeklyPerformancePanelProps> = ({
             <p className="text-xs text-slate-500 mt-1">Conforme você registrar suas operações diárias reais, os resumos semanais serão calculados e exibidos aqui.</p>
           </div>
         ) : (
-          weeklyData.map((week) => {
-          const isPositive = week.totalPnl >= 0;
-          const isTargetHit = week.totalPnl >= dailyProfitTarget * 3;
+          visibleWeeks.map((week) => {
+            const isPositive = week.totalPnl >= 0;
+            const isTargetHit = week.totalPnl >= dailyProfitTarget * 3;
 
-          return (
-            <div
-              key={week.id}
-              className={`relative flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-200 ${
-                isPositive
-                  ? 'border-emerald-600 bg-black shadow-md shadow-emerald-900/20'
-                  : 'border-rose-600 bg-black shadow-md shadow-rose-900/20'
-              }`}
-            >
-              {/* Card Header: Week Label & Status Tag */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                    {week.weekLabel}
-                  </span>
-                  {isTargetHit ? (
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                      <Trophy className="h-3 w-3" /> Meta Superada
+            return (
+              <div
+                key={week.id}
+                className={`relative flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-200 ${
+                  isPositive
+                    ? 'border-emerald-600 bg-black shadow-md shadow-emerald-900/20'
+                    : 'border-rose-600 bg-black shadow-md shadow-rose-900/20'
+                }`}
+              >
+                {/* Card Header: Week Label & Status Tag */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                      {week.weekLabel}
                     </span>
-                  ) : isPositive ? (
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                      <CheckCircle className="h-3 w-3" /> Positiva
+                    {isTargetHit ? (
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                        <Trophy className="h-3 w-3" /> Meta Superada
+                      </span>
+                    ) : isPositive ? (
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                        <CheckCircle className="h-3 w-3" /> Positiva
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                        <AlertTriangle className="h-3 w-3" /> Negativa
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Main P&L Value */}
+                  <div className="mt-3 flex items-baseline justify-between">
+                    <div>
+                      <span className="text-[11px] text-slate-400 block">Resultado Líquido</span>
+                      <span
+                        className={`text-2xl font-black font-mono tracking-tight ${
+                          isPositive ? 'text-emerald-400' : 'text-rose-400'
+                        }`}
+                      >
+                        {isPositive ? '+' : ''}
+                        {formatCurrency(week.totalPnl)}
+                      </span>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[11px] text-slate-400 block">Assertividade</span>
+                      <span className="text-lg font-bold font-mono text-white">
+                        {week.winRate.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Progress bar for win rate */}
+                  <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full bg-emerald-500 transition-all"
+                      style={{ width: `${week.winRate}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Weekly Details Table */}
+                <div className="mt-4 space-y-2 border-t border-slate-800 pt-3 text-xs text-slate-300">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Operações Realizadas:</span>
+                    <span className="font-semibold text-white">
+                      {week.tradesCount} trades ({week.wins}W / {week.losses}L)
                     </span>
-                  ) : (
-                    <span className="flex items-center gap-1 rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                      <AlertTriangle className="h-3 w-3" /> Negativa
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Dias Operados:</span>
+                    <span>
+                      <strong className="text-emerald-400">{week.positiveDays} dias verdes</strong> /{' '}
+                      <strong className="text-rose-400">{week.negativeDays} vermelhos</strong>
                     </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Melhor Dia:</span>
+                    <span className="font-mono font-semibold text-emerald-400">
+                      +{formatCurrency(week.bestDayPnl)}
+                    </span>
+                  </div>
+
+                  {week.worstDayPnl < 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Pior Dia:</span>
+                      <span className="font-mono font-semibold text-rose-400">
+                        {formatCurrency(week.worstDayPnl)}
+                      </span>
+                    </div>
                   )}
                 </div>
-
-                {/* Main P&L Value */}
-                <div className="mt-3 flex items-baseline justify-between">
-                  <div>
-                    <span className="text-[11px] text-slate-400 block">Resultado Líquido</span>
-                    <span
-                      className={`text-2xl font-black font-mono tracking-tight ${
-                        isPositive ? 'text-emerald-400' : 'text-rose-400'
-                      }`}
-                    >
-                      {isPositive ? '+' : ''}
-                      {formatCurrency(week.totalPnl)}
-                    </span>
-                  </div>
-
-                  <div className="text-right">
-                    <span className="text-[11px] text-slate-400 block">Assertividade</span>
-                    <span className="text-lg font-bold font-mono text-white">
-                      {week.winRate.toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-
-                {/* Progress bar for win rate */}
-                <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full bg-emerald-500 transition-all"
-                    style={{ width: `${week.winRate}%` }}
-                  />
-                </div>
               </div>
-
-              {/* Weekly Details Table */}
-              <div className="mt-4 space-y-2 border-t border-slate-800 pt-3 text-xs text-slate-300">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Operações Realizadas:</span>
-                  <span className="font-semibold text-white">
-                    {week.tradesCount} trades ({week.wins}W / {week.losses}L)
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Dias Operados:</span>
-                  <span>
-                    <strong className="text-emerald-400">{week.positiveDays} dias verdes</strong> /{' '}
-                    <strong className="text-rose-400">{week.negativeDays} vermelhos</strong>
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Melhor Dia:</span>
-                  <span className="font-mono font-semibold text-emerald-400">
-                    +{formatCurrency(week.bestDayPnl)}
-                  </span>
-                </div>
-
-                {week.worstDayPnl < 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Pior Dia:</span>
-                    <span className="font-mono font-semibold text-rose-400">
-                      {formatCurrency(week.worstDayPnl)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        }))}
+            );
+          })
+        )}
       </div>
+
+      {/* Footer Toggle Button */}
+      {weeklyData.length > 3 && (
+        <div className="mt-4 pt-3 border-t border-slate-800/80 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition shadow-sm"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-4 w-4 text-teal-400" />
+                <span>Recolher Resumos (Ver apenas as 3 semanas recentes)</span>
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4 text-teal-400" />
+                <span>Expandir Resumos (Ver todas as {weeklyData.length} semanas registradas)</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
