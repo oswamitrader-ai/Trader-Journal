@@ -331,8 +331,11 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
   const [timeRemainingStr, setTimeRemainingStr] = useState<string>('');
   const [isCurrentlyLocked, setIsCurrentlyLocked] = useState<boolean>(false);
 
+  const hasInitializedRef = React.useRef(false);
+
   useEffect(() => {
-    if (settings) {
+    if (settings && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
       setInitialCapital(settings.initialCapital ?? 10000);
       setDailyProfitTarget(settings.dailyProfitTarget ?? 500);
       setDailyLossLimit(settings.dailyLossLimit ?? 300);
@@ -358,20 +361,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
       setMartingaleLevel1Stake(settings.martingaleLevel1Stake ?? 100);
       setMartingaleLevel2Stake(settings.martingaleLevel2Stake ?? 200);
     }
-  }, [
-    settings?.riskLockUntil,
-    settings?.riskLockDurationDays,
-    settings?.managementStyle,
-    settings?.stakePercent,
-    settings?.estimatedPayout,
-    settings?.estimatedWinRate,
-    settings?.enforceBrokerStakeLock,
-    settings?.fixedStakeAmount,
-    settings?.permanentMobileBrokerLockEnabled,
-    settings?.dailyProfitTarget,
-    settings?.dailyLossLimit,
-    settings?.initialCapital,
-  ]);
+  }, [settings]);
 
   useEffect(() => {
     const updateLockStatus = () => {

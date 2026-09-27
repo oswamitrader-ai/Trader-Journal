@@ -455,8 +455,15 @@ export default function App() {
               ...incoming,
               riskLockUntil: effectiveLockUntil,
               riskLockDurationDays: effectiveDuration,
-              permanentMobileBrokerLockEnabled: isPrevActive && prev.permanentMobileBrokerLockEnabled ? true : incoming.permanentMobileBrokerLockEnabled,
-              enforceBrokerStakeLock: isPrevActive && prev.enforceBrokerStakeLock ? true : incoming.enforceBrokerStakeLock,
+              permanentMobileBrokerLockEnabled: Boolean(prev.permanentMobileBrokerLockEnabled || incoming.permanentMobileBrokerLockEnabled),
+              enforceBrokerStakeLock: Boolean(prev.enforceBrokerStakeLock || incoming.enforceBrokerStakeLock),
+              managementStyle: incoming.managementStyle || prev.managementStyle || 'MAO_FIXA',
+              fixedStakeAmount: incoming.fixedStakeAmount ?? prev.fixedStakeAmount ?? 50,
+              sorosLevel1Stake: incoming.sorosLevel1Stake ?? prev.sorosLevel1Stake ?? 93.5,
+              sorosLevel2Stake: incoming.sorosLevel2Stake ?? prev.sorosLevel2Stake ?? 174.8,
+              sorosLevel3Stake: incoming.sorosLevel3Stake ?? prev.sorosLevel3Stake ?? 326.9,
+              martingaleLevel1Stake: incoming.martingaleLevel1Stake ?? prev.martingaleLevel1Stake ?? 100,
+              martingaleLevel2Stake: incoming.martingaleLevel2Stake ?? prev.martingaleLevel2Stake ?? 200,
             };
           });
         }
@@ -854,12 +861,14 @@ export default function App() {
     }
 
     setSettings(newSettings);
-    if (currentUser && SETTINGS_STORAGE_KEY) {
-      try {
+    try {
+      if (SETTINGS_STORAGE_KEY) {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(newSettings));
-      } catch (e) {
-        console.warn('Erro ao salvar settings no localStorage:', e);
       }
+      localStorage.setItem('trader_journal_settings_v1', JSON.stringify(newSettings));
+      localStorage.setItem('trader_journal_settings_default', JSON.stringify(newSettings));
+    } catch (e) {
+      console.warn('Erro ao salvar settings no localStorage:', e);
     }
     // Save to Supabase in background
     saveRiskSettingsToSupabase(newSettings, currentUser?.email).then((res) => {
