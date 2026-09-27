@@ -87,17 +87,37 @@ object TradeLockNativeSync {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val todayStr = sdf.format(Date())
 
-        // 2. Consulta Risk Settings do Supabase
-        val settingsUrl = "$SUPABASE_URL/rest/v1/risk_settings?id=eq.$cleanEmail"
-        val settingsJson = httpGet(settingsUrl)
+        // 2. Consulta Risk Settings do Supabase (id = settings_email ou id = email)
+        var settingsUrl = "$SUPABASE_URL/rest/v1/risk_settings?id=eq.settings_$cleanEmail"
+        var settingsJson = httpGet(settingsUrl)
+
+        if (settingsJson == null || settingsJson.length() == 0) {
+            settingsUrl = "$SUPABASE_URL/rest/v1/risk_settings?id=eq.$cleanEmail"
+            settingsJson = httpGet(settingsUrl)
+        }
+
+        if (settingsJson == null || settingsJson.length() == 0) {
+            settingsUrl = "$SUPABASE_URL/rest/v1/risk_settings?id=eq.default_settings"
+            settingsJson = httpGet(settingsUrl)
+        }
 
         var dailyLossLimit = 0.0
         var maxTradesPerDay = 0
 
         if (settingsJson != null && settingsJson.length() > 0) {
             val obj = settingsJson.getJSONObject(0)
-            dailyLossLimit = obj.optDouble("dailyLossLimit", 0.0)
-            maxTradesPerDay = obj.optInt("maxTradesPerDay", 0)
+            dailyLossLimit = obj.optDouble("dailyLossLimit", obj.optDouble("daily_loss_limit", 0.0))
+            maxTradesPerDay = obj.optInt("maxTradesPerDay", obj.optInt("max_trades_per_day", 0))
+
+            // Parse notas JSON fallback se presente
+            val notesStr = obj.optString("notes", "")
+            if (notesStr.isNotBlank() && notesStr.startsWith("{")) {
+                try {
+                    val notesJson = JSONObject(notesStr)
+                    if (dailyLossLimit <= 0.0) dailyLossLimit = notesJson.optDouble("dailyLossLimit", 0.0)
+                    if (maxTradesPerDay <= 0) maxTradesPerDay = notesJson.optInt("maxTradesPerDay", 0)
+                } catch (e: Exception) {}
+            }
         }
 
         // 3. Consulta Trades de Hoje
@@ -105,20 +125,27 @@ object TradeLockNativeSync {
         val tradesJson = httpGet(tradesUrl)
 
         var todayRealPnl = 0.0
+        var todayTotalPnl = 0.0
         var todayTradesCount = 0
+        var todayRealTradesCount = 0
 
         if (tradesJson != null) {
             todayTradesCount = tradesJson.length()
             for (i in 0 until tradesJson.length()) {
                 val t = tradesJson.getJSONObject(i)
-                val accountType = t.optString("accountType", "REAL")
-                val isReal = t.optBoolean("isReal", accountType == "REAL")
-                if (isReal) {
-                    val pnl = t.optDouble("pnl", 0.0)
+                val accountType = t.optString("accountType", t.optString("account_type", "REAL"))
+                val isReal = t.optBoolean("isReal", accountType != "DEMO")
+                val pnl = t.optDouble("pnl", 0.0)
+                todayTotalPnl += pnl
+
+                if (isReal && accountType != "DEMO") {
+                    todayRealTradesCount++
                     todayRealPnl += pnl
                 }
             }
         }
+
+        val effectivePnl = if (todayRealTradesCount > 0) todayRealPnl else todayTotalPnl
 
         // 4. Consulta Usuário e Assinatura
         val userUrl = "$SUPABASE_URL/rest/v1/system_users?email=eq.$cleanEmail"
@@ -135,7 +162,7 @@ object TradeLockNativeSync {
         }
 
         // 5. Avaliação das Regras Invioláveis de Risco
-        val isStopHit = dailyLossLimit > 0 && todayRealPnl < 0 && Math.abs(todayRealPnl) >= dailyLossLimit
+        val isStopHit = dailyLossLimit > 0 && effectivePnl < 0 && Math.abs(effectivePnl) >= dailyLossLimit
         val isMaxTradesHit = maxTradesPerDay > 0 && todayTradesCount >= maxTradesPerDay
         val isLockActive = isStopHit || isMaxTradesHit || !isSubscriptionActive
 
@@ -145,7 +172,7 @@ object TradeLockNativeSync {
         } else if (isStopHit && isMaxTradesHit) {
             reason = String.format(Locale.getDefault(), "Stop Loss (R$ %.2f) & Limite de Trades (%d) Atingidos", dailyLossLimit, maxTradesPerDay)
         } else if (isStopHit) {
-            reason = String.format(Locale.getDefault(), "Stop Loss Diário Atingido: R$ %.2f (Perda: R$ %.2f)", dailyLossLimit, Math.abs(todayRealPnl))
+            reason = String.format(Locale.getDefault(), "Stop Loss Diário Atingido: R$ %.2f (Perda: R$ %.2f)", dailyLossLimit, Math.abs(effectivePnl))
         } else if (isMaxTradesHit) {
             reason = String.format(Locale.getDefault(), "Limite Máximo de %d Operações no Dia Atingido", maxTradesPerDay)
         }
