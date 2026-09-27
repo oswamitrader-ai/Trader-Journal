@@ -939,6 +939,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   });
 
+  // Solcita o estado da trava imediatamente na inicialização do script
+  window.postMessage({ type: 'ANTI_FURIA_REQUEST_LOCK_STATE' }, '*');
+
   function isOrderBlocked() {
     return lockState.isStopHit || lockState.isMaxTradesHit;
   }
@@ -956,24 +959,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     alert(msg);
   }
 
-  // ─── 5. TRAVA INVIOLÁVEL DA STAKE NA CORRETORA (AUTO-FILL & READONLY LOCK) ─────
+  // ─── 5. TRAVA INVIOLÁVEL DA STAKE NA CORRETORA (PHYSICAL SHIELD OVERLAY & AUTO-FILL) ─────
   function findBrokerStakeInput() {
     const selectors = [
       'input[data-test="amount-input"]',
       'input[name="amount"]',
+      'input[name="stake"]',
+      'input[name="investment"]',
       'input.input-control__input',
       '.amount-value input',
       '.amount__input input',
+      '.amount-input input',
       'input[placeholder*="Valor"]',
       'input[placeholder*="Amount"]',
+      'input[placeholder*="Invest"]',
       'input.stake-input',
       '.sidebar-option__amount input',
       '.trade-option__amount input',
       '.deal-block__amount input',
       '.section-deal__amount input',
-      'input[type="number"][min]',
-      'input[type="text"][value*="$"]',
-      'input[type="text"][value*="R$"]'
+      'input.sidebar-input',
+      '[data-test*="amount"] input',
+      '[data-test*="stake"] input',
     ];
 
     for (let i = 0; i < selectors.length; i++) {
@@ -993,7 +1000,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       if (
         name === 'amount' || id === 'amount' || testAttr.includes('amount') ||
-        cls.includes('amount') || cls.includes('stake') ||
+        cls.includes('amount') || cls.includes('stake') || name === 'stake' ||
         placeholder.includes('amount') || placeholder.includes('valor') || placeholder.includes('invest')
       ) {
         return input;
@@ -1039,40 +1046,78 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   function setNativeInputValue(input, valStr) {
+    if (!input) return;
     try {
-      const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-      if (valueSetter && valueSetter.set) {
-        valueSetter.set.call(input, valStr);
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set;
+
+      if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(input, valStr);
       } else {
         input.value = valStr;
       }
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.dispatchEvent(new Event('blur', { bubbles: true }));
+
+      input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+      input.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+
+      try {
+        input.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: valStr, bubbles: true }));
+      } catch(e) {}
     } catch(e) {
       input.value = valStr;
     }
   }
 
-  function renderStakeBadge(input, targetVal) {
-    let badge = document.getElementById('tradelock-stake-badge');
-    if (!badge) {
-      badge = document.createElement('div');
-      badge.id = 'tradelock-stake-badge';
-      badge.style.cssText = 'position: absolute; z-index: 999999; background: #064e3b; border: 1.5px solid #10b981; color: #6ee7b7; padding: 4px 10px; border-radius: 8px; font-family: monospace; font-size: 11px; font-weight: bold; pointer-events: none; white-space: nowrap; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);';
-      document.body.appendChild(badge);
+  function renderStakeShieldOverlay(input, targetVal) {
+    if (!input) return;
+
+    let overlay = document.getElementById('tradelock-stake-shield-overlay');
+    if (!stakeLockState.enforceBrokerStakeLock) {
+      if (overlay) overlay.remove();
+      return;
     }
 
-    const rect = input.getBoundingClientRect();
-    badge.style.top = (window.scrollY + rect.bottom + 6) + 'px';
-    badge.style.left = (window.scrollX + rect.left) + 'px';
-    badge.innerHTML = '🔒 TradeLock: R$ ' + targetVal.toFixed(2) + ' (Entrada Inviolável)';
+    const container = input.closest('.amount-value, .amount-control, .amount__input, .deal-block__amount, .sidebar-option__amount, [class*="amount"], [class*="stake"]') || input;
+    const rect = container.getBoundingClientRect();
+
+    if (rect.width === 0 || rect.height === 0) return;
+
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'tradelock-stake-shield-overlay';
+      document.body.appendChild(overlay);
+    }
+
+    const top = window.scrollY + rect.top;
+    const left = window.scrollX + rect.left;
+
+    overlay.style.cssText = 'position: absolute !important; top: ' + top + 'px !important; left: ' + left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 9999999 !important; background: rgba(6, 78, 59, 0.35) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(1px) !important;';
+
+    overlay.innerHTML = '<div style="font-family: monospace; font-size: 11px; font-weight: 900; color: #34d399; background: #064e3b; padding: 3px 8px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">🔒 R$ ' + targetVal.toFixed(2) + ' (INVIOLÁVEL)</div>';
+
+    if (!overlay.__shieldEventsAttached) {
+      overlay.__shieldEventsAttached = true;
+      const blockClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        alert('🔒 TRAVA DE STAKE INVIOLÁVEL TRADELOCK:\\n\\nO valor da sua entrada (R$ ' + targetVal.toFixed(2) + ') foi definido na sua Tela de Gestão de Risco e está TRANCADO!\\n\\nVocê não pode alterar a stake na corretora.');
+        return false;
+      };
+
+      ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'dblclick', 'contextmenu'].forEach(evt => {
+        overlay.addEventListener(evt, blockClick, true);
+      });
+    }
   }
 
   function enforceStakeLockOnBroker() {
     if (!stakeLockState.enforceBrokerStakeLock) {
-      const badge = document.getElementById('tradelock-stake-badge');
-      if (badge) badge.remove();
+      const overlay = document.getElementById('tradelock-stake-shield-overlay');
+      if (overlay) overlay.remove();
       return;
     }
 
@@ -1129,11 +1174,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       input.addEventListener('change', blockEvent, true);
     }
 
-    renderStakeBadge(input, targetVal);
+    renderStakeShieldOverlay(input, targetVal);
   }
 
-  // Run enforcement loop every 300ms
-  setInterval(enforceStakeLockOnBroker, 300);
+  // Loop continuo de enforce a cada 150ms + MutationObserver
+  setInterval(enforceStakeLockOnBroker, 150);
+  try {
+    const stakeObserver = new MutationObserver(() => enforceStakeLockOnBroker());
+    stakeObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
+  } catch(e) {}
 
   // Intercept Call / Put / Buy / Sell button clicks on broker UI
   document.addEventListener('click', function(e) {
@@ -1293,6 +1342,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Listen to window postMessage from the web app or injected script
   window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'ANTI_FURIA_REQUEST_LOCK_STATE') {
+      syncFromStorage();
+    }
+
     if (event.data && event.data.type === 'ANTI_FURIA_SYNC') {
       chrome.runtime.sendMessage({
         type: 'UPDATE_STOP_STATUS',
