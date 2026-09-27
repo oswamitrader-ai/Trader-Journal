@@ -657,6 +657,14 @@ export default function App() {
           currentCapital: metrics.currentCapital,
           maxDrawdownPercent: metrics.maxDrawdownPercent,
           blockedDomains: blockedDomains,
+          enforceBrokerStakeLock: settings.enforceBrokerStakeLock,
+          fixedStakeAmount: settings.fixedStakeAmount,
+          sorosLevel1Stake: settings.sorosLevel1Stake,
+          sorosLevel2Stake: settings.sorosLevel2Stake,
+          sorosLevel3Stake: settings.sorosLevel3Stake,
+          martingaleLevel1Stake: settings.martingaleLevel1Stake,
+          martingaleLevel2Stake: settings.martingaleLevel2Stake,
+          managementStyle: settings.managementStyle,
         },
         '*'
       );
@@ -673,6 +681,14 @@ export default function App() {
           todayTradesCount,
           currentCapital: metrics.currentCapital,
           blockedDomains: blockedDomains,
+          enforceBrokerStakeLock: settings.enforceBrokerStakeLock,
+          fixedStakeAmount: settings.fixedStakeAmount,
+          sorosLevel1Stake: settings.sorosLevel1Stake,
+          sorosLevel2Stake: settings.sorosLevel2Stake,
+          sorosLevel3Stake: settings.sorosLevel3Stake,
+          martingaleLevel1Stake: settings.martingaleLevel1Stake,
+          martingaleLevel2Stake: settings.martingaleLevel2Stake,
+          managementStyle: settings.managementStyle,
           updatedAt: Date.now(),
         })
       );
@@ -718,7 +734,7 @@ export default function App() {
   }, [
     isAntiFuriaActive,
     todayPnl,
-    settings.dailyLossLimit,
+    settings,
     metrics.winRate,
     todayTradesCount,
     blockedDomains,

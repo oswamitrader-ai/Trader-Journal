@@ -364,6 +364,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         ? msg.blockedDomains
         : (Array.isArray(st.blockedDomains) ? st.blockedDomains : DEFAULT_DOMAINS);
 
+      const enforceBrokerStakeLock = Boolean(msg.enforceBrokerStakeLock);
+      const fixedStakeAmount = Number(msg.fixedStakeAmount) || 50;
+      const sorosLevel1Stake = Number(msg.sorosLevel1Stake) || 93.5;
+      const sorosLevel2Stake = Number(msg.sorosLevel2Stake) || 174.8;
+      const sorosLevel3Stake = Number(msg.sorosLevel3Stake) || 326.9;
+      const martingaleLevel1Stake = Number(msg.martingaleLevel1Stake) || 100;
+      const martingaleLevel2Stake = Number(msg.martingaleLevel2Stake) || 200;
+      const managementStyle = msg.managementStyle || 'MAO_FIXA';
+
       chrome.storage.local.set({
         isStopHit: isHit,
         isMaxTradesHit: isMaxTradesHit,
@@ -377,6 +386,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         todayTradesCount: Number(msg.todayTradesCount) || 0,
         currentCapital: Number(msg.currentCapital) || 0,
         blockedDomains: updatedBlockedDomains,
+        enforceBrokerStakeLock: enforceBrokerStakeLock,
+        fixedStakeAmount: fixedStakeAmount,
+        sorosLevel1Stake: sorosLevel1Stake,
+        sorosLevel2Stake: sorosLevel2Stake,
+        sorosLevel3Stake: sorosLevel3Stake,
+        martingaleLevel1Stake: martingaleLevel1Stake,
+        martingaleLevel2Stake: martingaleLevel2Stake,
+        managementStyle: managementStyle,
       }, () => {
         const isLockActive = isHit || isMaxTradesHit || isSubBlocked;
         if (isLockActive) {
@@ -485,6 +502,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (processedIds.has(tradeData.id)) return; // Dedup
     processedIds.add(tradeData.id);
     console.log('🚀 [Anti-Fúria] Transmitindo trade capturado:', JSON.stringify(tradeData));
+
+    if (tradeData.result === 'GAIN') {
+      consecutiveWins += 1;
+      consecutiveLosses = 0;
+    } else if (tradeData.result === 'LOSS') {
+      consecutiveLosses += 1;
+      consecutiveWins = 0;
+    }
+
     window.postMessage({ type: 'AUTO_TRADE_CAPTURED', trade: tradeData }, '*');
   }
 
@@ -943,6 +969,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       'input.stake-input',
       '.sidebar-option__amount input',
       '.trade-option__amount input',
+      '.deal-block__amount input',
+      '.section-deal__amount input',
       'input[type="number"][min]',
       'input[type="text"][value*="$"]',
       'input[type="text"][value*="R$"]'
@@ -951,6 +979,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     for (let i = 0; i < selectors.length; i++) {
       const el = document.querySelector(selectors[i]);
       if (el && el.offsetParent !== null) return el;
+    }
+
+    const allInputs = document.querySelectorAll('input');
+    for (let i = 0; i < allInputs.length; i++) {
+      const input = allInputs[i];
+      if (input.type === 'hidden' || input.offsetParent === null) continue;
+      const name = (input.name || '').toLowerCase();
+      const id = (input.id || '').toLowerCase();
+      const testAttr = (input.getAttribute('data-test') || '').toLowerCase();
+      const cls = (input.className || '').toString().toLowerCase();
+      const placeholder = (input.placeholder || '').toLowerCase();
+
+      if (
+        name === 'amount' || id === 'amount' || testAttr.includes('amount') ||
+        cls.includes('amount') || cls.includes('stake') ||
+        placeholder.includes('amount') || placeholder.includes('valor') || placeholder.includes('invest')
+      ) {
+        return input;
+      }
     }
     return null;
   }
@@ -1044,6 +1091,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     input.style.borderColor = '#10b981';
     input.style.color = '#34d399';
     input.style.fontWeight = 'bold';
+
+    // Disable surrounding preset / plus / minus buttons
+    const parent = input.closest('.amount-value, .amount-control, .amount__input, .deal-block__amount, .sidebar-option__amount, [class*="amount"], [class*="stake"]');
+    if (parent) {
+      const btnPlusMinus = parent.querySelectorAll('button, div[role="button"], span[class*="plus"], span[class*="minus"], button[class*="add"], button[class*="sub"], [class*="preset"]');
+      btnPlusMinus.forEach(b => {
+        b.style.pointerEvents = 'none';
+        b.style.opacity = '0.3';
+      });
+    }
 
     // Override input value if trader tries to change it or if broker reset it
     const currentValStr = input.value.replace(/[^0-9.,]/g, '').replace(',', '.');
@@ -1249,6 +1306,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         todayTradesCount: event.data.todayTradesCount,
         currentCapital: event.data.currentCapital,
         blockedDomains: event.data.blockedDomains || event.data.domains,
+        enforceBrokerStakeLock: event.data.enforceBrokerStakeLock,
+        fixedStakeAmount: event.data.fixedStakeAmount,
+        sorosLevel1Stake: event.data.sorosLevel1Stake,
+        sorosLevel2Stake: event.data.sorosLevel2Stake,
+        sorosLevel3Stake: event.data.sorosLevel3Stake,
+        martingaleLevel1Stake: event.data.martingaleLevel1Stake,
+        martingaleLevel2Stake: event.data.martingaleLevel2Stake,
+        managementStyle: event.data.managementStyle,
       });
     }
 
@@ -1260,6 +1325,40 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     }
   });
+
+  function syncFromStorage() {
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+    chrome.storage.local.get([
+      'isStopHit', 'isMaxTradesHit', 'maxTradesPerDay', 'todayTradesCount',
+      'enforceBrokerStakeLock', 'fixedStakeAmount',
+      'sorosLevel1Stake', 'sorosLevel2Stake', 'sorosLevel3Stake',
+      'martingaleLevel1Stake', 'martingaleLevel2Stake', 'managementStyle'
+    ], (data) => {
+      window.postMessage({
+        type: 'ANTI_FURIA_LOCK_STATE',
+        isStopHit: Boolean(data.isStopHit),
+        isMaxTradesHit: Boolean(data.isMaxTradesHit),
+        maxTradesPerDay: Number(data.maxTradesPerDay) || 5,
+        todayTradesCount: Number(data.todayTradesCount) || 0,
+        enforceBrokerStakeLock: Boolean(data.enforceBrokerStakeLock),
+        fixedStakeAmount: Number(data.fixedStakeAmount) || 50,
+        sorosLevel1Stake: Number(data.sorosLevel1Stake) || 93.5,
+        sorosLevel2Stake: Number(data.sorosLevel2Stake) || 174.8,
+        sorosLevel3Stake: Number(data.sorosLevel3Stake) || 326.9,
+        martingaleLevel1Stake: Number(data.martingaleLevel1Stake) || 100,
+        martingaleLevel2Stake: Number(data.martingaleLevel2Stake) || 200,
+        managementStyle: data.managementStyle || 'MAO_FIXA',
+      }, '*');
+    });
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      if (namespace === 'local') {
+        syncFromStorage();
+      }
+    });
+  }
 
   // Ouve mensagens vindas do Service Worker para repassar ao Trader Journal
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -1291,8 +1390,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Initial check
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     syncFromPage();
+    syncFromStorage();
   } else {
-    document.addEventListener('DOMContentLoaded', syncFromPage);
+    document.addEventListener('DOMContentLoaded', () => {
+      syncFromPage();
+      syncFromStorage();
+    });
   }
 })();
 `;

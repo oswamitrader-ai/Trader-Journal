@@ -790,9 +790,9 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
 
               <button
                 type="button"
-                disabled={isCurrentlyLocked && permanentMobileBrokerLockEnabled}
+                disabled={isCurrentlyLocked}
                 onClick={() => {
-                  if (isCurrentlyLocked && permanentMobileBrokerLockEnabled) {
+                  if (isCurrentlyLocked) {
                     alert('🔒 Ação Bloqueada!\n\nVocê não pode desativar o Bloqueio Perpétuo enquanto a Trava de Compromisso estiver ativa.');
                     return;
                   }
@@ -802,7 +802,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                   permanentMobileBrokerLockEnabled
                     ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-900/50'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-                } ${isCurrentlyLocked && permanentMobileBrokerLockEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${isCurrentlyLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {permanentMobileBrokerLockEnabled ? '🛑 Desativar Stop Loss Eterno' : '⚡ Ativar Bloqueio Perpétuo Móvel'}
               </button>
@@ -839,19 +839,19 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
 
               <button
                 type="button"
-                disabled={isCurrentlyLocked && enforceBrokerStakeLock}
+                disabled={isCurrentlyLocked}
                 onClick={() => {
-                  if (isCurrentlyLocked && enforceBrokerStakeLock) {
-                    alert('🔒 Ação Bloqueada!\n\nVocê não pode desativar a Trava do Valor de Entrada enquanto o compromisso estiver ativo.');
+                  if (isCurrentlyLocked) {
+                    alert('🔒 Ação Bloqueada!\n\nVocê não pode alterar a Trava do Valor de Entrada enquanto o compromisso estiver ativo.');
                     return;
                   }
                   setEnforceBrokerStakeLock(!enforceBrokerStakeLock);
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shrink-0 border ${
                   enforceBrokerStakeLock
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-900/50'
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-950/50'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-                } ${isCurrentlyLocked && enforceBrokerStakeLock ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${isCurrentlyLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {enforceBrokerStakeLock ? '🔒 Trava da Stake Ativada' : '⚡ Ativar Trava da Stake'}
               </button>
@@ -866,6 +866,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                   </span>
                   <button
                     type="button"
+                    disabled={isCurrentlyLocked}
                     onClick={() => {
                       setFixedStakeAmount(Math.round(stakeAmount * 100) / 100);
                       setSorosLevel1Stake(Math.round((stakeAmount + singleWinProfit) * 100) / 100);
@@ -874,7 +875,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                       setMartingaleLevel1Stake(Math.round((stakeAmount * 2) * 100) / 100);
                       setMartingaleLevel2Stake(Math.round((stakeAmount * 4) * 100) / 100);
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold transition cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     ⚡ Auto-Preencher com Calculadora
                   </button>
@@ -893,7 +894,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                         disabled={isCurrentlyLocked}
                         value={fixedStakeAmount}
                         onChange={(e) => setFixedStakeAmount(Math.max(1, Number(e.target.value)))}
-                        className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none font-mono"
+                        className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed font-mono"
                       />
                     </div>
                   </div>
@@ -915,7 +916,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                             if (managementStyle.includes('SOROS')) setSorosLevel1Stake(val);
                             else setMartingaleLevel1Stake(val);
                           }}
-                          className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none font-mono"
+                          className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed font-mono"
                         />
                       </div>
                     </div>
@@ -938,7 +939,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                             if (managementStyle.includes('SOROS')) setSorosLevel2Stake(val);
                             else setMartingaleLevel2Stake(val);
                           }}
-                          className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none font-mono"
+                          className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed font-mono"
                         />
                       </div>
                     </div>
@@ -957,7 +958,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                           disabled={isCurrentlyLocked}
                           value={sorosLevel3Stake}
                           onChange={(e) => setSorosLevel3Stake(Math.max(1, Number(e.target.value)))}
-                          className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none font-mono"
+                          className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed font-mono"
                         />
                       </div>
                     </div>
@@ -1005,12 +1006,13 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                 <button
                   key={style.key}
                   type="button"
+                  disabled={isCurrentlyLocked}
                   onClick={() => setManagementStyle(style.key as any)}
                   className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center transition-all ${
                     managementStyle === style.key
                       ? 'border-blue-500 bg-blue-950/40 text-blue-300 ring-2 ring-blue-500/30 shadow-lg font-bold'
                       : 'border-slate-800 bg-slate-900/50 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                  }`}
+                  } ${isCurrentlyLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <span className="text-xs font-bold">{style.label}</span>
                   <span className="text-[10px] opacity-75 mt-0.5">{style.desc}</span>
@@ -1029,9 +1031,10 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                 <Percent className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
                 <input
                   type="number"
+                  disabled={isCurrentlyLocked}
                   value={payout}
                   onChange={(e) => setPayout(Math.max(1, Math.min(100, Number(e.target.value))))}
-                  className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 pl-10 pr-4 py-2.5 text-sm font-bold text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                  className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 pl-10 pr-4 py-2.5 text-sm font-bold text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed font-mono"
                 />
               </div>
             </div>
@@ -1044,9 +1047,10 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                 <Percent className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
                 <input
                   type="number"
+                  disabled={isCurrentlyLocked}
                   value={winRate}
                   onChange={(e) => setWinRate(Math.max(1, Math.min(99, Number(e.target.value))))}
-                  className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 pl-10 pr-4 py-2.5 text-sm font-bold text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                  className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 pl-10 pr-4 py-2.5 text-sm font-bold text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed font-mono"
                 />
               </div>
             </div>
@@ -1062,6 +1066,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                 <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[10px] font-bold">
                   <button
                     type="button"
+                    disabled={isCurrentlyLocked}
                     onClick={() => {
                       setStakeMode('PERCENT');
                       setStakeValue(Math.round(stakePercentCalc * 10) / 10 || 2);
@@ -1070,12 +1075,13 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                       stakeMode === 'PERCENT'
                         ? 'bg-blue-600 text-white shadow-sm'
                         : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    } ${isCurrentlyLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     % Percentual
                   </button>
                   <button
                     type="button"
+                    disabled={isCurrentlyLocked}
                     onClick={() => {
                       setStakeMode('FIXED');
                       setStakeValue(Math.round(stakeAmount) || 50);
@@ -1084,7 +1090,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                       stakeMode === 'FIXED'
                         ? 'bg-blue-600 text-white shadow-sm'
                         : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    } ${isCurrentlyLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     R$ Valor Fixo
                   </button>
@@ -1099,9 +1105,10 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                 )}
                 <input
                   type="number"
+                  disabled={isCurrentlyLocked}
                   value={stakeValue}
                   onChange={(e) => setStakeValue(Math.max(0.1, Number(e.target.value)))}
-                  className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 pl-10 pr-4 py-2.5 text-sm font-bold text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                  className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 pl-10 pr-4 py-2.5 text-sm font-bold text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed font-mono"
                 />
               </div>
               <p className="text-[11px] text-slate-500">
