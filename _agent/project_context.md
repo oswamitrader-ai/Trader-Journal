@@ -394,6 +394,16 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - **Remoção do Container de Modal Sobreposto**: Removidas a classe `fixed inset-0 z-50` e a estrutura de pop-up flutuante de [CapitalHistoryModal.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/CapitalHistoryModal.tsx), substituindo-as por um container nativo de tela cheia (`min-h-screen bg-black text-white flex flex-col w-full`).
     - **Roteamento Próprio de Página (`currentView === 'CAPITAL_MANAGEMENT'`)**: Adicionada a rota `CAPITAL_MANAGEMENT` no estado `currentView` em [App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/App.tsx). Ao clicar em "Saques / Depósitos", a plataforma substitui a visualização principal por completo (assim como na tela de Gestão de Risco e Admin), ocupando 100% da largura e altura da tela com topbar nativa ("← Voltar ao Diário de Trade").
 
+397: 62. **Implementação do Bloqueio Perpétuo do App da Corretora no Celular ("Stop Loss Eterno no Celular")**:
+    - **Demanda & Solução**: Para proteger o trader de si mesmo antes mesmo que um dia de fúria comece (impedindo que ele tente operar pelo smartphone Android sem extensão de captura e sem trava), foi criada a funcionalidade de **Stop Loss Eterno / Bloqueio Perpétuo de Corretoras no Celular**.
+    - **Detecção & Bloqueio Nativo 24/7**:
+      - `TradeLockAccessibilityService.kt` e `TradeLockVpnService.kt` passam a aceitar a flag `permanentMobileBrokerLockEnabled` (salva localmente e sincronizada via Supabase `risk_settings`).
+      - Quando ativada, a trava no celular fica **100% ativa 24 horas por dia**, bloqueando a abertura dos apps de corretoras (`BROKER_PACKAGE_NAMES`: Exnova, IQ Option, Quotex, Binomo, Pocket Option, Olymp Trade, etc.) e sites de corretoras em navegadores móveis (Chrome, Firefox, Edge, Brave, etc.), exibindo o bloqueio em tela cheia com aviso explicativo.
+    - **Interface de Controle**:
+      - Adicionado card interativo no aplicativo mobile [mobile/src/App.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/mobile/src/App.tsx) na aba "Escudo Nativo" para ativar/desativar com trava anti-burlar (se a trava anti-fúria estiver ativa no dia, a desativação fica bloqueada).
+      - Adicionada opção correspondente na página de Gestão de Risco da Web [RiskManagementPage.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/RiskManagementPage.tsx) e sincronização multi-dispositivo via `mobileSyncService.ts` e `supabase.ts`.
+      - Gerado e commitado novo APK nativo compilado (`tradelock-mobile-v4.apk`).
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas & diretas ao código.
