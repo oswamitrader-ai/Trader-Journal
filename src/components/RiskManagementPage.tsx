@@ -301,6 +301,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
   const [antiFuriaCustomWindowEnabled, setAntiFuriaCustomWindowEnabled] = useState<boolean>(settings.antiFuriaCustomWindowEnabled ?? false);
   const [antiFuriaStartTime, setAntiFuriaStartTime] = useState<string>(settings.antiFuriaStartTime ?? '07:00');
   const [antiFuriaEndTime, setAntiFuriaEndTime] = useState<string>(settings.antiFuriaEndTime ?? '11:30');
+  const [permanentMobileBrokerLockEnabled, setPermanentMobileBrokerLockEnabled] = useState<boolean>(settings.permanentMobileBrokerLockEnabled ?? false);
 
   // Commitment Lock Period State
   const [lockDurationDays, setLockDurationDays] = useState<number>(settings.riskLockDurationDays ?? 7);
@@ -333,6 +334,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
       setAntiFuriaCustomWindowEnabled(settings.antiFuriaCustomWindowEnabled ?? false);
       setAntiFuriaStartTime(settings.antiFuriaStartTime ?? '07:00');
       setAntiFuriaEndTime(settings.antiFuriaEndTime ?? '11:30');
+      setPermanentMobileBrokerLockEnabled(settings.permanentMobileBrokerLockEnabled ?? false);
       setLockDurationDays(settings.riskLockDurationDays ?? 7);
       setRiskLockUntil(settings.riskLockUntil);
       setManagementStyle(settings.managementStyle ?? 'MAO_FIXA');
@@ -460,6 +462,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
       antiFuriaCustomWindowEnabled,
       antiFuriaStartTime,
       antiFuriaEndTime,
+      permanentMobileBrokerLockEnabled,
       riskLockUntil: newLockUntil,
       riskLockDurationDays: lockDurationDays,
       managementStyle,
@@ -723,6 +726,55 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                 />
               </div>
               <p className="text-[11px] text-amber-400/80">Parametriza o simulador realista da sessão diária abaixo.</p>
+            </div>
+          </div>
+
+          {/* Bloqueio Perpétuo do App da Corretora no Celular (Eterno Stop Loss Móvel) */}
+          <div className={`mt-6 p-5 rounded-2xl border transition-all ${
+            permanentMobileBrokerLockEnabled
+              ? 'border-rose-600 bg-rose-950/20 shadow-lg shadow-rose-950/40'
+              : 'border-slate-800 bg-slate-900/40'
+          }`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className={`p-3 rounded-xl border ${
+                  permanentMobileBrokerLockEnabled ? 'bg-rose-600/20 border-rose-500/50 text-rose-400' : 'bg-slate-800 border-slate-700 text-slate-400'
+                }`}>
+                  <ShieldAlert className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    🔒 Stop Loss Eterno no Celular (Bloqueio Perpétuo de Corretoras)
+                    {permanentMobileBrokerLockEnabled && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-600 animate-pulse">
+                        ATIVADO 24/7 🛑
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1 max-w-3xl">
+                    Bloqueia 100% os aplicativos (Exnova, IQ Option, Quotex, Binomo, etc.) e navegadores web no celular <strong>24 horas por dia</strong>. O trader fica impossibilitado de operar pelo celular e é obrigado a realizar 100% do trading no Computador.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={isCurrentlyLocked && permanentMobileBrokerLockEnabled}
+                onClick={() => {
+                  if (isCurrentlyLocked && permanentMobileBrokerLockEnabled) {
+                    alert('🔒 Ação Bloqueada!\n\nVocê não pode desativar o Bloqueio Perpétuo enquanto a Trava de Compromisso estiver ativa.');
+                    return;
+                  }
+                  setPermanentMobileBrokerLockEnabled(!permanentMobileBrokerLockEnabled);
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shrink-0 border ${
+                  permanentMobileBrokerLockEnabled
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-900/50'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                } ${isCurrentlyLocked && permanentMobileBrokerLockEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {permanentMobileBrokerLockEnabled ? '🛑 Desativar Stop Loss Eterno' : '⚡ Ativar Bloqueio Perpétuo Móvel'}
+              </button>
             </div>
           </div>
         </section>

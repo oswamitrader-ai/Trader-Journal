@@ -385,6 +385,7 @@ export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise
       antiFuriaCustomWindowEnabled: Boolean(data.antiFuriaCustomWindowEnabled),
       antiFuriaStartTime: data.antiFuriaStartTime || '07:00',
       antiFuriaEndTime: data.antiFuriaEndTime || '11:30',
+      permanentMobileBrokerLockEnabled: Boolean(data.permanentMobileBrokerLockEnabled ?? data.permanent_mobile_lock ?? extraManagement.permanentMobileBrokerLockEnabled ?? false),
       riskLockUntil: data.riskLockUntil || extraManagement.riskLockUntil || undefined,
       riskLockDurationDays: data.riskLockDurationDays != null ? Number(data.riskLockDurationDays) : (extraManagement.riskLockDurationDays ?? 7),
       managementStyle: data.managementStyle || extraManagement.managementStyle || 'MAO_FIXA',
@@ -414,6 +415,7 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       estimatedPayout: settings.estimatedPayout,
       estimatedWinRate: settings.estimatedWinRate,
       stakePercent: settings.stakePercent,
+      permanentMobileBrokerLockEnabled: settings.permanentMobileBrokerLockEnabled,
     });
 
     const payload: any = {

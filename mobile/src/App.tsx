@@ -86,6 +86,15 @@ export const TradeLockMobileApp: React.FC = () => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  const handleTogglePermanentLock = () => {
+    const nextState = !lockState.permanentMobileBrokerLockEnabled;
+    if (!nextState && (lockState.isStopHit || lockState.isMaxTradesHit)) {
+      alert('🔒 Ação Bloqueada!\n\nVocê NÃO pode desativar o Bloqueio Perpétuo enquanto a Trava Anti-Fúria do dia estiver ativa para garantir a proteção do seu capital.');
+      return;
+    }
+    mobileSyncService.setPermanentMobileBrokerLock(nextState);
+  };
+
   return (
     <div
       className="min-h-screen bg-black text-white p-4 select-none relative overflow-x-hidden"
@@ -233,6 +242,49 @@ export const TradeLockMobileApp: React.FC = () => {
                   100% Automática
                 </span>
               </div>
+            </div>
+
+            {/* Card: Eterno Stop Loss / Bloqueio Perpétuo do Celular */}
+            <div className={`p-4 rounded-xl border transition-all ${
+              lockState.permanentMobileBrokerLockEnabled
+                ? 'bg-rose-950/30 border-rose-600 shadow-[0_0_25px_rgba(225,29,72,0.3)]'
+                : 'bg-black/90 border-slate-800'
+            }`}>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl">🛑</span>
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase tracking-tight">STOP LOSS ETERNO NO CELULAR</h3>
+                    <p className="text-[10px] font-mono text-slate-400">Bloqueio Perpétuo 24/7 de Corretoras</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleTogglePermanentLock}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    lockState.permanentMobileBrokerLockEnabled ? 'bg-rose-600' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      lockState.permanentMobileBrokerLockEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed mt-2 border-t border-slate-800/80 pt-2.5">
+                {lockState.permanentMobileBrokerLockEnabled ? (
+                  <span className="text-rose-300 font-bold">
+                    🔒 ATIVADO 24/7: Todos os aplicativos de corretoras (Exnova, IQ Option, Quotex, Binomo, etc.) no celular estão permanentemente bloqueados. Você é forçado a operar 100% pelo Computador!
+                  </span>
+                ) : (
+                  <span className="text-slate-400">
+                    Ao ativar esta opção, seus aplicativos de corretoras no smartphone ficarão <strong className="text-white">permanentemente bloqueados 24 horas por dia</strong>. O trader nunca conseguirá operar pelo celular e é forçado a operar no PC com o TradeLock ativo.
+                  </span>
+                )}
+              </p>
             </div>
 
             {/* Native Device Setup Cards */}

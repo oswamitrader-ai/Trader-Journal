@@ -103,11 +103,15 @@ object TradeLockNativeSync {
 
         var dailyLossLimit = 0.0
         var maxTradesPerDay = 0
+        var permanentMobileLock = getPrefs(context).getBoolean("KEY_PERMANENT_MOBILE_LOCK", false)
 
         if (settingsJson != null && settingsJson.length() > 0) {
             val obj = settingsJson.getJSONObject(0)
             dailyLossLimit = obj.optDouble("dailyLossLimit", obj.optDouble("daily_loss_limit", 0.0))
             maxTradesPerDay = obj.optInt("maxTradesPerDay", obj.optInt("max_trades_per_day", 0))
+            if (obj.has("permanentMobileBrokerLockEnabled")) {
+                permanentMobileLock = obj.optBoolean("permanentMobileBrokerLockEnabled", permanentMobileLock)
+            }
 
             // Parse notas JSON fallback se presente
             val notesStr = obj.optString("notes", "")
@@ -116,9 +120,15 @@ object TradeLockNativeSync {
                     val notesJson = JSONObject(notesStr)
                     if (dailyLossLimit <= 0.0) dailyLossLimit = notesJson.optDouble("dailyLossLimit", 0.0)
                     if (maxTradesPerDay <= 0) maxTradesPerDay = notesJson.optInt("maxTradesPerDay", 0)
+                    if (notesJson.has("permanentMobileBrokerLockEnabled")) {
+                        permanentMobileLock = notesJson.optBoolean("permanentMobileBrokerLockEnabled", permanentMobileLock)
+                    }
                 } catch (e: Exception) {}
             }
         }
+
+        // Salva em prefs local do Android para acesso offline
+        getPrefs(context).edit().putBoolean("KEY_PERMANENT_MOBILE_LOCK", permanentMobileLock).apply()
 
         // 3. Consulta Trades de Hoje
         val tradesUrl = "$SUPABASE_URL/rest/v1/trades?user_email=eq.$cleanEmail&date=eq.$todayStr"
@@ -164,11 +174,13 @@ object TradeLockNativeSync {
         // 5. Avaliação das Regras Invioláveis de Risco
         val isStopHit = dailyLossLimit > 0 && effectivePnl < 0 && Math.abs(effectivePnl) >= dailyLossLimit
         val isMaxTradesHit = maxTradesPerDay > 0 && todayTradesCount >= maxTradesPerDay
-        val isLockActive = isStopHit || isMaxTradesHit || !isSubscriptionActive
+        val isLockActive = isStopHit || isMaxTradesHit || !isSubscriptionActive || permanentMobileLock
 
         var reason = "Trava Anti-Fúria Ativa"
         if (!isSubscriptionActive) {
             reason = "Assinatura Inadimplente ou Suspensa"
+        } else if (permanentMobileLock) {
+            reason = "Bloqueio Perpétuo de Corretoras no Celular (Eterno Stop Loss)"
         } else if (isStopHit && isMaxTradesHit) {
             reason = String.format(Locale.getDefault(), "Stop Loss (R$ %.2f) & Limite de Trades (%d) Atingidos", dailyLossLimit, maxTradesPerDay)
         } else if (isStopHit) {
@@ -177,7 +189,7 @@ object TradeLockNativeSync {
             reason = String.format(Locale.getDefault(), "Limite Máximo de %d Operações no Dia Atingido", maxTradesPerDay)
         }
 
-        Log.d(TAG, "Sincronia Nativa -> Email: $cleanEmail | LockActive: $isLockActive | StopHit: $isStopHit | PnL Hoje: $todayRealPnl | Trades: $todayTradesCount")
+        Log.d(TAG, "Sincronia Nativa -> Email: $cleanEmail | LockActive: $isLockActive | PermLock: $permanentMobileLock | StopHit: $isStopHit | PnL Hoje: $todayRealPnl")
 
         // 6. Atualiza o Estado Global dos Serviços Nativo
         TradeLockAccessibilityService.isAntiFuriaActive = isLockActive

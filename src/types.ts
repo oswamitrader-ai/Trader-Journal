@@ -69,6 +69,7 @@ export interface RiskSettings {
   antiFuriaCustomWindowEnabled?: boolean;
   antiFuriaStartTime?: string; // e.g., '07:00'
   antiFuriaEndTime?: string; // e.g., '11:30'
+  permanentMobileBrokerLockEnabled?: boolean; // Bloqueio Perpétuo do App da Corretora no Celular (Stop Loss Eterno)
   // Trava de Compromisso Inviolável (Lock Period)
   riskLockUntil?: string; // Timestamp/ISO date até quando as regras de risco não podem ser afrouxadas
   riskLockDurationDays?: number; // Período de compromisso selecionado (1, 3, 7, 14, 30)

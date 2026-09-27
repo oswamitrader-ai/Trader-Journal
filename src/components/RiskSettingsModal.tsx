@@ -38,6 +38,9 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
   const [antiFuriaEndTime, setAntiFuriaEndTime] = useState<string>(
     settings.antiFuriaEndTime || '11:30'
   );
+  const [permanentMobileBrokerLockEnabled, setPermanentMobileBrokerLockEnabled] = useState<boolean>(
+    settings.permanentMobileBrokerLockEnabled ?? false
+  );
 
   // Sincroniza estado interno sempre que o modal abre ou settings muda
   React.useEffect(() => {
@@ -51,6 +54,7 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
       setAntiFuriaCustomWindowEnabled(settings.antiFuriaCustomWindowEnabled ?? false);
       setAntiFuriaStartTime(settings.antiFuriaStartTime || '07:00');
       setAntiFuriaEndTime(settings.antiFuriaEndTime || '11:30');
+      setPermanentMobileBrokerLockEnabled(settings.permanentMobileBrokerLockEnabled ?? false);
     }
   }, [isOpen, settings]);
 
@@ -82,6 +86,7 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
       antiFuriaCustomWindowEnabled,
       antiFuriaStartTime: antiFuriaStartTime || '07:00',
       antiFuriaEndTime: antiFuriaEndTime || '11:30',
+      permanentMobileBrokerLockEnabled,
     });
     onClose();
   };
@@ -245,6 +250,22 @@ export const RiskSettingsModal: React.FC<RiskSettingsModalProps> = ({
                 </div>
               </div>
             )}
+            {/* Bloqueio Perpétuo do App da Corretora no Celular (Stop Loss Eterno) */}
+            <div className="pt-2 border-t border-red-500/20 flex items-center justify-between">
+              <div>
+                <span className="font-bold text-white text-[11px] block">🔒 Stop Loss Eterno no Celular</span>
+                <span className="text-[10px] text-slate-300">Bloquear apps de corretoras no smartphone 24 horas por dia</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={permanentMobileBrokerLockEnabled}
+                  onChange={(e) => setPermanentMobileBrokerLockEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-rose-600"></div>
+              </label>
+            </div>
           </div>
 
           {/* Metas Mensais */}

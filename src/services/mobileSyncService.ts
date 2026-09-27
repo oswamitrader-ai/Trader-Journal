@@ -4,6 +4,7 @@ import { getLocalDateStr } from '../utils/calculations';
 export interface MobileLockState {
   isStopHit: boolean;
   isMaxTradesHit: boolean;
+  permanentMobileBrokerLockEnabled: boolean;
   isUserActive: boolean;
   subscriptionStatus: 'ACTIVE' | 'OVERDUE' | 'INACTIVE';
   userRole: 'ADMIN' | 'CLIENT';
@@ -30,6 +31,7 @@ class MobileSyncService {
   private currentState: MobileLockState = {
     isStopHit: false,
     isMaxTradesHit: false,
+    permanentMobileBrokerLockEnabled: false,
     isUserActive: true,
     subscriptionStatus: 'ACTIVE',
     userRole: 'CLIENT',
@@ -110,12 +112,14 @@ class MobileSyncService {
     const updated = { ...this.currentState, ...partial };
 
     const isSubscriptionBlocked = !updated.isUserActive || updated.subscriptionStatus !== 'ACTIVE';
-    const isAntiFuriaActive = updated.isStopHit || updated.isMaxTradesHit;
+    const isAntiFuriaActive = updated.isStopHit || updated.isMaxTradesHit || updated.permanentMobileBrokerLockEnabled;
     
     updated.isLockActive = isSubscriptionBlocked || isAntiFuriaActive;
     
     if (isSubscriptionBlocked) {
       updated.reason = 'Plano de Assinatura Inativo ou Suspenso';
+    } else if (updated.permanentMobileBrokerLockEnabled) {
+      updated.reason = 'Bloqueio Perpétuo de Corretoras no Celular Ativo (Eterno Stop Loss)';
     } else if (updated.isStopHit) {
       updated.reason = 'Stop Loss Diário Atingido (Trava Anti-Fúria)';
     } else if (updated.isMaxTradesHit) {
@@ -136,6 +140,36 @@ class MobileSyncService {
     this.currentState = updated;
     this.notifyNativeBridge(updated);
     this.listeners.forEach((fn) => fn(updated));
+  }
+
+  public async setPermanentMobileBrokerLock(enabled: boolean): Promise<void> {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tradelock_permanent_mobile_lock', enabled ? 'true' : 'false');
+    }
+    this.updateState({ permanentMobileBrokerLockEnabled: enabled });
+
+    if (this.currentState.userEmail) {
+      try {
+        const cleanEmail = this.currentState.userEmail.toLowerCase().trim();
+        const settingId = `settings_${cleanEmail}`;
+        const { data: existing } = await supabase.from('risk_settings').select('*').eq('id', settingId).maybeSingle();
+
+        let notesObj: any = {};
+        if (existing?.notes) {
+          try { notesObj = JSON.parse(existing.notes); } catch {}
+        }
+        notesObj.permanentMobileBrokerLockEnabled = enabled;
+
+        await supabase.from('risk_settings').upsert({
+          id: settingId,
+          dailyLossLimit: existing?.dailyLossLimit ?? this.currentState.dailyLossLimit,
+          notes: JSON.stringify(notesObj),
+          updated_at: new Date().toISOString()
+        });
+      } catch (e) {
+        console.warn('Erro ao salvar permanentMobileBrokerLockEnabled no Supabase:', e);
+      }
+    }
   }
 
   public async fetchDataAndSubscribe(email: string): Promise<void> {
@@ -187,6 +221,19 @@ class MobileSyncService {
       const dailyProfitTarget = settingsData?.dailyProfitTarget ?? settingsData?.daily_profit_target ?? 70;
       const maxTradesPerDay = settingsData?.maxTradesPerDay ?? settingsData?.max_trades_per_day ?? 4;
 
+      let extraNotes: any = {};
+      if (settingsData?.notes && typeof settingsData.notes === 'string' && settingsData.notes.trim().startsWith('{')) {
+        try { extraNotes = JSON.parse(settingsData.notes); } catch {}
+      }
+
+      const localPerm = typeof window !== 'undefined' ? localStorage.getItem('tradelock_permanent_mobile_lock') === 'true' : false;
+      const permanentMobileBrokerLockEnabled = Boolean(
+        settingsData?.permanentMobileBrokerLockEnabled ??
+        settingsData?.permanent_mobile_lock ??
+        extraNotes?.permanentMobileBrokerLockEnabled ??
+        localPerm
+      );
+
       // 3. Fetch today's trades
       const todayStr = getLocalDateStr();
       const { data: trades, error: tradesError } = await supabase
@@ -232,7 +279,7 @@ class MobileSyncService {
       const isStopHit = dailyLossLimit > 0 && (todayPnl <= -dailyLossLimit || effectivePnl <= -dailyLossLimit) && (todayPnl < 0 || effectivePnl < 0);
       const isMaxTradesHit = maxTradesPerDay > 0 && todayTradesCount >= maxTradesPerDay;
 
-      console.log(`[MobileSyncService] Dados carregados: PnL Real=${todayPnl}, Total=${totalTodayPnl}, Trades=${todayTradesCount}, StopLoss=${dailyLossLimit}`);
+      console.log(`[MobileSyncService] Dados carregados: PnL Real=${todayPnl}, Total=${totalTodayPnl}, Trades=${todayTradesCount}, StopLoss=${dailyLossLimit}, PermanentLock=${permanentMobileBrokerLockEnabled}`);
 
       this.updateState({
         todayPnl: effectivePnl,
@@ -248,6 +295,7 @@ class MobileSyncService {
         profitFactor,
         isStopHit,
         isMaxTradesHit,
+        permanentMobileBrokerLockEnabled,
         isRealtimeConnected: true,
       });
 
