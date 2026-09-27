@@ -382,16 +382,25 @@ export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise
       monthlyLossLimit: data.monthlyLossLimit != null ? Number(data.monthlyLossLimit) : 3000,
       maxTradesPerDay: data.maxTradesPerDay != null ? Number(data.maxTradesPerDay) : 5,
       alertSoundEnabled: Boolean(data.alertSoundEnabled),
-      antiFuriaCustomWindowEnabled: Boolean(data.antiFuriaCustomWindowEnabled),
-      antiFuriaStartTime: data.antiFuriaStartTime || '07:00',
-      antiFuriaEndTime: data.antiFuriaEndTime || '11:30',
-      permanentMobileBrokerLockEnabled: Boolean(data.permanentMobileBrokerLockEnabled ?? data.permanent_mobile_lock ?? extraManagement.permanentMobileBrokerLockEnabled ?? false),
-      riskLockUntil: data.riskLockUntil || extraManagement.riskLockUntil || undefined,
-      riskLockDurationDays: data.riskLockDurationDays != null ? Number(data.riskLockDurationDays) : (extraManagement.riskLockDurationDays ?? 7),
-      managementStyle: data.managementStyle || extraManagement.managementStyle || 'MAO_FIXA',
-      estimatedPayout: data.estimatedPayout != null ? Number(data.estimatedPayout) : (extraManagement.estimatedPayout ?? 87),
-      estimatedWinRate: data.estimatedWinRate != null ? Number(data.estimatedWinRate) : (extraManagement.estimatedWinRate ?? 65),
-      stakePercent: data.stakePercent != null ? Number(data.stakePercent) : (extraManagement.stakePercent ?? 2),
+      antiFuriaCustomWindowEnabled: Boolean(data.antiFuriaCustomWindowEnabled ?? extraManagement.antiFuriaCustomWindowEnabled ?? false),
+      antiFuriaStartTime: data.antiFuriaStartTime || extraManagement.antiFuriaStartTime || '07:00',
+      antiFuriaEndTime: data.antiFuriaEndTime || extraManagement.antiFuriaEndTime || '11:30',
+      permanentMobileBrokerLockEnabled: Boolean(
+        data.permanentMobileBrokerLockEnabled ??
+        data.permanent_mobile_lock ??
+        extraManagement.permanentMobileBrokerLockEnabled ??
+        false
+      ),
+      riskLockUntil: (data.riskLockUntil && data.riskLockUntil !== 'null')
+        ? data.riskLockUntil
+        : ((data.risk_lock_until && data.risk_lock_until !== 'null')
+            ? data.risk_lock_until
+            : (extraManagement.riskLockUntil || undefined)),
+      riskLockDurationDays: extraManagement.riskLockDurationDays ?? (data.riskLockDurationDays != null ? Number(data.riskLockDurationDays) : (data.risk_lock_duration_days != null ? Number(data.risk_lock_duration_days) : 7)),
+      managementStyle: extraManagement.managementStyle || data.managementStyle || data.management_style || 'MAO_FIXA',
+      estimatedPayout: extraManagement.estimatedPayout ?? (data.estimatedPayout != null ? Number(data.estimatedPayout) : 87),
+      estimatedWinRate: extraManagement.estimatedWinRate ?? (data.estimatedWinRate != null ? Number(data.estimatedWinRate) : 65),
+      stakePercent: extraManagement.stakePercent ?? (data.stakePercent != null ? Number(data.stakePercent) : 2),
     };
 
     return { data: settings, error: null };
@@ -416,6 +425,9 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       estimatedWinRate: settings.estimatedWinRate,
       stakePercent: settings.stakePercent,
       permanentMobileBrokerLockEnabled: settings.permanentMobileBrokerLockEnabled,
+      antiFuriaCustomWindowEnabled: settings.antiFuriaCustomWindowEnabled,
+      antiFuriaStartTime: settings.antiFuriaStartTime,
+      antiFuriaEndTime: settings.antiFuriaEndTime,
     });
 
     const payload: any = {
@@ -431,11 +443,17 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       antiFuriaStartTime: settings.antiFuriaStartTime || '07:00',
       antiFuriaEndTime: settings.antiFuriaEndTime || '11:30',
       riskLockUntil: settings.riskLockUntil ?? null,
+      risk_lock_until: settings.riskLockUntil ?? null,
       riskLockDurationDays: settings.riskLockDurationDays ?? 7,
+      risk_lock_duration_days: settings.riskLockDurationDays ?? 7,
       managementStyle: settings.managementStyle || 'MAO_FIXA',
+      management_style: settings.managementStyle || 'MAO_FIXA',
       estimatedPayout: settings.estimatedPayout ?? 87,
+      estimated_payout: settings.estimatedPayout ?? 87,
       estimatedWinRate: settings.estimatedWinRate ?? 65,
+      estimated_win_rate: settings.estimatedWinRate ?? 65,
       stakePercent: settings.stakePercent ?? 2,
+      stake_percent: settings.stakePercent ?? 2,
       notes: managementJson,
       updated_at: new Date().toISOString(),
     };

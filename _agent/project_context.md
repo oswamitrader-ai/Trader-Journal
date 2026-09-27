@@ -404,6 +404,16 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - Adicionada opção correspondente na página de Gestão de Risco da Web [RiskManagementPage.tsx](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/src/components/RiskManagementPage.tsx) e sincronização multi-dispositivo via `mobileSyncService.ts` e `supabase.ts`.
       - Gerado e commitado novo APK nativo compilado (`tradelock-mobile-v4.apk`).
 
+63. **Correção Definitiva da Persistência do Prazo do Compromisso de Gestão (30 Dias, etc.) (`RiskManagementPage.tsx` & `supabase.ts` & `App.tsx`)**:
+    - **Causa Raiz Identificada**:
+      1. Em `RiskManagementPage.tsx`, `handleSave` verificava `if (!isCurrentlyLocked)` antes de recalcular `newLockUntil`. Quando o compromisso já possuía uma trava ativa anterior (ex: 7 dias), a escolha de um novo prazo maior (ex: 30 dias) ignorava o recálculo e mantinha a data de expiração curta antiga.
+      2. Em `supabase.ts`, `fetchRiskSettingsFromSupabase` atribuía `riskLockDurationDays: data.riskLockDurationDays != null ? Number(data.riskLockDurationDays) : ...`, o que fazia com que o valor padrão da coluna do banco (`7`) sobrescrevesse a escolha personalizada do trader (ex: `30`) salva na coluna JSON `notes`.
+      3. Em `App.tsx`, o merge em background de `settingsRes.data` não comparava o timestamp de expiração do estado local vs nuvem, sobrescrevendo a trava ativa de 30 dias.
+    - **Soluções Implementadas**:
+      - `RiskManagementPage.tsx`: `handleSave` calcula `calculatedLockUntil = now + lockDurationDays`. Se `!isCurrentlyLocked` ou se o novo cálculo estender a data existente (`calculatedLockTime > currentLockTime`), o sistema atualiza `newLockUntil` imediatamente.
+      - `supabase.ts`: Atualizado `fetchRiskSettingsFromSupabase` para priorizar os valores serializados em `notes` (`extraManagement.riskLockDurationDays` e `extraManagement.riskLockUntil`), além de enviar mapeamento duplo (camelCase e snake_case: `risk_lock_until`, `risk_lock_duration_days`, etc.) no payload do Supabase.
+      - `App.tsx`: Atualizada a reconciliação em background para comparar `prevTime` vs `incTime` e preservar o maior timestamp de travamento ativo.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas & diretas ao código.

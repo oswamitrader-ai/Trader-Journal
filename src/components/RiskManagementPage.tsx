@@ -342,7 +342,14 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
       setWinRate(settings.estimatedWinRate ?? 65);
       setStakeValue(settings.stakePercent ?? 2);
     }
-  }, [settings?.riskLockUntil, settings?.riskLockDurationDays]);
+  }, [
+    settings?.riskLockUntil,
+    settings?.riskLockDurationDays,
+    settings?.managementStyle,
+    settings?.stakePercent,
+    settings?.estimatedPayout,
+    settings?.estimatedWinRate,
+  ]);
 
   useEffect(() => {
     const updateLockStatus = () => {
@@ -443,12 +450,16 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
   const expPeriodPnl = expDailyPnl * daysInPeriod;
 
   const handleSave = () => {
-    let newLockUntil = riskLockUntil;
+    const lockDate = new Date();
+    lockDate.setDate(lockDate.getDate() + lockDurationDays);
+    const calculatedLockUntil = lockDate.toISOString();
 
-    if (!isCurrentlyLocked) {
-      const lockDate = new Date();
-      lockDate.setDate(lockDate.getDate() + lockDurationDays);
-      newLockUntil = lockDate.toISOString();
+    let newLockUntil = riskLockUntil;
+    const currentLockTime = riskLockUntil ? new Date(riskLockUntil).getTime() : 0;
+    const calculatedLockTime = new Date(calculatedLockUntil).getTime();
+
+    if (!isCurrentlyLocked || calculatedLockTime > currentLockTime) {
+      newLockUntil = calculatedLockUntil;
     }
 
     const updated: RiskSettings = {
@@ -471,6 +482,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
       stakePercent: Math.round(stakePercentCalc * 10) / 10,
     };
 
+    setRiskLockUntil(newLockUntil);
     onSaveSettings(updated);
     alert(`🔒 Plano de Gestão de Risco salvo e Trancado por ${lockDurationDays} dias! Suas regras estão blindadas até ${new Date(newLockUntil!).toLocaleString('pt-BR')}.`);
   };

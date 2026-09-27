@@ -428,12 +428,26 @@ export default function App() {
         if (settingsRes.data) {
           setSettings((prev) => {
             const incoming = settingsRes.data!;
-            const isPrevLocked = prev.riskLockUntil && new Date(prev.riskLockUntil).getTime() > Date.now();
-            const isIncomingLocked = incoming.riskLockUntil && new Date(incoming.riskLockUntil).getTime() > Date.now();
-            if (isPrevLocked && !isIncomingLocked) {
-              return { ...incoming, riskLockUntil: prev.riskLockUntil, riskLockDurationDays: prev.riskLockDurationDays };
+            const prevTime = prev.riskLockUntil ? new Date(prev.riskLockUntil).getTime() : 0;
+            const incTime = incoming.riskLockUntil ? new Date(incoming.riskLockUntil).getTime() : 0;
+            const now = Date.now();
+
+            const isPrevActive = prevTime > now;
+            const isIncActive = incTime > now;
+
+            let effectiveLockUntil = incoming.riskLockUntil;
+            let effectiveDuration = incoming.riskLockDurationDays;
+
+            if (isPrevActive && (!isIncActive || prevTime > incTime)) {
+              effectiveLockUntil = prev.riskLockUntil;
+              effectiveDuration = prev.riskLockDurationDays;
             }
-            return incoming;
+
+            return {
+              ...incoming,
+              riskLockUntil: effectiveLockUntil,
+              riskLockDurationDays: effectiveDuration,
+            };
           });
         }
 
