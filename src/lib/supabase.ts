@@ -375,33 +375,34 @@ export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise
     }
 
     const settings: RiskSettings = {
-      initialCapital: data.initialCapital != null ? Number(data.initialCapital) : 0,
-      dailyProfitTarget: data.dailyProfitTarget != null ? Number(data.dailyProfitTarget) : 500,
-      dailyLossLimit: data.dailyLossLimit != null ? Number(data.dailyLossLimit) : 300,
-      monthlyProfitTarget: data.monthlyProfitTarget != null ? Number(data.monthlyProfitTarget) : 5000,
-      monthlyLossLimit: data.monthlyLossLimit != null ? Number(data.monthlyLossLimit) : 3000,
-      maxTradesPerDay: data.maxTradesPerDay != null ? Number(data.maxTradesPerDay) : 5,
-      alertSoundEnabled: Boolean(data.alertSoundEnabled),
-      antiFuriaCustomWindowEnabled: Boolean(data.antiFuriaCustomWindowEnabled ?? extraManagement.antiFuriaCustomWindowEnabled ?? false),
-      antiFuriaStartTime: data.antiFuriaStartTime || extraManagement.antiFuriaStartTime || '07:00',
-      antiFuriaEndTime: data.antiFuriaEndTime || extraManagement.antiFuriaEndTime || '11:30',
-      permanentMobileBrokerLockEnabled: Boolean(
-        data.permanentMobileBrokerLockEnabled ??
-        data.permanent_mobile_lock ??
-        extraManagement.permanentMobileBrokerLockEnabled ??
-        false
-      ),
-      riskLockUntil: (data.riskLockUntil && data.riskLockUntil !== 'null')
-        ? data.riskLockUntil
-        : ((data.risk_lock_until && data.risk_lock_until !== 'null')
-            ? data.risk_lock_until
-            : (extraManagement.riskLockUntil || undefined)),
+      initialCapital: extraManagement.initialCapital ?? (data.initialCapital != null ? Number(data.initialCapital) : 0),
+      dailyProfitTarget: extraManagement.dailyProfitTarget ?? (data.dailyProfitTarget != null ? Number(data.dailyProfitTarget) : 500),
+      dailyLossLimit: extraManagement.dailyLossLimit ?? (data.dailyLossLimit != null ? Number(data.dailyLossLimit) : 300),
+      monthlyProfitTarget: extraManagement.monthlyProfitTarget ?? (data.monthlyProfitTarget != null ? Number(data.monthlyProfitTarget) : 5000),
+      monthlyLossLimit: extraManagement.monthlyLossLimit ?? (data.monthlyLossLimit != null ? Number(data.monthlyLossLimit) : 2000),
+      maxTradesPerDay: extraManagement.maxTradesPerDay ?? (data.maxTradesPerDay != null ? Number(data.maxTradesPerDay) : 5),
+      alertSoundEnabled: extraManagement.alertSoundEnabled !== undefined ? Boolean(extraManagement.alertSoundEnabled) : Boolean(data.alertSoundEnabled ?? true),
+      antiFuriaCustomWindowEnabled: extraManagement.antiFuriaCustomWindowEnabled !== undefined ? Boolean(extraManagement.antiFuriaCustomWindowEnabled) : Boolean(data.antiFuriaCustomWindowEnabled ?? false),
+      antiFuriaStartTime: extraManagement.antiFuriaStartTime || data.antiFuriaStartTime || '07:00',
+      antiFuriaEndTime: extraManagement.antiFuriaEndTime || data.antiFuriaEndTime || '11:30',
+      permanentMobileBrokerLockEnabled: extraManagement.permanentMobileBrokerLockEnabled !== undefined
+        ? Boolean(extraManagement.permanentMobileBrokerLockEnabled)
+        : Boolean(data.permanentMobileBrokerLockEnabled ?? data.permanent_mobile_lock ?? false),
+      riskLockUntil: extraManagement.riskLockUntil
+        ? extraManagement.riskLockUntil
+        : ((data.riskLockUntil && data.riskLockUntil !== 'null')
+            ? data.riskLockUntil
+            : ((data.risk_lock_until && data.risk_lock_until !== 'null')
+                ? data.risk_lock_until
+                : undefined)),
       riskLockDurationDays: extraManagement.riskLockDurationDays ?? (data.riskLockDurationDays != null ? Number(data.riskLockDurationDays) : (data.risk_lock_duration_days != null ? Number(data.risk_lock_duration_days) : 7)),
       managementStyle: extraManagement.managementStyle || data.managementStyle || data.management_style || 'MAO_FIXA',
       estimatedPayout: extraManagement.estimatedPayout ?? (data.estimatedPayout != null ? Number(data.estimatedPayout) : 87),
       estimatedWinRate: extraManagement.estimatedWinRate ?? (data.estimatedWinRate != null ? Number(data.estimatedWinRate) : 65),
       stakePercent: extraManagement.stakePercent ?? (data.stakePercent != null ? Number(data.stakePercent) : 2),
-      enforceBrokerStakeLock: Boolean(data.enforceBrokerStakeLock ?? extraManagement.enforceBrokerStakeLock ?? false),
+      enforceBrokerStakeLock: extraManagement.enforceBrokerStakeLock !== undefined
+        ? Boolean(extraManagement.enforceBrokerStakeLock)
+        : Boolean(data.enforceBrokerStakeLock ?? false),
       fixedStakeAmount: extraManagement.fixedStakeAmount ?? (data.fixedStakeAmount != null ? Number(data.fixedStakeAmount) : 50),
       sorosLevel1Stake: extraManagement.sorosLevel1Stake ?? (data.sorosLevel1Stake != null ? Number(data.sorosLevel1Stake) : 93.5),
       sorosLevel2Stake: extraManagement.sorosLevel2Stake ?? (data.sorosLevel2Stake != null ? Number(data.sorosLevel2Stake) : 174.8),
@@ -425,6 +426,13 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
     const settingId = cleanEmail ? `settings_${cleanEmail}` : `settings_${getClientDeviceId()}`;
 
     const managementJson = JSON.stringify({
+      initialCapital: settings.initialCapital,
+      dailyProfitTarget: settings.dailyProfitTarget,
+      dailyLossLimit: settings.dailyLossLimit,
+      monthlyProfitTarget: settings.monthlyProfitTarget,
+      monthlyLossLimit: settings.monthlyLossLimit,
+      maxTradesPerDay: settings.maxTradesPerDay,
+      alertSoundEnabled: settings.alertSoundEnabled,
       riskLockUntil: settings.riskLockUntil,
       riskLockDurationDays: settings.riskLockDurationDays,
       managementStyle: settings.managementStyle,
