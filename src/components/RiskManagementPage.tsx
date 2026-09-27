@@ -367,6 +367,10 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
     settings?.estimatedWinRate,
     settings?.enforceBrokerStakeLock,
     settings?.fixedStakeAmount,
+    settings?.permanentMobileBrokerLockEnabled,
+    settings?.dailyProfitTarget,
+    settings?.dailyLossLimit,
+    settings?.initialCapital,
   ]);
 
   useEffect(() => {
@@ -1305,11 +1309,14 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            disabled={isCurrentlyLocked}
-            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-7 py-3 text-sm font-extrabold text-white shadow-xl shadow-emerald-950/60 hover:from-emerald-500 hover:to-teal-500 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-7 py-3 text-sm font-extrabold text-white shadow-xl shadow-emerald-950/60 hover:from-emerald-500 hover:to-teal-500 active:scale-95 transition cursor-pointer"
           >
             <Lock className="h-4 w-4" />
-            <span>Salvar &amp; Trancar Plano de Gestão ({lockDurationDays} Dias)</span>
+            <span>
+              {isCurrentlyLocked
+                ? '🔒 Salvar Atualizações de Blindagem'
+                : `Salvar & Trancar Plano de Gestão (${lockDurationDays} Dias)`}
+            </span>
           </button>
         </div>
       </main>

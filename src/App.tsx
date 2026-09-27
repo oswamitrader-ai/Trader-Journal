@@ -128,9 +128,17 @@ export default function App() {
       if (savedSettings && savedSettings !== 'undefined' && savedSettings !== 'null') {
         return { ...DEFAULT_RISK_SETTINGS, ...JSON.parse(savedSettings) };
       }
-      if (userEmailKey === 'oswamitrader@gmail.com') {
-        const legacySettings = localStorage.getItem('trader_journal_settings_v1');
-        if (legacySettings) return { ...DEFAULT_RISK_SETTINGS, ...JSON.parse(legacySettings) };
+      const keys = Object.keys(localStorage).filter((k) => k.toLowerCase().includes('settings'));
+      for (const k of keys) {
+        const val = localStorage.getItem(k);
+        if (val && val !== 'undefined' && val !== 'null') {
+          try {
+            const parsed = JSON.parse(val);
+            if (parsed && typeof parsed === 'object') {
+              return { ...DEFAULT_RISK_SETTINGS, ...parsed };
+            }
+          } catch (e) {}
+        }
       }
     } catch {}
     return DEFAULT_RISK_SETTINGS;
@@ -447,6 +455,8 @@ export default function App() {
               ...incoming,
               riskLockUntil: effectiveLockUntil,
               riskLockDurationDays: effectiveDuration,
+              permanentMobileBrokerLockEnabled: isPrevActive && prev.permanentMobileBrokerLockEnabled ? true : incoming.permanentMobileBrokerLockEnabled,
+              enforceBrokerStakeLock: isPrevActive && prev.enforceBrokerStakeLock ? true : incoming.enforceBrokerStakeLock,
             };
           });
         }
