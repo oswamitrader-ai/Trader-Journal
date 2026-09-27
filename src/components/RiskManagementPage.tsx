@@ -318,6 +318,15 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
   const [stakeMode, setStakeMode] = useState<'PERCENT' | 'FIXED'>('PERCENT');
   const [stakeValue, setStakeValue] = useState<number>(settings.stakePercent ?? 2);
 
+  // Trava Inviolável do Valor da Entrada na Corretora (Extension Stake Control)
+  const [enforceBrokerStakeLock, setEnforceBrokerStakeLock] = useState<boolean>(settings.enforceBrokerStakeLock ?? false);
+  const [fixedStakeAmount, setFixedStakeAmount] = useState<number>(settings.fixedStakeAmount ?? 50);
+  const [sorosLevel1Stake, setSorosLevel1Stake] = useState<number>(settings.sorosLevel1Stake ?? 93.5);
+  const [sorosLevel2Stake, setSorosLevel2Stake] = useState<number>(settings.sorosLevel2Stake ?? 174.8);
+  const [sorosLevel3Stake, setSorosLevel3Stake] = useState<number>(settings.sorosLevel3Stake ?? 326.9);
+  const [martingaleLevel1Stake, setMartingaleLevel1Stake] = useState<number>(settings.martingaleLevel1Stake ?? 100);
+  const [martingaleLevel2Stake, setMartingaleLevel2Stake] = useState<number>(settings.martingaleLevel2Stake ?? 200);
+
   // Time remaining calculation for active lock
   const [timeRemainingStr, setTimeRemainingStr] = useState<string>('');
   const [isCurrentlyLocked, setIsCurrentlyLocked] = useState<boolean>(false);
@@ -341,6 +350,13 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
       setPayout(settings.estimatedPayout ?? 87);
       setWinRate(settings.estimatedWinRate ?? 65);
       setStakeValue(settings.stakePercent ?? 2);
+      setEnforceBrokerStakeLock(settings.enforceBrokerStakeLock ?? false);
+      setFixedStakeAmount(settings.fixedStakeAmount ?? 50);
+      setSorosLevel1Stake(settings.sorosLevel1Stake ?? 93.5);
+      setSorosLevel2Stake(settings.sorosLevel2Stake ?? 174.8);
+      setSorosLevel3Stake(settings.sorosLevel3Stake ?? 326.9);
+      setMartingaleLevel1Stake(settings.martingaleLevel1Stake ?? 100);
+      setMartingaleLevel2Stake(settings.martingaleLevel2Stake ?? 200);
     }
   }, [
     settings?.riskLockUntil,
@@ -349,6 +365,8 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
     settings?.stakePercent,
     settings?.estimatedPayout,
     settings?.estimatedWinRate,
+    settings?.enforceBrokerStakeLock,
+    settings?.fixedStakeAmount,
   ]);
 
   useEffect(() => {
@@ -480,6 +498,13 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
       estimatedPayout: payout,
       estimatedWinRate: winRate,
       stakePercent: Math.round(stakePercentCalc * 10) / 10,
+      enforceBrokerStakeLock,
+      fixedStakeAmount,
+      sorosLevel1Stake,
+      sorosLevel2Stake,
+      sorosLevel3Stake,
+      martingaleLevel1Stake,
+      martingaleLevel2Stake,
     };
 
     setRiskLockUntil(newLockUntil);
@@ -788,6 +813,164 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                 {permanentMobileBrokerLockEnabled ? '🛑 Desativar Stop Loss Eterno' : '⚡ Ativar Bloqueio Perpétuo Móvel'}
               </button>
             </div>
+          </div>
+
+          {/* Trava Inviolável dos Valores de Entrada na Corretora (Extension Stake Control) */}
+          <div className={`mt-6 p-5 rounded-2xl border transition-all ${
+            enforceBrokerStakeLock
+              ? 'border-emerald-500 bg-emerald-950/20 shadow-lg shadow-emerald-950/40'
+              : 'border-slate-800 bg-slate-900/40'
+          }`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4 mb-4">
+              <div className="flex items-center gap-3.5">
+                <div className={`p-3 rounded-xl border ${
+                  enforceBrokerStakeLock ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'
+                }`}>
+                  <Lock className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    🔒 Trava Inviolável do Valor da Entrada na Corretora (Extensão Anti-Fúria)
+                    {enforceBrokerStakeLock && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-600 animate-pulse">
+                        STAKE BLOQUEADA NA CORRETORA 🔒
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1 max-w-3xl">
+                    Preenche automaticamente o valor da entrada na plataforma da corretora (Exnova, Quotex, IQ Option, Binomo, etc.) e <strong>BLOQUEIA a caixa de texto da entrada</strong> para que você não consiga alterar a quantidade em momentos de fúria.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={isCurrentlyLocked && enforceBrokerStakeLock}
+                onClick={() => {
+                  if (isCurrentlyLocked && enforceBrokerStakeLock) {
+                    alert('🔒 Ação Bloqueada!\n\nVocê não pode desativar a Trava do Valor de Entrada enquanto o compromisso estiver ativo.');
+                    return;
+                  }
+                  setEnforceBrokerStakeLock(!enforceBrokerStakeLock);
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shrink-0 border ${
+                  enforceBrokerStakeLock
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-900/50'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                } ${isCurrentlyLocked && enforceBrokerStakeLock ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {enforceBrokerStakeLock ? '🔒 Trava da Stake Ativada' : '⚡ Ativar Trava da Stake'}
+              </button>
+            </div>
+
+            {/* Form Fields for Stake Amounts per Management Style */}
+            {enforceBrokerStakeLock && (
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                    Valores das Entradas em R$ (Modelo: {managementStyle})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFixedStakeAmount(Math.round(stakeAmount * 100) / 100);
+                      setSorosLevel1Stake(Math.round((stakeAmount + singleWinProfit) * 100) / 100);
+                      setSorosLevel2Stake(Math.round((stakeAmount + soros1Profit) * 100) / 100);
+                      setSorosLevel3Stake(Math.round((stakeAmount + soros2Profit) * 100) / 100);
+                      setMartingaleLevel1Stake(Math.round((stakeAmount * 2) * 100) / 100);
+                      setMartingaleLevel2Stake(Math.round((stakeAmount * 4) * 100) / 100);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold transition cursor-pointer"
+                  >
+                    ⚡ Auto-Preencher com Calculadora
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Fixed / Initial Hand Stake */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold uppercase text-slate-300">
+                      1ª Entrada (Mão Inicial R$)
+                    </label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-emerald-500" />
+                      <input
+                        type="number"
+                        disabled={isCurrentlyLocked}
+                        value={fixedStakeAmount}
+                        onChange={(e) => setFixedStakeAmount(Math.max(1, Number(e.target.value)))}
+                        className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Soros Level 1 / Martingale Level 1 */}
+                  {(managementStyle.includes('SOROS') || managementStyle === 'MARTINGALE') && (
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase text-slate-300">
+                        2ª Entrada ({managementStyle.includes('SOROS') ? 'Soros Nível 1' : 'Gale Nível 1'} R$)
+                      </label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-emerald-500" />
+                        <input
+                          type="number"
+                          disabled={isCurrentlyLocked}
+                          value={managementStyle.includes('SOROS') ? sorosLevel1Stake : martingaleLevel1Stake}
+                          onChange={(e) => {
+                            const val = Math.max(1, Number(e.target.value));
+                            if (managementStyle.includes('SOROS')) setSorosLevel1Stake(val);
+                            else setMartingaleLevel1Stake(val);
+                          }}
+                          className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Soros Level 2 / Martingale Level 2 */}
+                  {(managementStyle === 'SOROS_2' || managementStyle === 'SOROS_3' || managementStyle === 'MARTINGALE') && (
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase text-slate-300">
+                        3ª Entrada ({managementStyle.includes('SOROS') ? 'Soros Nível 2' : 'Gale Nível 2'} R$)
+                      </label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-emerald-500" />
+                        <input
+                          type="number"
+                          disabled={isCurrentlyLocked}
+                          value={managementStyle.includes('SOROS') ? sorosLevel2Stake : martingaleLevel2Stake}
+                          onChange={(e) => {
+                            const val = Math.max(1, Number(e.target.value));
+                            if (managementStyle.includes('SOROS')) setSorosLevel2Stake(val);
+                            else setMartingaleLevel2Stake(val);
+                          }}
+                          className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Soros Level 3 */}
+                  {managementStyle === 'SOROS_3' && (
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase text-slate-300">
+                        4ª Entrada (Soros Nível 3 R$)
+                      </label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-emerald-500" />
+                        <input
+                          type="number"
+                          disabled={isCurrentlyLocked}
+                          value={sorosLevel3Stake}
+                          onChange={(e) => setSorosLevel3Stake(Math.max(1, Number(e.target.value)))}
+                          className="w-full rounded-xl border border-emerald-900/60 bg-emerald-950/30 pl-9 pr-3 py-2 text-xs font-bold text-emerald-200 focus:border-emerald-500 focus:outline-none font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

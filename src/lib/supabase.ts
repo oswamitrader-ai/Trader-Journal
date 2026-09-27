@@ -401,6 +401,13 @@ export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise
       estimatedPayout: extraManagement.estimatedPayout ?? (data.estimatedPayout != null ? Number(data.estimatedPayout) : 87),
       estimatedWinRate: extraManagement.estimatedWinRate ?? (data.estimatedWinRate != null ? Number(data.estimatedWinRate) : 65),
       stakePercent: extraManagement.stakePercent ?? (data.stakePercent != null ? Number(data.stakePercent) : 2),
+      enforceBrokerStakeLock: Boolean(data.enforceBrokerStakeLock ?? extraManagement.enforceBrokerStakeLock ?? false),
+      fixedStakeAmount: extraManagement.fixedStakeAmount ?? (data.fixedStakeAmount != null ? Number(data.fixedStakeAmount) : 50),
+      sorosLevel1Stake: extraManagement.sorosLevel1Stake ?? (data.sorosLevel1Stake != null ? Number(data.sorosLevel1Stake) : 93.5),
+      sorosLevel2Stake: extraManagement.sorosLevel2Stake ?? (data.sorosLevel2Stake != null ? Number(data.sorosLevel2Stake) : 174.8),
+      sorosLevel3Stake: extraManagement.sorosLevel3Stake ?? (data.sorosLevel3Stake != null ? Number(data.sorosLevel3Stake) : 326.9),
+      martingaleLevel1Stake: extraManagement.martingaleLevel1Stake ?? (data.martingaleLevel1Stake != null ? Number(data.martingaleLevel1Stake) : 100),
+      martingaleLevel2Stake: extraManagement.martingaleLevel2Stake ?? (data.martingaleLevel2Stake != null ? Number(data.martingaleLevel2Stake) : 200),
     };
 
     return { data: settings, error: null };
@@ -428,6 +435,13 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       antiFuriaCustomWindowEnabled: settings.antiFuriaCustomWindowEnabled,
       antiFuriaStartTime: settings.antiFuriaStartTime,
       antiFuriaEndTime: settings.antiFuriaEndTime,
+      enforceBrokerStakeLock: settings.enforceBrokerStakeLock,
+      fixedStakeAmount: settings.fixedStakeAmount,
+      sorosLevel1Stake: settings.sorosLevel1Stake,
+      sorosLevel2Stake: settings.sorosLevel2Stake,
+      sorosLevel3Stake: settings.sorosLevel3Stake,
+      martingaleLevel1Stake: settings.martingaleLevel1Stake,
+      martingaleLevel2Stake: settings.martingaleLevel2Stake,
     });
 
     const payload: any = {

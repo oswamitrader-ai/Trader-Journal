@@ -78,6 +78,14 @@ export interface RiskSettings {
   estimatedPayout?: number; // Payout médio % (ex: 87)
   estimatedWinRate?: number; // Win rate médio % (ex: 65)
   stakePercent?: number; // % por entrada da banca (ex: 2)
+  // Trava Inviolável do Valor da Entrada na Corretora (Extension Stake Control)
+  enforceBrokerStakeLock?: boolean; // Se true, o valor da entrada é forçado e bloqueado contra alterações na corretora
+  fixedStakeAmount?: number; // Valor fixo da mão de entrada (R$)
+  sorosLevel1Stake?: number; // Valor da mão de Soros Nível 1 (R$)
+  sorosLevel2Stake?: number; // Valor da mão de Soros Nível 2 (R$)
+  sorosLevel3Stake?: number; // Valor da mão de Soros Nível 3 (R$)
+  martingaleLevel1Stake?: number; // Valor da entrada de Martingale Nível 1 / Nível 2 (R$)
+  martingaleLevel2Stake?: number; // Valor da entrada de Martingale Nível 2 / Nível 3 (R$)
 }
 
 export interface DayPerformance {

@@ -1328,6 +1328,14 @@ export default function App() {
         data-trades-count={todayPerformance?.tradesCount || 0}
         data-capital={metrics.currentCapital}
         data-blocked-domains={JSON.stringify(blockedDomains)}
+        data-enforce-stake-lock={settings.enforceBrokerStakeLock ? 'true' : 'false'}
+        data-fixed-stake={settings.fixedStakeAmount || 50}
+        data-soros-l1={settings.sorosLevel1Stake || 93.5}
+        data-soros-l2={settings.sorosLevel2Stake || 174.8}
+        data-soros-l3={settings.sorosLevel3Stake || 326.9}
+        data-mg-l1={settings.martingaleLevel1Stake || 100}
+        data-mg-l2={settings.martingaleLevel2Stake || 200}
+        data-mgmt-style={settings.managementStyle || 'MAO_FIXA'}
         style={{ display: 'none' }}
       />
 

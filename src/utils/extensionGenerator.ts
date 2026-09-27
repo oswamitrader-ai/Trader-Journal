@@ -871,8 +871,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return promise;
   };
 
-  // ─── 4. TRAVA DO BEM: INTERCEPTADOR DE ORDENS E BOTÕES DE COMPRA/VENDA ─────
+  // ─── 4. TRAVA DO BEM: INTERCEPTADOR DE ORDENS, BOTÕES E STAKE LOCK INVIOLÁVEL ─────
   let lockState = { isStopHit: false, isMaxTradesHit: false, maxTradesPerDay: 5, todayTradesCount: 0 };
+  let stakeLockState = {
+    enforceBrokerStakeLock: false,
+    fixedStakeAmount: 50,
+    sorosLevel1Stake: 93.5,
+    sorosLevel2Stake: 174.8,
+    sorosLevel3Stake: 326.9,
+    martingaleLevel1Stake: 100,
+    martingaleLevel2Stake: 200,
+    managementStyle: 'MAO_FIXA'
+  };
+
+  let consecutiveWins = 0;
+  let consecutiveLosses = 0;
 
   window.addEventListener('message', function(event) {
     if (event.data && event.data.type === 'ANTI_FURIA_LOCK_STATE') {
@@ -882,7 +895,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         maxTradesPerDay: Number(event.data.maxTradesPerDay) || 5,
         todayTradesCount: Number(event.data.todayTradesCount) || 0
       };
+
+      if (typeof event.data.enforceBrokerStakeLock !== 'undefined') {
+        stakeLockState = {
+          enforceBrokerStakeLock: Boolean(event.data.enforceBrokerStakeLock),
+          fixedStakeAmount: Number(event.data.fixedStakeAmount) || 50,
+          sorosLevel1Stake: Number(event.data.sorosLevel1Stake) || 93.5,
+          sorosLevel2Stake: Number(event.data.sorosLevel2Stake) || 174.8,
+          sorosLevel3Stake: Number(event.data.sorosLevel3Stake) || 326.9,
+          martingaleLevel1Stake: Number(event.data.martingaleLevel1Stake) || 100,
+          martingaleLevel2Stake: Number(event.data.martingaleLevel2Stake) || 200,
+          managementStyle: event.data.managementStyle || 'MAO_FIXA'
+        };
+      }
       updateBrokerBanner();
+      enforceStakeLockOnBroker();
     }
   });
 
@@ -902,6 +929,154 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     
     alert(msg);
   }
+
+  // ─── 5. TRAVA INVIOLÁVEL DA STAKE NA CORRETORA (AUTO-FILL & READONLY LOCK) ─────
+  function findBrokerStakeInput() {
+    const selectors = [
+      'input[data-test="amount-input"]',
+      'input[name="amount"]',
+      'input.input-control__input',
+      '.amount-value input',
+      '.amount__input input',
+      'input[placeholder*="Valor"]',
+      'input[placeholder*="Amount"]',
+      'input.stake-input',
+      '.sidebar-option__amount input',
+      '.trade-option__amount input',
+      'input[type="number"][min]',
+      'input[type="text"][value*="$"]',
+      'input[type="text"][value*="R$"]'
+    ];
+
+    for (let i = 0; i < selectors.length; i++) {
+      const el = document.querySelector(selectors[i]);
+      if (el && el.offsetParent !== null) return el;
+    }
+    return null;
+  }
+
+  function getTargetStakeAmount() {
+    if (!stakeLockState.enforceBrokerStakeLock) return null;
+
+    const style = (stakeLockState.managementStyle || 'MAO_FIXA').toUpperCase();
+    
+    if (style === 'MAO_FIXA') {
+      return stakeLockState.fixedStakeAmount || 50;
+    }
+    
+    if (style === 'SOROS_1') {
+      if (consecutiveWins === 1) return stakeLockState.sorosLevel1Stake || 93.5;
+      return stakeLockState.fixedStakeAmount || 50;
+    }
+    
+    if (style === 'SOROS_2') {
+      if (consecutiveWins === 1) return stakeLockState.sorosLevel1Stake || 93.5;
+      if (consecutiveWins === 2) return stakeLockState.sorosLevel2Stake || 174.8;
+      return stakeLockState.fixedStakeAmount || 50;
+    }
+
+    if (style === 'SOROS_3') {
+      if (consecutiveWins === 1) return stakeLockState.sorosLevel1Stake || 93.5;
+      if (consecutiveWins === 2) return stakeLockState.sorosLevel2Stake || 174.8;
+      if (consecutiveWins === 3) return stakeLockState.sorosLevel3Stake || 326.9;
+      return stakeLockState.fixedStakeAmount || 50;
+    }
+
+    if (style === 'MARTINGALE' || style === 'SOROSGALE') {
+      if (consecutiveLosses === 1) return stakeLockState.martingaleLevel1Stake || 100;
+      if (consecutiveLosses === 2) return stakeLockState.martingaleLevel2Stake || 200;
+      return stakeLockState.fixedStakeAmount || 50;
+    }
+
+    return stakeLockState.fixedStakeAmount || 50;
+  }
+
+  function setNativeInputValue(input, valStr) {
+    try {
+      const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+      if (valueSetter && valueSetter.set) {
+        valueSetter.set.call(input, valStr);
+      } else {
+        input.value = valStr;
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(new Event('blur', { bubbles: true }));
+    } catch(e) {
+      input.value = valStr;
+    }
+  }
+
+  function renderStakeBadge(input, targetVal) {
+    let badge = document.getElementById('tradelock-stake-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'tradelock-stake-badge';
+      badge.style.cssText = 'position: absolute; z-index: 999999; background: #064e3b; border: 1.5px solid #10b981; color: #6ee7b7; padding: 4px 10px; border-radius: 8px; font-family: monospace; font-size: 11px; font-weight: bold; pointer-events: none; white-space: nowrap; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);';
+      document.body.appendChild(badge);
+    }
+
+    const rect = input.getBoundingClientRect();
+    badge.style.top = (window.scrollY + rect.bottom + 6) + 'px';
+    badge.style.left = (window.scrollX + rect.left) + 'px';
+    badge.innerHTML = '🔒 TradeLock: R$ ' + targetVal.toFixed(2) + ' (Entrada Inviolável)';
+  }
+
+  function enforceStakeLockOnBroker() {
+    if (!stakeLockState.enforceBrokerStakeLock) {
+      const badge = document.getElementById('tradelock-stake-badge');
+      if (badge) badge.remove();
+      return;
+    }
+
+    const input = findBrokerStakeInput();
+    if (!input) return;
+
+    const targetVal = getTargetStakeAmount();
+    if (targetVal == null || isNaN(targetVal) || targetVal <= 0) return;
+
+    const targetStr = targetVal.toString();
+
+    // Lock element properties
+    input.readOnly = true;
+    input.style.pointerEvents = 'none';
+    input.style.backgroundColor = 'rgba(6, 78, 59, 0.4)';
+    input.style.borderColor = '#10b981';
+    input.style.color = '#34d399';
+    input.style.fontWeight = 'bold';
+
+    // Override input value if trader tries to change it or if broker reset it
+    const currentValStr = input.value.replace(/[^0-9.,]/g, '').replace(',', '.');
+    const currentValNum = parseFloat(currentValStr);
+
+    if (isNaN(currentValNum) || Math.abs(currentValNum - targetVal) > 0.01) {
+      setNativeInputValue(input, targetStr);
+    }
+
+    // Attach event listeners to prevent keydown/input/paste
+    if (!input.__tradeLockAttached) {
+      input.__tradeLockAttached = true;
+      const blockEvent = function(e) {
+        if (stakeLockState.enforceBrokerStakeLock) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          setNativeInputValue(input, targetStr);
+          return false;
+        }
+      };
+      input.addEventListener('keydown', blockEvent, true);
+      input.addEventListener('keypress', blockEvent, true);
+      input.addEventListener('input', blockEvent, true);
+      input.addEventListener('paste', blockEvent, true);
+      input.addEventListener('change', blockEvent, true);
+    }
+
+    renderStakeBadge(input, targetVal);
+  }
+
+  // Run enforcement loop every 300ms
+  setInterval(enforceStakeLockOnBroker, 300);
 
   // Intercept Call / Put / Buy / Sell button clicks on broker UI
   document.addEventListener('click', function(e) {
@@ -972,7 +1147,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     banner.innerHTML = '<span>🛡️ <strong style="color:#10b981;">TRAVA DO BEM TRADELOCK:</strong> Limite diário de operações atingido (' + lockState.todayTradesCount + '/' + lockState.maxTradesPerDay + '). Novas entradas bloqueadas | Saques e histórico liberados 🟢</span>';
   }
 
-  console.log('✅ [Anti-Fúria Auto-Capture v2] WebSocket Proxy + Trava do Bem interceptores ativos.');
+  console.log('✅ [Anti-Fúria Auto-Capture v2] WebSocket Proxy + Trava da Stake Inviolável ativos.');
 })();
 `;
 
@@ -997,6 +1172,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const todayTradesCount = parseInt(bridgeEl.getAttribute('data-trades-count') || '0', 10);
       const currentCapital = parseFloat(bridgeEl.getAttribute('data-capital') || '0');
 
+      const enforceStakeLock = bridgeEl.getAttribute('data-enforce-stake-lock') === 'true';
+      const fixedStake = parseFloat(bridgeEl.getAttribute('data-fixed-stake') || '50');
+      const sorosL1 = parseFloat(bridgeEl.getAttribute('data-soros-l1') || '93.5');
+      const sorosL2 = parseFloat(bridgeEl.getAttribute('data-soros-l2') || '174.8');
+      const sorosL3 = parseFloat(bridgeEl.getAttribute('data-soros-l3') || '326.9');
+      const mgL1 = parseFloat(bridgeEl.getAttribute('data-mg-l1') || '100');
+      const mgL2 = parseFloat(bridgeEl.getAttribute('data-mg-l2') || '200');
+      const mgmtStyle = bridgeEl.getAttribute('data-mgmt-style') || 'MAO_FIXA';
+
       const rawBlocked = bridgeEl.getAttribute('data-blocked-domains');
       let blockedDomains = null;
       if (rawBlocked) {
@@ -1012,6 +1196,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         isMaxTradesHit: isMaxTradesHit,
         maxTradesPerDay: maxTradesPerDay,
         todayTradesCount: todayTradesCount,
+        enforceBrokerStakeLock: enforceStakeLock,
+        fixedStakeAmount: fixedStake,
+        sorosLevel1Stake: sorosL1,
+        sorosLevel2Stake: sorosL2,
+        sorosLevel3Stake: sorosL3,
+        martingaleLevel1Stake: mgL1,
+        martingaleLevel2Stake: mgL2,
+        managementStyle: mgmtStyle,
       }, '*');
 
       chrome.runtime.sendMessage({
@@ -1030,6 +1222,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         todayTradesCount: todayTradesCount,
         currentCapital: currentCapital,
         blockedDomains: blockedDomains,
+        enforceBrokerStakeLock: enforceStakeLock,
+        fixedStakeAmount: fixedStake,
+        sorosLevel1Stake: sorosL1,
+        sorosLevel2Stake: sorosL2,
+        sorosLevel3Stake: sorosL3,
+        martingaleLevel1Stake: mgL1,
+        martingaleLevel2Stake: mgL2,
+        managementStyle: mgmtStyle,
       });
     }
   }

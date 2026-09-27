@@ -414,6 +414,15 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - `supabase.ts`: Atualizado `fetchRiskSettingsFromSupabase` para priorizar os valores serializados em `notes` (`extraManagement.riskLockDurationDays` e `extraManagement.riskLockUntil`), além de enviar mapeamento duplo (camelCase e snake_case: `risk_lock_until`, `risk_lock_duration_days`, etc.) no payload do Supabase.
       - `App.tsx`: Atualizada a reconciliação em background para comparar `prevTime` vs `incTime` e preservar o maior timestamp de travamento ativo.
 
+64. **Implementação da Trava Inviolável dos Valores de Entrada na Corretora (`types.ts`, `RiskManagementPage.tsx`, `extensionGenerator.ts`, `App.tsx`, `supabase.ts`)**:
+    - **Funcionalidade Implementada**:
+      - Adicionado toggle **"Trava Inviolável do Valor da Entrada na Corretora"** (`enforceBrokerStakeLock`) e campos numéricos em R$ para a 1ª Entrada, Soros Nível 1, 2, 3 e Martingale Nível 1, 2 na tela de **Gestão de Risco & Metas Invioláveis** (`RiskManagementPage.tsx`).
+      - Botão **"⚡ Auto-Preencher com Calculadora"** para gerar os valores com base no capital real e payout da corretora.
+      - **Bloqueio Nativo na Extensão Chrome (`extensionGenerator.ts`)**:
+        - `injected.js` e `content.js` localizam automaticamente o campo de entrada no DOM de corretoras (Exnova, IQ Option, Quotex, Binomo, Pocket Option, etc.).
+        - Preenche o valor exato da entrada (R$) e aplica `input.readOnly = true`, `pointer-events: none`, bloqueando interceptação de `keydown`, `keypress`, `input` e `paste` para impedir alterações manuais durante o trading.
+        - Exibe selo visual neon verde `🔒 TradeLock: R$ 50.00 (Entrada Inviolável)` diretamente na interface da corretora.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas & diretas ao código.

@@ -16,6 +16,13 @@ export const DEFAULT_RISK_SETTINGS: RiskSettings = {
   estimatedPayout: 87,
   estimatedWinRate: 65,
   stakePercent: 2,
+  enforceBrokerStakeLock: false,
+  fixedStakeAmount: 50,
+  sorosLevel1Stake: 93.5,
+  sorosLevel2Stake: 174.8,
+  sorosLevel3Stake: 326.9,
+  martingaleLevel1Stake: 100,
+  martingaleLevel2Stake: 200,
 };
 
 // 100% Real data - Sem dados mockados ou pré-carregados
