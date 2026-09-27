@@ -72,6 +72,14 @@ class MainActivity : BridgeActivity() {
                     TradeLockNativeSync.saveUserEmail(context, email)
                 }
 
+                // Persiste o estado do Bloqueio Perpétuo no SharedPreferences nativo
+                if (json.has("permanentMobileBrokerLockEnabled")) {
+                    val permLock = json.optBoolean("permanentMobileBrokerLockEnabled", false)
+                    TradeLockNativeSync.getPrefs(context).edit()
+                        .putBoolean("KEY_PERMANENT_MOBILE_LOCK", permLock)
+                        .apply()
+                }
+
                 TradeLockAccessibilityService.isAntiFuriaActive = isLockActive
                 TradeLockAccessibilityService.lockReason = reason
 

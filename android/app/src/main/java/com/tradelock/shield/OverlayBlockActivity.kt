@@ -108,6 +108,15 @@ class OverlayBlockActivity : Activity() {
     }
 
     private fun startCountdownToMidnight() {
+        val reasonStr = intent.getStringExtra("LOCK_REASON") ?: ""
+        val isPermanentLock = reasonStr.contains("Perpétuo", ignoreCase = true) || reasonStr.contains("Eterno", ignoreCase = true)
+
+        if (isPermanentLock) {
+            tvTimer.text = "∞ PERPÉTUO"
+            tvTimer.setTextColor(android.graphics.Color.parseColor("#F43F5E"))
+            return
+        }
+
         val now = Calendar.getInstance()
         val midnight = Calendar.getInstance().apply {
             add(Calendar.DAY_OF_YEAR, 1)
