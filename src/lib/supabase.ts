@@ -476,6 +476,10 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       estimated_win_rate: settings.estimatedWinRate ?? 65,
       stakePercent: settings.stakePercent ?? 2,
       stake_percent: settings.stakePercent ?? 2,
+      permanentMobileBrokerLockEnabled: settings.permanentMobileBrokerLockEnabled ?? false,
+      permanent_mobile_lock: settings.permanentMobileBrokerLockEnabled ?? false,
+      enforceBrokerStakeLock: settings.enforceBrokerStakeLock ?? false,
+      enforce_broker_stake_lock: settings.enforceBrokerStakeLock ?? false,
       notes: managementJson,
       updated_at: new Date().toISOString(),
     };
@@ -484,7 +488,6 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
 
     if (error) {
       console.warn('First upsert risk_settings attempt failed, trying fallback payload with notes JSON:', error.message);
-      // Direct column insert fallback: exclude unmigrated columns, but KEEP payload.notes which holds riskLockUntil & management options in JSON
       const fallbackPayload: any = {
         id: settingId,
         initialCapital: settings.initialCapital,
@@ -502,6 +505,23 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
         console.error('Fallback upsert risk_settings also failed:', fallbackRes.error.message);
       }
     }
+
+    if (cleanEmail) {
+      const defaultPayload: any = {
+        id: 'default_settings',
+        initialCapital: settings.initialCapital,
+        dailyProfitTarget: settings.dailyProfitTarget,
+        dailyLossLimit: settings.dailyLossLimit,
+        monthlyProfitTarget: settings.monthlyProfitTarget,
+        monthlyLossLimit: settings.monthlyLossLimit,
+        maxTradesPerDay: settings.maxTradesPerDay,
+        alertSoundEnabled: settings.alertSoundEnabled,
+        notes: managementJson,
+        updated_at: new Date().toISOString(),
+      };
+      await supabase.from('risk_settings').upsert(defaultPayload).catch(() => {});
+    }
+
     notifyRealtimeSync('risk_settings', 'UPSERT');
     return { success: true, error: null };
   } catch (err: any) {

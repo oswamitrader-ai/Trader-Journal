@@ -362,7 +362,38 @@ export default function App() {
           const cloudSettings = await fetchRiskSettingsFromSupabase(currentUser.email);
           if (!isMounted) return;
           if (cloudSettings.data) {
-            setSettings(cloudSettings.data);
+            setSettings((prev) => {
+              const incoming = cloudSettings.data!;
+              const prevLockTime = prev.riskLockUntil ? new Date(prev.riskLockUntil).getTime() : 0;
+              const isPrevLocked = prevLockTime > Date.now();
+
+              const merged: RiskSettings = {
+                ...DEFAULT_RISK_SETTINGS,
+                ...incoming,
+                riskLockUntil: isPrevLocked ? prev.riskLockUntil : incoming.riskLockUntil,
+                riskLockDurationDays: isPrevLocked ? prev.riskLockDurationDays : incoming.riskLockDurationDays,
+                permanentMobileBrokerLockEnabled: Boolean(prev.permanentMobileBrokerLockEnabled || incoming.permanentMobileBrokerLockEnabled),
+                enforceBrokerStakeLock: Boolean(prev.enforceBrokerStakeLock || incoming.enforceBrokerStakeLock),
+                managementStyle: (prev.managementStyle && prev.managementStyle !== 'MAO_FIXA') ? prev.managementStyle : (incoming.managementStyle || 'MAO_FIXA'),
+                fixedStakeAmount: prev.fixedStakeAmount || incoming.fixedStakeAmount || 50,
+                sorosLevel1Stake: prev.sorosLevel1Stake || incoming.sorosLevel1Stake || 93.5,
+                sorosLevel2Stake: prev.sorosLevel2Stake || incoming.sorosLevel2Stake || 174.8,
+                sorosLevel3Stake: prev.sorosLevel3Stake || incoming.sorosLevel3Stake || 326.9,
+                martingaleLevel1Stake: prev.martingaleLevel1Stake || incoming.martingaleLevel1Stake || 100,
+                martingaleLevel2Stake: prev.martingaleLevel2Stake || incoming.martingaleLevel2Stake || 200,
+              };
+
+              try {
+                if (SETTINGS_STORAGE_KEY) {
+                  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+                }
+                localStorage.setItem('trader_journal_settings_v1', JSON.stringify(merged));
+                localStorage.setItem('trader_journal_settings_default', JSON.stringify(merged));
+              } catch (e) {}
+
+              saveRiskSettingsToSupabase(merged, currentUser.email);
+              return merged;
+            });
           }
 
           // 3. Carrega movimentações de capital do Supabase e mescla com o localStorage local (varrendo todas as chaves legadas)
