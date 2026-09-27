@@ -440,17 +440,25 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
 
     let { error } = await supabase.from('risk_settings').upsert(payload);
 
-    if (error && (error.code === 'PGRST204' || error.message.includes('column') || error.message.includes('schema'))) {
-      delete payload.antiFuriaCustomWindowEnabled;
-      delete payload.antiFuriaStartTime;
-      delete payload.antiFuriaEndTime;
-      delete payload.riskLockUntil;
-      delete payload.riskLockDurationDays;
-      delete payload.managementStyle;
-      delete payload.estimatedPayout;
-      delete payload.estimatedWinRate;
-      delete payload.stakePercent;
-      await supabase.from('risk_settings').upsert(payload);
+    if (error) {
+      console.warn('First upsert risk_settings attempt failed, trying fallback payload with notes JSON:', error.message);
+      // Direct column insert fallback: exclude unmigrated columns, but KEEP payload.notes which holds riskLockUntil & management options in JSON
+      const fallbackPayload: any = {
+        id: settingId,
+        initialCapital: settings.initialCapital,
+        dailyProfitTarget: settings.dailyProfitTarget,
+        dailyLossLimit: settings.dailyLossLimit,
+        monthlyProfitTarget: settings.monthlyProfitTarget,
+        monthlyLossLimit: settings.monthlyLossLimit,
+        maxTradesPerDay: settings.maxTradesPerDay,
+        alertSoundEnabled: settings.alertSoundEnabled,
+        notes: managementJson,
+        updated_at: new Date().toISOString(),
+      };
+      const fallbackRes = await supabase.from('risk_settings').upsert(fallbackPayload);
+      if (fallbackRes.error) {
+        console.error('Fallback upsert risk_settings also failed:', fallbackRes.error.message);
+      }
     }
     notifyRealtimeSync('risk_settings', 'UPSERT');
     return { success: true, error: null };

@@ -425,7 +425,17 @@ export default function App() {
           });
         }
 
-        if (settingsRes.data) setSettings(settingsRes.data);
+        if (settingsRes.data) {
+          setSettings((prev) => {
+            const incoming = settingsRes.data!;
+            const isPrevLocked = prev.riskLockUntil && new Date(prev.riskLockUntil).getTime() > Date.now();
+            const isIncomingLocked = incoming.riskLockUntil && new Date(incoming.riskLockUntil).getTime() > Date.now();
+            if (isPrevLocked && !isIncomingLocked) {
+              return { ...incoming, riskLockUntil: prev.riskLockUntil, riskLockDurationDays: prev.riskLockDurationDays };
+            }
+            return incoming;
+          });
+        }
 
         if (capitalRes.data && capitalRes.data.length > 0) {
           setCapitalTransactions(capitalRes.data);

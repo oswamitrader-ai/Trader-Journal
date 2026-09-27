@@ -321,11 +321,8 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
   const [timeRemainingStr, setTimeRemainingStr] = useState<string>('');
   const [isCurrentlyLocked, setIsCurrentlyLocked] = useState<boolean>(false);
 
-  const hasInitialized = useRef(false);
-
   useEffect(() => {
-    if (settings && !hasInitialized.current) {
-      hasInitialized.current = true;
+    if (settings) {
       setInitialCapital(settings.initialCapital ?? 10000);
       setDailyProfitTarget(settings.dailyProfitTarget ?? 500);
       setDailyLossLimit(settings.dailyLossLimit ?? 300);
@@ -343,7 +340,7 @@ export const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
       setWinRate(settings.estimatedWinRate ?? 65);
       setStakeValue(settings.stakePercent ?? 2);
     }
-  }, [settings]);
+  }, [settings?.riskLockUntil, settings?.riskLockDurationDays]);
 
   useEffect(() => {
     const updateLockStatus = () => {
