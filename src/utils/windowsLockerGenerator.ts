@@ -95,3 +95,65 @@ export function downloadWindowsLockerBat(blockedDomains?: string[]): void {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Gerador do Script de Desbloqueio para Windows (.BAT)
+ * Remove todas as regras de bloqueio do arquivo C:\Windows\System32\drivers\etc\hosts e limpa o cache DNS
+ */
+export function generateWindowsUnlockerBat(): string {
+  return `@echo off
+:: TradeLock Windows Unlocker v1.0
+title TradeLock - Desbloquear Corretoras no Windows
+color 0A
+
+echo ====================================================================
+echo 🔓 TRADELOCK WINDOWS UNLOCKER - DESBLOQUEIO DE CORRETORAS
+echo ====================================================================
+echo.
+echo Verificando permissoes de Administrador...
+
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo.
+    echo [ATENCAO] Este script precisa ser executado como ADMINISTRADOR.
+    echo Solicitando elevacao de privilegio...
+    powershell -Command "Start-Process '%~0' -Verb RunAs"
+    exit /b
+)
+
+echo [OK] Permissoes de Administrador confirmadas.
+echo.
+echo 1. Removendo bloqueios do arquivo hosts do Windows...
+
+set HOSTS_FILE=%SystemRoot%\System32\drivers\etc\hosts
+
+attrib -r -s -h "%HOSTS_FILE%" >nul 2>&1
+
+powershell -ExecutionPolicy Bypass -Command "(Get-Content '%HOSTS_FILE%') | Where-Object { $_ -notmatch 'TRADELOCK' -and $_ -notmatch '127.0.0.1 exnova' -and $_ -notmatch '127.0.0.1 iqoption' -and $_ -notmatch '127.0.0.1 quotex' -and $_ -notmatch '127.0.0.1 qxbroker' -and $_ -notmatch '127.0.0.1 pocketoption' -and $_ -notmatch '127.0.0.1 binomo' -and $_ -notmatch '127.0.0.1 olymptrade' -and $_ -notmatch '127.0.0.1 avalonbroker' -and $_ -notmatch '127.0.0.1 hiove' -and $_ -notmatch '127.0.0.1 bullex' -and $_ -notmatch '127.0.0.1 com.br' } | Set-Content '%HOSTS_FILE%' -Force"
+
+echo.
+echo 2. Limpando cache de DNS do Windows (ipconfig /flushdns)...
+ipconfig /flushdns >nul
+
+echo.
+echo ====================================================================
+echo ✅ CORRETORAS DESBLOQUEADAS COM SUCESSO NO WINDOWS!
+echo O acesso aos sites (Exnova, Quotex, IQ Option, etc.) foi restaurado.
+echo ====================================================================
+echo.
+pause
+`;
+}
+
+export function downloadWindowsUnlockerBat(): void {
+  const content = generateWindowsUnlockerBat();
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'tradelock-desbloquear-windows.bat';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

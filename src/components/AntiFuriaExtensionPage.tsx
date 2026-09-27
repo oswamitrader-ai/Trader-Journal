@@ -27,7 +27,10 @@ import {
   generateExtensionZip,
   DEFAULT_BLOCKED_DOMAINS,
 } from '../utils/extensionGenerator';
-import { downloadWindowsLockerBat } from '../utils/windowsLockerGenerator';
+import {
+  downloadWindowsLockerBat,
+  downloadWindowsUnlockerBat,
+} from '../utils/windowsLockerGenerator';
 
 interface AntiFuriaExtensionPageProps {
   onBackToDashboard: () => void;
@@ -785,13 +788,23 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
                 </p>
               </div>
 
-              <button
-                onClick={() => downloadWindowsLockerBat(domains)}
-                className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs transition shadow-lg shadow-emerald-950/50 shrink-0"
-              >
-                <Download className="h-4 w-4" />
-                <span>Baixar Blindagem Windows (.BAT)</span>
-              </button>
+              <div className="flex flex-col sm:flex-row items-center gap-2.5 shrink-0">
+                <button
+                  onClick={() => downloadWindowsLockerBat(domains)}
+                  className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs transition shadow-lg shadow-emerald-950/50 w-full sm:w-auto"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Baixar Blindagem Windows (.BAT)</span>
+                </button>
+
+                <button
+                  onClick={() => downloadWindowsUnlockerBat()}
+                  className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono font-bold text-xs transition border border-slate-700 w-full sm:w-auto"
+                >
+                  <RefreshCw className="h-4 w-4 text-emerald-400" />
+                  <span>Desbloquear Corretoras (.BAT)</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
