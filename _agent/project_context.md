@@ -423,6 +423,20 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
         - Preenche o valor exato da entrada (R$) e aplica `input.readOnly = true`, `pointer-events: none`, bloqueando interceptação de `keydown`, `keypress`, `input` e `paste` para impedir alterações manuais durante o trading.
         - Exibe selo visual neon verde `🔒 TradeLock: R$ 50.00 (Entrada Inviolável)` diretamente na interface da corretora.
 
+65. **Correção do Posicionamento do Escudo da Trava de Stake na Corretora Exnova (`extensionGenerator.ts`)**:
+    - **Causa Raiz do Sumiço/Deslocamento**:
+      1. A corretora Exnova renderiza sua interface principal via WebGL Canvas (`glengine.wasm`), sem elementos `<input>` padrão do HTML DOM na barra de negociação lateral.
+      2. A função `enforceStakeLockOnBroker()` possuía uma verificação precoce `if (!input) return;` que interrompia a execução antes de chamar `renderStakeShieldOverlay()`, fazendo com que o escudo sumisse por completo.
+      3. A busca por elementos pai expandia até wrappers de largura 100% (`left: 0`), fazendo a trava de segurança rejeitar containers por achar que estavam no lado esquerdo da tela (`rect.left < vw * 0.5`).
+    - **Soluções Aplicadas**:
+      - Removida a trava `if (!input) return;` para que `renderStakeShieldOverlay()` seja sempre executado, mesmo em plataformas Canvas sem `<input>` no DOM.
+      - Refatorada a função `findInvestArea()` com 4 estratégias de posicionamento ultra-precisas:
+        - **S1 (Texto)**: Busca por rótulos de texto "Invest / Valor / Amount" com restrição estrita do lado direito da tela (`left >= vw * 0.5` e largura máxima de 300px).
+        - **S2 (CSS)**: Seletores CSS diretos para campos de valor no lado direito.
+        - **S3 (Botões ACIMA/ABAIXO)**: Localiza os botões de execução e calcula o posicionamento dinâmico do escudo ~190px acima do botão verde (exatamente sobre o campo "Invest $ 10").
+        - **S4 (Fallback Fixo)**: Posição fixa de fallback no canto superior direito (`top: 75px`, `left: vw - 175px`, `width: 160px`, `height: 48px`).
+      - Escudo neon verde ajustado com texto compacto `🔒 R$ XX.XX` cobrindo exatamente o campo de investimento no painel da Exnova.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas & diretas ao código.
