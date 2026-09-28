@@ -439,6 +439,11 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
       - **Injeção de Stake Inviolável no WebSocket (`WebSocket.prototype.send`)**:
         - O interceptador de pacotes WebSocket varre requisições de ordens (`binary-options.open-option`, `digital-options.place-digital-option`, `buyv3`, etc.) e sobrescreve automaticamente os campos de valor (`price`, `amount`, `sum`, `stake`) com o valor exato da gestão do trader (ex: `R$ 50,00`) antes do envio aos servidores da corretora.
 
+66. **Recompilação do App Mobile Android TradeLock (`tradelock-mobile-v4.apk`) & Atualização do Bundle Desktop**:
+    - Recompilado o projeto Android via Gradle (`gradlew assembleDebug`), atualizado o arquivo [tradelock-mobile-v4.apk](file:///c:/Users/swami/Downloads/Trader-Journal-main/Trader-Journal-main/tradelock-mobile-v4.apk) na raiz com o último build nativo.
+    - Atualizado o build de produção Desktop / Web (`npm run build`) compilando os pacotes finais (`dist/` e `dist/server.cjs`).
+    - Todos os commits e artefatos sincronizados e enviados com sucesso para a ramificação remota `main`.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas & diretas ao código.
