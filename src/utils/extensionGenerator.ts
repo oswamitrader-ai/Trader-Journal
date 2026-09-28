@@ -986,13 +986,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // ─── 5. TRAVA INVIOLÁVEL DA STAKE NA CORRETORA (PHYSICAL SHIELD OVERLAY & AUTO-FILL) ─────
   function findBrokerStakeInput() {
+    const halfWidth = (window.innerWidth || 1200) * 0.45;
+
+    // Helper: Verify element is visible and located on the right side of the screen (trading sidebar)
+    function isRightSidebarInput(input) {
+      if (!input || input.type === 'hidden' || input.type === 'submit' || input.type === 'checkbox' || input.type === 'radio') return false;
+      const rect = input.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      
+      const isRightHalf = rect.left >= halfWidth;
+      const inSidebar = input.closest('.sidebar, .right-panel, [class*="sidebar"], [class*="panel-right"], [class*="traderoom-sidebar"], .sidebar-option, .amount-value, .deal-block') !== null;
+      return isRightHalf || inSidebar;
+    }
+
     const selectors = [
       'input[data-test="amount-input"]',
       '.amount-value input',
       '.amount-value .input-control__input',
       '.sidebar-option__amount input',
       '.sidebar-option__amount .input-control__input',
-      '.input-control__input',
+      '.sidebar-option input',
       '.sidebar-input input',
       'input.sidebar-input',
       'input[name="amount"]',
@@ -1009,25 +1022,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       'div[class*="amount"] input',
       'div[class*="invest"] input',
       'div[class*="stake"] input',
-      '.sidebar-option input',
       '.sidebar-block input',
     ];
 
     for (let i = 0; i < selectors.length; i++) {
-      const el = document.querySelector(selectors[i]);
-      if (el && (el.offsetWidth > 0 || el.offsetHeight > 0 || el.offsetParent !== null)) {
-        return el;
+      const els = Array.from(document.querySelectorAll(selectors[i]));
+      for (const el of els) {
+        if (isRightSidebarInput(el)) {
+          return el;
+        }
       }
     }
 
-    const allInputs = Array.from(document.querySelectorAll('input'));
-    const visibleInputs = allInputs.filter(input => {
-      if (input.type === 'hidden' || input.type === 'submit' || input.type === 'checkbox' || input.type === 'radio') return false;
-      const rect = input.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0;
-    });
+    const allInputs = Array.from(document.querySelectorAll('input')).filter(isRightSidebarInput);
 
-    for (const input of visibleInputs) {
+    for (const input of allInputs) {
       let p = input.parentElement;
       for (let depth = 0; depth < 3 && p; depth++) {
         const text = (p.innerText || p.textContent || '').toLowerCase();
@@ -1040,19 +1049,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     const sidebar = document.querySelector('.sidebar, .sidebar-option, .right-panel, [class*="sidebar"], [class*="panel-right"], [class*="traderoom-sidebar"]');
     if (sidebar) {
-      const sidebarInputs = Array.from(sidebar.querySelectorAll('input')).filter(inp => inp.type !== 'hidden');
+      const sidebarInputs = Array.from(sidebar.querySelectorAll('input')).filter(isRightSidebarInput);
       if (sidebarInputs.length > 0) {
         return sidebarInputs[0];
       }
     }
 
     const tradeBtn = document.querySelector('.btn-call, .btn-put, [class*="call"], [class*="put"], [class*="buy"], [class*="sell"], [data-test*="call"], [data-test*="put"]');
-    if (tradeBtn && visibleInputs.length > 0) {
+    if (tradeBtn && allInputs.length > 0) {
       const btnRect = tradeBtn.getBoundingClientRect();
       let closestInput = null;
       let minDistance = Infinity;
 
-      for (const input of visibleInputs) {
+      for (const input of allInputs) {
         const inputRect = input.getBoundingClientRect();
         const dist = Math.hypot(inputRect.left - btnRect.left, inputRect.top - btnRect.top);
         if (dist < minDistance) {
@@ -1063,7 +1072,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (closestInput) return closestInput;
     }
 
-    return visibleInputs[0] || null;
+    return allInputs[0] || null;
   }
 
   function getTargetStakeAmount() {
