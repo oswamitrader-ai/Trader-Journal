@@ -216,6 +216,14 @@ chrome.runtime.onInstalled.addListener(() => {
       lastDate: (function() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })(),
       strictMode: true,
       testMode: false,
+      enforceBrokerStakeLock: true,
+      fixedStakeAmount: ${fixedStakeAmount || 50},
+      sorosLevel1Stake: ${sorosLevel1Stake || 93.5},
+      sorosLevel2Stake: ${sorosLevel2Stake || 174.8},
+      sorosLevel3Stake: ${sorosLevel3Stake || 326.9},
+      martingaleLevel1Stake: ${martingaleLevel1Stake || 100},
+      martingaleLevel2Stake: ${martingaleLevel2Stake || 200},
+      managementStyle: "${managementStyle || 'MAO_FIXA'}",
     });
   });
 
@@ -963,50 +971,82 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   function findBrokerStakeInput() {
     const selectors = [
       'input[data-test="amount-input"]',
+      '.amount-value input',
+      '.amount-value .input-control__input',
+      '.sidebar-option__amount input',
+      '.sidebar-option__amount .input-control__input',
+      '.input-control__input',
+      '.sidebar-input input',
+      'input.sidebar-input',
       'input[name="amount"]',
+      'input[name="sum"]',
+      'input[name="value"]',
       'input[name="stake"]',
       'input[name="investment"]',
-      'input.input-control__input',
-      '.amount-value input',
       '.amount__input input',
       '.amount-input input',
-      'input[placeholder*="Valor"]',
-      'input[placeholder*="Amount"]',
-      'input[placeholder*="Invest"]',
-      'input.stake-input',
-      '.sidebar-option__amount input',
-      '.trade-option__amount input',
       '.deal-block__amount input',
       '.section-deal__amount input',
-      'input.sidebar-input',
       '[data-test*="amount"] input',
       '[data-test*="stake"] input',
+      'div[class*="amount"] input',
+      'div[class*="invest"] input',
+      'div[class*="stake"] input',
+      '.sidebar-option input',
+      '.sidebar-block input',
     ];
 
     for (let i = 0; i < selectors.length; i++) {
       const el = document.querySelector(selectors[i]);
-      if (el && el.offsetParent !== null) return el;
-    }
-
-    const allInputs = document.querySelectorAll('input');
-    for (let i = 0; i < allInputs.length; i++) {
-      const input = allInputs[i];
-      if (input.type === 'hidden' || input.offsetParent === null) continue;
-      const name = (input.name || '').toLowerCase();
-      const id = (input.id || '').toLowerCase();
-      const testAttr = (input.getAttribute('data-test') || '').toLowerCase();
-      const cls = (input.className || '').toString().toLowerCase();
-      const placeholder = (input.placeholder || '').toLowerCase();
-
-      if (
-        name === 'amount' || id === 'amount' || testAttr.includes('amount') ||
-        cls.includes('amount') || cls.includes('stake') || name === 'stake' ||
-        placeholder.includes('amount') || placeholder.includes('valor') || placeholder.includes('invest')
-      ) {
-        return input;
+      if (el && (el.offsetWidth > 0 || el.offsetHeight > 0 || el.offsetParent !== null)) {
+        return el;
       }
     }
-    return null;
+
+    const allInputs = Array.from(document.querySelectorAll('input'));
+    const visibleInputs = allInputs.filter(input => {
+      if (input.type === 'hidden' || input.type === 'submit' || input.type === 'checkbox' || input.type === 'radio') return false;
+      const rect = input.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+
+    for (const input of visibleInputs) {
+      let p = input.parentElement;
+      for (let depth = 0; depth < 3 && p; depth++) {
+        const text = (p.innerText || p.textContent || '').toLowerCase();
+        if (text.includes('invest') || text.includes('amount') || text.includes('stake') || text.includes('valor') || text.includes('monto')) {
+          return input;
+        }
+        p = p.parentElement;
+      }
+    }
+
+    const sidebar = document.querySelector('.sidebar, .sidebar-option, .right-panel, [class*="sidebar"], [class*="panel-right"], [class*="traderoom-sidebar"]');
+    if (sidebar) {
+      const sidebarInputs = Array.from(sidebar.querySelectorAll('input')).filter(inp => inp.type !== 'hidden');
+      if (sidebarInputs.length > 0) {
+        return sidebarInputs[0];
+      }
+    }
+
+    const tradeBtn = document.querySelector('.btn-call, .btn-put, [class*="call"], [class*="put"], [class*="buy"], [class*="sell"], [data-test*="call"], [data-test*="put"]');
+    if (tradeBtn && visibleInputs.length > 0) {
+      const btnRect = tradeBtn.getBoundingClientRect();
+      let closestInput = null;
+      let minDistance = Infinity;
+
+      for (const input of visibleInputs) {
+        const inputRect = input.getBoundingClientRect();
+        const dist = Math.hypot(inputRect.left - btnRect.left, inputRect.top - btnRect.top);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestInput = input;
+        }
+      }
+      if (closestInput) return closestInput;
+    }
+
+    return visibleInputs[0] || null;
   }
 
   function getTargetStakeAmount() {
@@ -1091,12 +1131,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       document.body.appendChild(overlay);
     }
 
-    const top = window.scrollY + rect.top;
-    const left = window.scrollX + rect.left;
+    overlay.style.cssText = 'position: fixed !important; top: ' + rect.top + 'px !important; left: ' + rect.left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.45) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 20px rgba(16, 185, 129, 0.6) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(2px) !important;';
 
-    overlay.style.cssText = 'position: absolute !important; top: ' + top + 'px !important; left: ' + left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 9999999 !important; background: rgba(6, 78, 59, 0.35) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(1px) !important;';
-
-    overlay.innerHTML = '<div style="font-family: monospace; font-size: 11px; font-weight: 900; color: #34d399; background: #064e3b; padding: 3px 8px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">🔒 R$ ' + targetVal.toFixed(2) + ' (INVIOLÁVEL)</div>';
+    overlay.innerHTML = '<div style="font-family: monospace; font-size: 11px; font-weight: 900; color: #34d399; background: #064e3b; padding: 4px 10px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">🔒 R$ ' + targetVal.toFixed(2) + ' (STAKE INVIOLÁVEL)</div>';
 
     if (!overlay.__shieldEventsAttached) {
       overlay.__shieldEventsAttached = true;
@@ -1152,6 +1189,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const currentValNum = parseFloat(currentValStr);
 
     if (isNaN(currentValNum) || Math.abs(currentValNum - targetVal) > 0.01) {
+      console.log('🔒 [Anti-Fúria StakeLock] Forçando valor da stake no input:', targetStr);
       setNativeInputValue(input, targetStr);
     }
 
@@ -1393,7 +1431,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         isMaxTradesHit: Boolean(data.isMaxTradesHit),
         maxTradesPerDay: Number(data.maxTradesPerDay) || 5,
         todayTradesCount: Number(data.todayTradesCount) || 0,
-        enforceBrokerStakeLock: Boolean(data.enforceBrokerStakeLock),
+        enforceBrokerStakeLock: typeof data.enforceBrokerStakeLock !== 'undefined' ? Boolean(data.enforceBrokerStakeLock) : true,
         fixedStakeAmount: Number(data.fixedStakeAmount) || 50,
         sorosLevel1Stake: Number(data.sorosLevel1Stake) || 93.5,
         sorosLevel2Stake: Number(data.sorosLevel2Stake) || 174.8,

@@ -1776,6 +1776,33 @@ export default function App() {
         dailyPerformance={dailyPerformance}
         monthlyPerformance={monthlyPerformance}
       />
+
+      {/* Elemento de ponte DOM para a Extensão Anti-Fúria sincronizar instantaneamente via content script */}
+      <div
+        id="trader-anti-furia-status-bridge"
+        style={{ display: 'none' }}
+        data-is-stop-hit={String(isStopHit)}
+        data-is-max-trades-hit={String(isMaxTradesHit)}
+        data-max-trades-per-day={String(settings.maxTradesPerDay)}
+        data-today-pnl={String(todayPnl)}
+        data-loss-limit={String(settings.dailyLossLimit)}
+        data-winrate={String(metrics.winRate)}
+        data-profit-factor={String(metrics.profitFactor)}
+        data-trades-count={String(todayTradesCount)}
+        data-capital={String(metrics.currentCapital)}
+        data-enforce-stake-lock={String(Boolean(settings.enforceBrokerStakeLock))}
+        data-fixed-stake={String(settings.fixedStakeAmount || 50)}
+        data-soros-l1={String(settings.sorosLevel1Stake || 93.5)}
+        data-soros-l2={String(settings.sorosLevel2Stake || 174.8)}
+        data-soros-l3={String(settings.sorosLevel3Stake || 326.9)}
+        data-mg-l1={String(settings.martingaleLevel1Stake || 100)}
+        data-mg-l2={String(settings.martingaleLevel2Stake || 200)}
+        data-mgmt-style={settings.managementStyle || 'MAO_FIXA'}
+        data-blocked-domains={JSON.stringify(blockedDomains)}
+        data-user-active={String(currentUser?.active ?? true)}
+        data-sub-status={currentUser?.subscriptionStatus || 'ACTIVE'}
+        data-user-role={currentUser?.role || 'CLIENT'}
+      />
     </div>
   );
 }
