@@ -7,6 +7,14 @@ export interface ExtensionConfig {
   antiFuriaCustomWindowEnabled?: boolean;
   antiFuriaStartTime?: string;
   antiFuriaEndTime?: string;
+  enforceBrokerStakeLock?: boolean;
+  fixedStakeAmount?: number;
+  sorosLevel1Stake?: number;
+  sorosLevel2Stake?: number;
+  sorosLevel3Stake?: number;
+  martingaleLevel1Stake?: number;
+  martingaleLevel2Stake?: number;
+  managementStyle?: string;
 }
 
 export const DEFAULT_BLOCKED_DOMAINS = [
@@ -84,6 +92,15 @@ export async function generateExtensionZip(config?: Partial<ExtensionConfig>): P
   const customWindowEnabled = config?.antiFuriaCustomWindowEnabled ?? false;
   const startTime = config?.antiFuriaStartTime || '07:00';
   const endTime = config?.antiFuriaEndTime || '11:30';
+
+  const enforceBrokerStakeLock = config?.enforceBrokerStakeLock ?? true;
+  const fixedStakeAmount = config?.fixedStakeAmount ?? 50;
+  const sorosLevel1Stake = config?.sorosLevel1Stake ?? 93.5;
+  const sorosLevel2Stake = config?.sorosLevel2Stake ?? 174.8;
+  const sorosLevel3Stake = config?.sorosLevel3Stake ?? 326.9;
+  const martingaleLevel1Stake = config?.martingaleLevel1Stake ?? 100;
+  const martingaleLevel2Stake = config?.martingaleLevel2Stake ?? 200;
+  const managementStyle = config?.managementStyle || 'MAO_FIXA';
 
   // 1. MANIFEST.JSON
   const manifest = {
