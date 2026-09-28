@@ -986,39 +986,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // ─── 5. TRAVA INVIOLÁVEL DA STAKE NA CORRETORA (PHYSICAL SHIELD OVERLAY & AUTO-FILL) ─────
   function findBrokerStakeInput() {
-    const minLeft = (window.innerWidth || 1200) * 0.4;
-
-    // 1. Scan containers on the right side of the screen containing Invest/Amount
-    const containers = Array.from(document.querySelectorAll('.sidebar-option, .sidebar-block, .amount-value, [class*="amount"], [class*="invest"], [class*="stake"], .sidebar, [class*="sidebar"]'));
-    for (const c of containers) {
-      const r = c.getBoundingClientRect();
-      if (r.width > 20 && r.height > 15 && r.left >= minLeft) {
-        const txt = (c.innerText || c.textContent || '').toLowerCase();
-        if ((txt.includes('invest') || txt.includes('valor') || txt.includes('amount') || txt.includes('stake') || txt.includes('monto')) &&
-            !txt.includes('expir') && !txt.includes('tempo') && !txt.includes('time') && !txt.includes('lucro') && !txt.includes('profit')) {
-          const inp = c.querySelector('input');
-          if (inp) return inp;
-        }
-      }
-    }
-
-    // 2. Direct selector list on right side
+    // 1. Direct specific selectors for broker invest input
     const selectors = [
       'input[data-test="amount-input"]',
-      '.amount-value input',
-      '.amount-value .input-control__input',
       '.sidebar-option__amount input',
       '.sidebar-option__amount .input-control__input',
-      '.sidebar-option input',
-      '.sidebar-input input',
-      'input.sidebar-input',
-      'input[name="amount"]',
-      'input[name="sum"]',
-      'input[name="value"]',
-      'input[name="stake"]',
-      'input[name="investment"]',
-      '.amount__input input',
-      '.amount-input input',
+      '.amount-value input',
+      '.amount-value .input-control__input',
       '.deal-block__amount input',
       '.section-deal__amount input',
       '[data-test*="amount"] input',
@@ -1026,31 +1000,52 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       'div[class*="amount"] input',
       'div[class*="invest"] input',
       'div[class*="stake"] input',
+      '.sidebar-option input',
       '.sidebar-block input',
+      'input[name="amount"]',
+      'input[name="sum"]',
+      'input[name="value"]',
+      'input[name="stake"]',
+      'input[name="investment"]',
     ];
 
     for (let i = 0; i < selectors.length; i++) {
       const els = Array.from(document.querySelectorAll(selectors[i]));
       for (const el of els) {
-        const r = el.getBoundingClientRect();
-        if (r.left >= minLeft || el.closest('.sidebar, .right-panel, [class*="sidebar"], [class*="panel-right"], [class*="traderoom-sidebar"]')) {
+        // Exclude inputs in header, search, or asset selection tabs at top-left
+        const isHeaderOrSearch = el.closest('.header, .navbar, [class*="search"], [class*="asset-select"], [class*="tab-bar"], [class*="asset-name"]') !== null;
+        if (!isHeaderOrSearch) {
           return el;
         }
       }
     }
 
-    // 3. Fallback: closest input to CALL/PUT/ACIMA/ABAIXO button on the right side
-    const tradeBtn = document.querySelector('.btn-call, .btn-put, [class*="call"], [class*="put"], [class*="buy"], [class*="sell"], [data-test*="call"], [data-test*="put"]');
-    if (tradeBtn) {
-      const btnRect = tradeBtn.getBoundingClientRect();
-      const rightInputs = Array.from(document.querySelectorAll('input')).filter(inp => {
-        const r = inp.getBoundingClientRect();
-        return (r.left >= minLeft || inp.closest('.sidebar, [class*="sidebar"]')) && inp.type !== 'hidden';
-      });
+    // 2. Scan visible inputs by checking parent container text (Invest / Valor / Stake / Amount)
+    const allInputs = Array.from(document.querySelectorAll('input')).filter(inp => {
+      if (inp.type === 'hidden' || inp.type === 'submit' || inp.type === 'checkbox' || inp.type === 'radio') return false;
+      const isHeaderOrSearch = inp.closest('.header, .navbar, [class*="search"], [class*="asset-select"], [class*="tab-bar"]') !== null;
+      return !isHeaderOrSearch;
+    });
 
+    for (const input of allInputs) {
+      let p = input.parentElement;
+      for (let depth = 0; depth < 4 && p; depth++) {
+        const text = (p.innerText || p.textContent || '').toLowerCase();
+        if ((text.includes('invest') || text.includes('amount') || text.includes('stake') || text.includes('valor') || text.includes('monto')) &&
+            !text.includes('expir') && !text.includes('tempo') && !text.includes('time') && !text.includes('busca')) {
+          return input;
+        }
+        p = p.parentElement;
+      }
+    }
+
+    // 3. Fallback: closest input to CALL / PUT / ACIMA / ABAIXO trading buttons
+    const tradeBtn = document.querySelector('.btn-call, .btn-put, [class*="call"], [class*="put"], [class*="buy"], [class*="sell"], [data-test*="call"], [data-test*="put"]');
+    if (tradeBtn && allInputs.length > 0) {
+      const btnRect = tradeBtn.getBoundingClientRect();
       let closestInput = null;
       let minDistance = Infinity;
-      for (const input of rightInputs) {
+      for (const input of allInputs) {
         const inputRect = input.getBoundingClientRect();
         const dist = Math.hypot(inputRect.left - btnRect.left, inputRect.top - btnRect.top);
         if (dist < minDistance) {
@@ -1061,7 +1056,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (closestInput) return closestInput;
     }
 
-    return null;
+    return allInputs[0] || null;
   }
 
   function getTargetStakeAmount() {
@@ -1138,10 +1133,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     if (!input) return;
 
-    const container = input.closest('.sidebar-option, .sidebar-block, .amount-value, .amount-control, .amount__input, .deal-block__amount, .sidebar-option__amount, [class*="amount"], [class*="stake"], [class*="invest"]') || input.parentElement || input;
+    const container = input.closest('.sidebar-option__amount, .sidebar-option, .amount-value, .amount-control, .amount__input, .deal-block__amount, [class*="amount"], [class*="stake"], [class*="invest"]') || input.parentElement || input;
     const rect = container.getBoundingClientRect();
 
-    if (rect.width === 0 || rect.height === 0 || rect.left < (window.innerWidth || 1200) * 0.35) {
+    if (rect.width === 0 || rect.height === 0) return;
+
+    // Prevent rendering on header/top-left asset search (if top < 40 and left < 350)
+    if (rect.top < 40 && rect.left < 350) {
       if (overlay) overlay.style.display = 'none';
       return;
     }
@@ -1152,6 +1150,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       document.body.appendChild(overlay);
     }
 
+    overlay.style.display = 'flex';
     overlay.style.cssText = 'position: fixed !important; top: ' + rect.top + 'px !important; left: ' + rect.left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.55) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 25px rgba(16, 185, 129, 0.7) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(3px) !important;';
 
     overlay.innerHTML = '<div style="font-family: monospace; font-size: 11px; font-weight: 900; color: #34d399; background: #064e3b; padding: 4px 10px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">🔒 R$ ' + targetVal.toFixed(2) + ' (STAKE INVIOLÁVEL)</div>';
