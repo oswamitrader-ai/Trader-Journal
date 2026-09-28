@@ -50,7 +50,7 @@ import { ImportTradesModal } from './components/ImportTradesModal';
 import { PDFReportModal } from './components/PDFReportModal';
 import { LoginScreen } from './components/LoginScreen';
 import { AdminUserManagementPage } from './components/AdminUserManagementPage';
-import { getCurrentSession, logoutUser } from './utils/auth';
+import { getCurrentSession, setCurrentSession, logoutUser, INITIAL_ADMIN_USER } from './utils/auth';
 import { SystemUser } from './types';
 import {
   supabase,
@@ -74,7 +74,14 @@ type ActiveView = 'all' | 'charts' | 'calendar' | 'weekly' | 'trades';
 
 export default function App() {
   // 0. Auth State
-  const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => getCurrentSession());
+  const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => {
+    const session = getCurrentSession();
+    if (!session && typeof window !== 'undefined' && (window as any).electronAPI?.isDesktop) {
+      setCurrentSession(INITIAL_ADMIN_USER);
+      return INITIAL_ADMIN_USER;
+    }
+    return session;
+  });
   const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS' | 'ANTI_FURIA' | 'RISK_MANAGEMENT' | 'CAPITAL_MANAGEMENT'>('JOURNAL');
 
   const handleLogout = () => {

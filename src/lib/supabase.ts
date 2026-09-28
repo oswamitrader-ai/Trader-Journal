@@ -461,25 +461,6 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       monthlyLossLimit: settings.monthlyLossLimit,
       maxTradesPerDay: settings.maxTradesPerDay,
       alertSoundEnabled: settings.alertSoundEnabled,
-      antiFuriaCustomWindowEnabled: settings.antiFuriaCustomWindowEnabled ?? false,
-      antiFuriaStartTime: settings.antiFuriaStartTime || '07:00',
-      antiFuriaEndTime: settings.antiFuriaEndTime || '11:30',
-      riskLockUntil: settings.riskLockUntil ?? null,
-      risk_lock_until: settings.riskLockUntil ?? null,
-      riskLockDurationDays: settings.riskLockDurationDays ?? 7,
-      risk_lock_duration_days: settings.riskLockDurationDays ?? 7,
-      managementStyle: settings.managementStyle || 'MAO_FIXA',
-      management_style: settings.managementStyle || 'MAO_FIXA',
-      estimatedPayout: settings.estimatedPayout ?? 87,
-      estimated_payout: settings.estimatedPayout ?? 87,
-      estimatedWinRate: settings.estimatedWinRate ?? 65,
-      estimated_win_rate: settings.estimatedWinRate ?? 65,
-      stakePercent: settings.stakePercent ?? 2,
-      stake_percent: settings.stakePercent ?? 2,
-      permanentMobileBrokerLockEnabled: settings.permanentMobileBrokerLockEnabled ?? false,
-      permanent_mobile_lock: settings.permanentMobileBrokerLockEnabled ?? false,
-      enforceBrokerStakeLock: settings.enforceBrokerStakeLock ?? false,
-      enforce_broker_stake_lock: settings.enforceBrokerStakeLock ?? false,
       notes: managementJson,
       updated_at: new Date().toISOString(),
     };
@@ -487,56 +468,17 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
     let { error } = await supabase.from('risk_settings').upsert(payload);
 
     if (error) {
-      console.warn('Primeira tentativa de salvar risk_settings falhou, tentando fallback:', error.message);
-      const fallbackWithNotes: any = {
-        id: settingId,
-        initialCapital: settings.initialCapital,
-        dailyProfitTarget: settings.dailyProfitTarget,
-        dailyLossLimit: settings.dailyLossLimit,
-        monthlyProfitTarget: settings.monthlyProfitTarget,
-        monthlyLossLimit: settings.monthlyLossLimit,
-        maxTradesPerDay: settings.maxTradesPerDay,
-        alertSoundEnabled: settings.alertSoundEnabled,
-        notes: managementJson,
-        updated_at: new Date().toISOString(),
-      };
-      
-      let fbRes = await supabase.from('risk_settings').upsert(fallbackWithNotes);
-
-      if (fbRes.error) {
-        console.warn('Fallback com notes falhou, tentando payload limpo sem coluna notes:', fbRes.error.message);
-        const cleanPayload: any = {
-          id: settingId,
-          initialCapital: settings.initialCapital,
-          dailyProfitTarget: settings.dailyProfitTarget,
-          dailyLossLimit: settings.dailyLossLimit,
-          monthlyProfitTarget: settings.monthlyProfitTarget,
-          monthlyLossLimit: settings.monthlyLossLimit,
-          maxTradesPerDay: settings.maxTradesPerDay,
-          alertSoundEnabled: settings.alertSoundEnabled,
-          updated_at: new Date().toISOString(),
-        };
-        fbRes = await supabase.from('risk_settings').upsert(cleanPayload);
-        if (fbRes.error) {
-          console.error('Fallback final de risk_settings falhou:', fbRes.error.message);
-        }
-      }
+      console.warn('Erro ao salvar no banco (certifique-se de que a coluna notes existe):', error.message);
     }
 
-    if (cleanEmail) {
-      const defaultPayload: any = {
-        id: 'default_settings',
-        initialCapital: settings.initialCapital,
-        dailyProfitTarget: settings.dailyProfitTarget,
-        dailyLossLimit: settings.dailyLossLimit,
-        monthlyProfitTarget: settings.monthlyProfitTarget,
-        monthlyLossLimit: settings.monthlyLossLimit,
-        maxTradesPerDay: settings.maxTradesPerDay,
-        alertSoundEnabled: settings.alertSoundEnabled,
-        updated_at: new Date().toISOString(),
-      };
-      await supabase.from('risk_settings').upsert(defaultPayload).catch(() => {});
-    }
+    // Sempre salva um clone exato das configurações no default_settings para sincronia perfeita de novos dispositivos ou sessões sem login
+    const defaultPayload: any = {
+      ...payload,
+      id: 'default_settings',
+    };
+    try {
+      await supabase.from('risk_settings').upsert(defaultPayload);
+    } catch (e) {}
 
     notifyRealtimeSync('risk_settings', 'UPSERT');
     return { success: true, error: null };

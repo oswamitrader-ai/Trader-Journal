@@ -29,8 +29,16 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Servidor Trader rodando em http://localhost:${PORT}`);
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`⚠️ Servidor dev já está em execução na porta ${PORT}. Utilizando servidor ativo...`);
+    } else {
+      console.error('Erro no servidor:', err);
+    }
   });
 }
 

@@ -32,6 +32,7 @@ const START_MARKER = '# --- TRADELOCK ANTI-FURIA SHIELD START ---';
 const END_MARKER = '# --- TRADELOCK ANTI-FURIA SHIELD END ---';
 
 let watchdogInterval = null;
+let uacDeniedUntil = 0;
 
 function getBaseDomain(domainStr) {
   const clean = domainStr.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
@@ -49,11 +50,13 @@ function updateHostsFile(isLockActive, domains = DEFAULT_BROKER_DOMAINS) {
   try {
     if (!fs.existsSync(HOSTS_PATH)) return false;
 
-    let content = fs.readFileSync(HOSTS_PATH, 'utf8');
+    const originalContent = fs.readFileSync(HOSTS_PATH, 'utf8');
 
     // Remove bloco existente do TradeLock
     const regex = new RegExp(`${START_MARKER}[\\s\\S]*?${END_MARKER}\\n?`, 'g');
-    content = content.replace(regex, '');
+    const cleanContent = originalContent.replace(regex, '');
+
+    let newContent = cleanContent.trimEnd();
 
     if (isLockActive) {
       const uniqueDomains = Array.from(new Set([...DEFAULT_BROKER_DOMAINS, ...domains]));
@@ -82,17 +85,27 @@ function updateHostsFile(isLockActive, domains = DEFAULT_BROKER_DOMAINS) {
         lines.push(`127.0.0.1 ${hostEntry}`);
       });
       lines.push(END_MARKER);
-      lines.push(''); // nova linha
 
-      content = content.trimEnd() + '\n\n' + lines.join('\n');
+      newContent = cleanContent.trimEnd() + '\n\n' + lines.join('\n');
+    }
+
+    // 🔒 VERIFICAÇÃO ANTI-SPAM UAC: Se o arquivo hosts já possui exatamente o conteúdo desejado, não faz nada!
+    if (originalContent.trim() === newContent.trim()) {
+      return true;
     }
 
     try {
-      fs.writeFileSync(HOSTS_PATH, content, 'utf8');
+      fs.writeFileSync(HOSTS_PATH, newContent + '\n', 'utf8');
+      console.log('🛡️ [TradeLock Daemon] Arquivo hosts atualizado com sucesso.');
     } catch (writeErr) {
       if (writeErr && (writeErr.code === 'EPERM' || writeErr.code === 'EACCES')) {
+        const now = Date.now();
+        if (uacDeniedUntil && now < uacDeniedUntil) {
+          return false;
+        }
+
         const tempPath = path.join(require('os').tmpdir(), 'tradelock_hosts_tmp.txt');
-        fs.writeFileSync(tempPath, content, 'utf8');
+        fs.writeFileSync(tempPath, newContent + '\n', 'utf8');
         const psCmd = `powershell -Command "Start-Process powershell -ArgumentList '-Command Copy-Item -Path ''${tempPath}'' -Destination ''${HOSTS_PATH}'' -Force' -Verb RunAs -WindowStyle Hidden"`;
         exec(psCmd, (psErr) => {
           if (!psErr) {
@@ -102,6 +115,7 @@ function updateHostsFile(isLockActive, domains = DEFAULT_BROKER_DOMAINS) {
             }
           } else {
             console.warn('[TradeLock Daemon] Privilégio de Administrador negado pelo usuário no UAC.');
+            uacDeniedUntil = Date.now() + 30000;
           }
         });
         return true;
@@ -119,7 +133,7 @@ function updateHostsFile(isLockActive, domains = DEFAULT_BROKER_DOMAINS) {
 
     return true;
   } catch (err) {
-    console.error('[TradeLock Daemon] Falha ao atualizar arquivo hosts (requer privilégios de Administrador):', err.message);
+    console.error('[TradeLock Daemon] Falha ao atualizar arquivo hosts:', err.message);
     return false;
   }
 }
