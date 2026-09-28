@@ -985,118 +985,182 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   // ─── DETECT INVEST AREA: Find the visual "Invest" widget on the right sidebar ─────
-  // Returns { inputEl: HTMLInputElement|null, containerEl: HTMLElement }
+  // Returns { inputEl: HTMLInputElement|null, containerEl: HTMLElement|{getBoundingClientRect} }
+  let _cachedInvestRect = null;
+  let _cachedInvestInput = null;
+  let _cacheTime = 0;
+
   function findInvestArea() {
+    // Cache for 500ms to avoid expensive DOM scans every 150ms
+    const now = Date.now();
+    if (_cachedInvestRect && now - _cacheTime < 500) {
+      return { inputEl: _cachedInvestInput, containerEl: _cachedInvestRect };
+    }
+
     const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
-    const RIGHT_THRESHOLD = vw * 0.55;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 768;
+    const RIGHT_HALF = vw * 0.5;
 
-    // ──── STRATEGY 1: Find text "Invest" label on the RIGHT side of the screen ────
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-    let investLabelNode = null;
-    let investLabelRect = null;
-
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      const txt = (node.textContent || '').trim().toLowerCase();
-      if (txt === 'invest' || txt === 'investir' || txt === 'investment' || txt === 'valor' || txt.startsWith('invest ')) {
-        const parent = node.parentElement;
-        if (!parent) continue;
-        const r = parent.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0 && r.left >= RIGHT_THRESHOLD) {
-          investLabelNode = parent;
-          investLabelRect = r;
-          console.log('🔍 [StakeLock] Encontrou label "' + txt + '" no lado direito em x=' + Math.round(r.left) + ', y=' + Math.round(r.top));
-          break;
+    // ──── STRATEGY 1: TreeWalker - broad text match ────
+    try {
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        const raw = (node.textContent || '').trim();
+        const txt = raw.toLowerCase();
+        if (txt.length > 0 && txt.length < 30 && (txt.includes('invest') || txt === 'valor' || txt === 'monto' || txt === 'amount')) {
+          const parent = node.parentElement;
+          if (!parent) continue;
+          const r = parent.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0 && r.left >= RIGHT_HALF) {
+            console.log('🔍 [StakeLock S1] Label "' + raw + '" encontrada em x=' + Math.round(r.left) + ' y=' + Math.round(r.top));
+            let container = parent;
+            for (let d = 0; d < 5; d++) {
+              const p = container.parentElement;
+              if (!p || p === document.body) break;
+              const pr = p.getBoundingClientRect();
+              if (pr.width > 250 || pr.height > 80) break;
+              container = p;
+            }
+            _cachedInvestRect = container;
+            _cachedInvestInput = container.querySelector('input') || (container.parentElement ? container.parentElement.querySelector('input') : null);
+            _cacheTime = now;
+            return { inputEl: _cachedInvestInput, containerEl: container };
+          }
         }
       }
-    }
+    } catch(e) {}
 
-    if (investLabelNode) {
-      // Walk up to find the container that wraps the label + value + buttons
-      let container = investLabelNode;
-      for (let depth = 0; depth < 6; depth++) {
-        const p = container.parentElement;
-        if (!p || p === document.body) break;
-        const pr = p.getBoundingClientRect();
-        // Stop walking when container gets too wide (> 250px) or too tall (> 80px)
-        // We want the small widget, not the entire sidebar
-        if (pr.width > 250 || pr.height > 80) break;
-        container = p;
-      }
-
-      const containerRect = container.getBoundingClientRect();
-      console.log('🔍 [StakeLock] Container de invest: tag=' + container.tagName + ', class=' + (container.className || '').toString().substring(0, 60) + ', rect=' + Math.round(containerRect.left) + ',' + Math.round(containerRect.top) + ' ' + Math.round(containerRect.width) + 'x' + Math.round(containerRect.height));
-
-      // Try to find an input inside or near this container
-      let inputEl = container.querySelector('input');
-      if (!inputEl) {
-        // Check siblings and nearby containers for the input
-        const nearbyParent = container.parentElement;
-        if (nearbyParent) {
-          inputEl = nearbyParent.querySelector('input');
+    // ──── STRATEGY 2: querySelectorAll('*') - ANY element with invest-like text on right side ────
+    try {
+      const allEls = document.querySelectorAll('span, div, label, p, a, td, th');
+      for (const el of allEls) {
+        const txt = (el.textContent || '').trim().toLowerCase();
+        if (txt.length > 0 && txt.length < 30 && (txt.includes('invest') || txt === 'amount' || txt === 'valor')) {
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0 && r.left >= RIGHT_HALF && r.top < vh * 0.4) {
+            console.log('🔍 [StakeLock S2] Elemento "' + txt + '" em x=' + Math.round(r.left) + ' y=' + Math.round(r.top));
+            let container = el;
+            for (let d = 0; d < 5; d++) {
+              const p = container.parentElement;
+              if (!p || p === document.body) break;
+              const pr = p.getBoundingClientRect();
+              if (pr.width > 250 || pr.height > 80) break;
+              container = p;
+            }
+            _cachedInvestRect = container;
+            _cachedInvestInput = container.querySelector('input');
+            _cacheTime = now;
+            return { inputEl: _cachedInvestInput, containerEl: container };
+          }
         }
       }
+    } catch(e) {}
 
-      return { inputEl: inputEl, containerEl: container };
-    }
-
-    // ──── STRATEGY 2: Classic input selectors, prefer RIGHT side ────
+    // ──── STRATEGY 3: Classic input selectors ────
     const selectors = [
       'input[data-test="amount-input"]',
       '.sidebar-option__amount input',
       '.amount-value input',
-      '.deal-block__amount input',
-      '[data-test*="amount"] input',
       'div[class*="amount"] input',
       'div[class*="invest"] input',
-      '.sidebar-option input',
       'input[name="amount"]',
       'input[name="sum"]',
       'input[name="stake"]',
     ];
-
-    let bestInput = null;
-    let bestLeft = -1;
     for (const sel of selectors) {
       const els = document.querySelectorAll(sel);
       for (const el of els) {
         const r = el.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0 && r.left > bestLeft) {
-          bestLeft = r.left;
-          bestInput = el;
+        if (r.width > 0 && r.height > 0 && r.left >= RIGHT_HALF) {
+          console.log('🔍 [StakeLock S3] Input via CSS "' + sel + '" em x=' + Math.round(r.left));
+          _cachedInvestRect = el.parentElement || el;
+          _cachedInvestInput = el;
+          _cacheTime = now;
+          return { inputEl: el, containerEl: _cachedInvestRect };
         }
       }
     }
 
-    if (bestInput && bestLeft >= RIGHT_THRESHOLD) {
-      console.log('🔍 [StakeLock] Input encontrado via seletor CSS no lado direito, x=' + Math.round(bestLeft));
-      return { inputEl: bestInput, containerEl: bestInput.parentElement || bestInput };
-    }
+    // ──── STRATEGY 4: Find ACIMA/ABAIXO/CALL/PUT buttons and position ABOVE them ────
+    const btnSelectors = [
+      'button[class*="call"]', 'button[class*="put"]',
+      'div[class*="call"]', 'div[class*="put"]',
+      '[data-test*="call"]', '[data-test*="put"]',
+      'button[class*="buy"]', 'button[class*="sell"]',
+    ];
+    let topMostTradeBtn = null;
+    let topMostY = Infinity;
 
-    // ──── STRATEGY 3: Scan ALL inputs, pick rightmost ────
-    const allInputs = Array.from(document.querySelectorAll('input')).filter(inp => {
-      if (inp.type === 'hidden' || inp.type === 'submit' || inp.type === 'checkbox' || inp.type === 'radio') return false;
-      const r = inp.getBoundingClientRect();
-      return r.width > 0 && r.height > 0;
-    });
-
-    let rightmostInput = null;
-    let maxL = -1;
-    for (const inp of allInputs) {
-      const r = inp.getBoundingClientRect();
-      if (r.left > maxL) {
-        maxL = r.left;
-        rightmostInput = inp;
+    for (const sel of btnSelectors) {
+      const btns = document.querySelectorAll(sel);
+      for (const btn of btns) {
+        const r = btn.getBoundingClientRect();
+        if (r.width > 30 && r.height > 30 && r.left >= RIGHT_HALF && r.top < topMostY) {
+          topMostY = r.top;
+          topMostTradeBtn = btn;
+        }
       }
     }
 
-    if (rightmostInput) {
-      console.log('🔍 [StakeLock] Usando input mais à direita como fallback, x=' + Math.round(maxL));
-      return { inputEl: rightmostInput, containerEl: rightmostInput.parentElement || rightmostInput };
+    // Also search by visible text content for ACIMA/ABAIXO/HIGHER/LOWER buttons
+    if (!topMostTradeBtn) {
+      const allBtns = document.querySelectorAll('button, div[role="button"], a[role="button"]');
+      for (const btn of allBtns) {
+        const txt = (btn.textContent || '').trim().toLowerCase();
+        if (txt.includes('acima') || txt.includes('abaixo') || txt.includes('higher') || txt.includes('lower') || txt.includes('call') || txt.includes('put')) {
+          const r = btn.getBoundingClientRect();
+          if (r.width > 30 && r.height > 30 && r.left >= RIGHT_HALF && r.top < topMostY) {
+            topMostY = r.top;
+            topMostTradeBtn = btn;
+          }
+        }
+      }
     }
 
-    console.warn('⚠️ [StakeLock] Nenhum elemento de invest encontrado na página');
-    return { inputEl: null, containerEl: null };
+    if (topMostTradeBtn) {
+      const btnRect = topMostTradeBtn.getBoundingClientRect();
+      console.log('🔍 [StakeLock S4] Botão de trade encontrado em x=' + Math.round(btnRect.left) + ' y=' + Math.round(btnRect.top) + '. Posicionando escudo ACIMA.');
+      
+      // The Invest field is typically ~170-200px ABOVE the first trade button, at the same X
+      // Create a virtual rect for the invest area
+      const investTop = Math.max(btnRect.top - 200, 100); // ~200px above ACIMA button
+      const investLeft = btnRect.left;
+      const investWidth = Math.min(btnRect.width, 120);
+      const investHeight = 35;
+
+      const virtualContainer = {
+        getBoundingClientRect: function() {
+          return { top: investTop, left: investLeft, width: investWidth, height: investHeight, right: investLeft + investWidth, bottom: investTop + investHeight, x: investLeft, y: investTop };
+        },
+        querySelector: function() { return null; },
+      };
+
+      _cachedInvestRect = virtualContainer;
+      _cachedInvestInput = null;
+      _cacheTime = now;
+      return { inputEl: null, containerEl: virtualContainer };
+    }
+
+    // ──── STRATEGY 5: ABSOLUTE FALLBACK - Fixed position relative to viewport ────
+    // On Exnova, the Invest field is consistently at top-right, about 270px from right edge, 120px from top
+    console.log('🔍 [StakeLock S5] Usando posição fixa relativa à viewport como último recurso');
+    const fixedLeft = vw - 270;
+    const fixedTop = 120;
+    const fixedWidth = 100;
+    const fixedHeight = 35;
+
+    const fixedContainer = {
+      getBoundingClientRect: function() {
+        return { top: fixedTop, left: fixedLeft, width: fixedWidth, height: fixedHeight, right: fixedLeft + fixedWidth, bottom: fixedTop + fixedHeight, x: fixedLeft, y: fixedTop };
+      },
+      querySelector: function() { return null; },
+    };
+
+    _cachedInvestRect = fixedContainer;
+    _cachedInvestInput = null;
+    _cacheTime = now;
+    return { inputEl: null, containerEl: fixedContainer };
   }
 
   function findBrokerStakeInput() {
