@@ -435,7 +435,9 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
         - **S2 (CSS)**: Seletores CSS diretos para campos de valor no lado direito.
         - **S3 (Botões ACIMA/ABAIXO)**: Localiza os botões de execução e calcula o posicionamento dinâmico do escudo ~190px acima do botão verde (exatamente sobre o campo "Invest $ 10").
         - **S4 (Fallback Fixo)**: Posição fixa de fallback no canto superior direito (`top: 75px`, `left: vw - 175px`, `width: 160px`, `height: 48px`).
-      - Escudo neon verde ajustado com texto compacto `🔒 R$ XX.XX` cobrindo exatamente o campo de investimento no painel da Exnova.
+      - Escudo neon verde ajustado com texto compacto `🔒 R$ XX.XX` e largura expandida (+50px) cobrindo 100% dos botões `+` e `-` na borda direita.
+      - **Injeção de Stake Inviolável no WebSocket (`WebSocket.prototype.send`)**:
+        - O interceptador de pacotes WebSocket varre requisições de ordens (`binary-options.open-option`, `digital-options.place-digital-option`, `buyv3`, etc.) e sobrescreve automaticamente os campos de valor (`price`, `amount`, `sum`, `stake`) com o valor exato da gestão do trader (ex: `R$ 50,00`) antes do envio aos servidores da corretora.
 
 ## Regras Importantes
 - Ambiente: Windows.
