@@ -924,8 +924,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // ─── 4. TRAVA DO BEM: INTERCEPTADOR DE ORDENS, BOTÕES E STAKE LOCK INVIOLÁVEL ─────
   let lockState = { isStopHit: false, isMaxTradesHit: false, maxTradesPerDay: 5, todayTradesCount: 0 };
+  let lockState = { isStopHit: false, isMaxTradesHit: false, maxTradesPerDay: 5, todayTradesCount: 0 };
   let stakeLockState = {
-    enforceBrokerStakeLock: false,
+    enforceBrokerStakeLock: true,
     fixedStakeAmount: 50,
     sorosLevel1Stake: 93.5,
     sorosLevel2Stake: 174.8,
@@ -991,9 +992,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   let _cacheTime = 0;
 
   function findInvestArea() {
-    // Cache for 500ms to avoid expensive DOM scans every 150ms
+    // Cache for 300ms to keep smooth performance while avoiding stale rects
     const now = Date.now();
-    if (_cachedInvestRect && now - _cacheTime < 500) {
+    if (_cachedInvestRect && now - _cacheTime < 300) {
       return { inputEl: _cachedInvestInput, containerEl: _cachedInvestRect };
     }
 
@@ -1001,27 +1002,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const vh = window.innerHeight || document.documentElement.clientHeight || 768;
     const RIGHT_HALF = vw * 0.5;
 
-    // ──── STRATEGY 1: TreeWalker - broad text match ────
+    // ──── STRATEGY 1: Search by text content ("invest", "valor", "amount", "monto") on right half ────
     try {
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
       while (walker.nextNode()) {
         const node = walker.currentNode;
         const raw = (node.textContent || '').trim();
         const txt = raw.toLowerCase();
-        if (txt.length > 0 && txt.length < 30 && (txt.includes('invest') || txt === 'valor' || txt === 'monto' || txt === 'amount')) {
+        if (txt.length > 0 && txt.length < 25 && (txt.includes('invest') || txt === 'valor' || txt === 'monto' || txt === 'amount')) {
           const parent = node.parentElement;
           if (!parent) continue;
           const r = parent.getBoundingClientRect();
-          if (r.width > 0 && r.height > 0 && r.left >= RIGHT_HALF) {
+          if (r.width > 0 && r.height > 0 && r.left >= RIGHT_HALF && r.left <= vw - 20) {
             console.log('🔍 [StakeLock S1] Label "' + raw + '" encontrada em x=' + Math.round(r.left) + ' y=' + Math.round(r.top));
+            
             let container = parent;
-            for (let d = 0; d < 5; d++) {
+            for (let d = 0; d < 3; d++) {
               const p = container.parentElement;
               if (!p || p === document.body) break;
               const pr = p.getBoundingClientRect();
-              if (pr.width > 250 || pr.height > 80) break;
+              if (pr.left < RIGHT_HALF || pr.width > 300 || pr.height > 100) break;
               container = p;
             }
+            
             _cachedInvestRect = container;
             _cachedInvestInput = container.querySelector('input') || (container.parentElement ? container.parentElement.querySelector('input') : null);
             _cacheTime = now;
@@ -1031,33 +1034,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
     } catch(e) {}
 
-    // ──── STRATEGY 2: querySelectorAll('*') - ANY element with invest-like text on right side ────
-    try {
-      const allEls = document.querySelectorAll('span, div, label, p, a, td, th');
-      for (const el of allEls) {
-        const txt = (el.textContent || '').trim().toLowerCase();
-        if (txt.length > 0 && txt.length < 30 && (txt.includes('invest') || txt === 'amount' || txt === 'valor')) {
-          const r = el.getBoundingClientRect();
-          if (r.width > 0 && r.height > 0 && r.left >= RIGHT_HALF && r.top < vh * 0.4) {
-            console.log('🔍 [StakeLock S2] Elemento "' + txt + '" em x=' + Math.round(r.left) + ' y=' + Math.round(r.top));
-            let container = el;
-            for (let d = 0; d < 5; d++) {
-              const p = container.parentElement;
-              if (!p || p === document.body) break;
-              const pr = p.getBoundingClientRect();
-              if (pr.width > 250 || pr.height > 80) break;
-              container = p;
-            }
-            _cachedInvestRect = container;
-            _cachedInvestInput = container.querySelector('input');
-            _cacheTime = now;
-            return { inputEl: _cachedInvestInput, containerEl: container };
-          }
-        }
-      }
-    } catch(e) {}
-
-    // ──── STRATEGY 3: Classic input selectors ────
+    // ──── STRATEGY 2: CSS Selectors for input on right half ────
     const selectors = [
       'input[data-test="amount-input"]',
       '.sidebar-option__amount input',
@@ -1067,94 +1044,112 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       'input[name="amount"]',
       'input[name="sum"]',
       'input[name="stake"]',
+      'input[type="number"]',
+      'input[type="text"]'
     ];
     for (const sel of selectors) {
-      const els = document.querySelectorAll(sel);
-      for (const el of els) {
-        const r = el.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0 && r.left >= RIGHT_HALF) {
-          console.log('🔍 [StakeLock S3] Input via CSS "' + sel + '" em x=' + Math.round(r.left));
-          _cachedInvestRect = el.parentElement || el;
-          _cachedInvestInput = el;
-          _cacheTime = now;
-          return { inputEl: el, containerEl: _cachedInvestRect };
+      try {
+        const els = document.querySelectorAll(sel);
+        for (const el of els) {
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0 && r.left >= RIGHT_HALF && r.left <= vw - 20 && r.top < vh * 0.5) {
+            console.log('🔍 [StakeLock S2] Input via CSS "' + sel + '" em x=' + Math.round(r.left) + ' y=' + Math.round(r.top));
+            const container = el.parentElement || el;
+            _cachedInvestRect = container;
+            _cachedInvestInput = el;
+            _cacheTime = now;
+            return { inputEl: el, containerEl: container };
+          }
         }
-      }
+      } catch(e) {}
     }
 
-    // ──── STRATEGY 4: Find ACIMA/ABAIXO/CALL/PUT buttons and position ABOVE them ────
-    const btnSelectors = [
-      'button[class*="call"]', 'button[class*="put"]',
-      'div[class*="call"]', 'div[class*="put"]',
-      '[data-test*="call"]', '[data-test*="put"]',
-      'button[class*="buy"]', 'button[class*="sell"]',
-    ];
-    let topMostTradeBtn = null;
-    let topMostY = Infinity;
+    // ──── STRATEGY 3: Find trade buttons (ACIMA / ABAIXO / CALL / PUT) on right half ────
+    try {
+      const btnSelectors = [
+        'button[class*="call"]', 'button[class*="put"]',
+        'div[class*="call"]', 'div[class*="put"]',
+        '[data-test*="call"]', '[data-test*="put"]',
+        'button[class*="buy"]', 'button[class*="sell"]',
+      ];
+      let topMostTradeBtn = null;
+      let topMostY = Infinity;
 
-    for (const sel of btnSelectors) {
-      const btns = document.querySelectorAll(sel);
-      for (const btn of btns) {
-        const r = btn.getBoundingClientRect();
-        if (r.width > 30 && r.height > 30 && r.left >= RIGHT_HALF && r.top < topMostY) {
-          topMostY = r.top;
-          topMostTradeBtn = btn;
-        }
-      }
-    }
-
-    // Also search by visible text content for ACIMA/ABAIXO/HIGHER/LOWER buttons
-    if (!topMostTradeBtn) {
-      const allBtns = document.querySelectorAll('button, div[role="button"], a[role="button"]');
-      for (const btn of allBtns) {
-        const txt = (btn.textContent || '').trim().toLowerCase();
-        if (txt.includes('acima') || txt.includes('abaixo') || txt.includes('higher') || txt.includes('lower') || txt.includes('call') || txt.includes('put')) {
+      for (const sel of btnSelectors) {
+        const btns = document.querySelectorAll(sel);
+        for (const btn of btns) {
           const r = btn.getBoundingClientRect();
-          if (r.width > 30 && r.height > 30 && r.left >= RIGHT_HALF && r.top < topMostY) {
+          if (r.width > 20 && r.height > 20 && r.left >= RIGHT_HALF && r.left <= vw - 10 && r.top < topMostY) {
             topMostY = r.top;
             topMostTradeBtn = btn;
           }
         }
       }
-    }
 
-    if (topMostTradeBtn) {
-      const btnRect = topMostTradeBtn.getBoundingClientRect();
-      console.log('🔍 [StakeLock S4] Botão de trade encontrado em x=' + Math.round(btnRect.left) + ' y=' + Math.round(btnRect.top) + '. Posicionando escudo ACIMA.');
-      
-      // The Invest field is typically ~170-200px ABOVE the first trade button, at the same X
-      // Create a virtual rect for the invest area
-      const investTop = Math.max(btnRect.top - 200, 100); // ~200px above ACIMA button
-      const investLeft = btnRect.left;
-      const investWidth = Math.min(btnRect.width, 120);
-      const investHeight = 35;
+      if (!topMostTradeBtn) {
+        const allBtns = document.querySelectorAll('button, div[role="button"], a[role="button"]');
+        for (const btn of allBtns) {
+          const txt = (btn.textContent || '').trim().toLowerCase();
+          if (txt.includes('acima') || txt.includes('abaixo') || txt.includes('higher') || txt.includes('lower') || txt.includes('call') || txt.includes('put')) {
+            const r = btn.getBoundingClientRect();
+            if (r.width > 20 && r.height > 20 && r.left >= RIGHT_HALF && r.left <= vw - 10 && r.top < topMostY) {
+              topMostY = r.top;
+              topMostTradeBtn = btn;
+            }
+          }
+        }
+      }
 
-      const virtualContainer = {
-        getBoundingClientRect: function() {
-          return { top: investTop, left: investLeft, width: investWidth, height: investHeight, right: investLeft + investWidth, bottom: investTop + investHeight, x: investLeft, y: investTop };
-        },
-        querySelector: function() { return null; },
-      };
+      if (topMostTradeBtn) {
+        const btnRect = topMostTradeBtn.getBoundingClientRect();
+        console.log('🔍 [StakeLock S3] Botão de trade em x=' + Math.round(btnRect.left) + ' y=' + Math.round(btnRect.top) + '. Posicionando escudo ACIMA.');
+        
+        // On Exnova, the Invest widget is ~190px ABOVE the ACIMA button
+        const investTop = Math.max(btnRect.top - 190, 75);
+        const investLeft = Math.max(btnRect.left, RIGHT_HALF);
+        const investWidth = Math.min(Math.max(btnRect.width, 130), 180);
+        const investHeight = 45;
 
-      _cachedInvestRect = virtualContainer;
-      _cachedInvestInput = null;
-      _cacheTime = now;
-      return { inputEl: null, containerEl: virtualContainer };
-    }
+        const virtualContainer = {
+          top: investTop,
+          left: investLeft,
+          width: investWidth,
+          height: investHeight,
+          right: investLeft + investWidth,
+          bottom: investTop + investHeight,
+          getBoundingClientRect: function() {
+            return { top: this.top, left: this.left, width: this.width, height: this.height, right: this.right, bottom: this.bottom, x: this.left, y: this.top };
+          },
+          querySelector: function() { return null; }
+        };
 
-    // ──── STRATEGY 5: ABSOLUTE FALLBACK - Fixed position relative to viewport ────
-    // On Exnova, the Invest field is consistently at top-right, about 270px from right edge, 120px from top
-    console.log('🔍 [StakeLock S5] Usando posição fixa relativa à viewport como último recurso');
-    const fixedLeft = vw - 270;
-    const fixedTop = 120;
-    const fixedWidth = 100;
-    const fixedHeight = 35;
+        _cachedInvestRect = virtualContainer;
+        _cachedInvestInput = null;
+        _cacheTime = now;
+        return { inputEl: null, containerEl: virtualContainer };
+      }
+    } catch(e) {}
+
+    // ──── STRATEGY 4: ABSOLUTE FALLBACK - Right sidebar top area ────
+    // Exnova / IQ Option right sidebar Invest field location
+    console.log('🔍 [StakeLock S4] Usando posição fixa da barra lateral direita');
+    const sidebarWidth = 160;
+    const fixedLeft = vw - sidebarWidth - 15; // 15px from right edge
+    const fixedTop = 75; // Right below top header bar (65px height)
+    const fixedWidth = sidebarWidth;
+    const fixedHeight = 48;
 
     const fixedContainer = {
+      top: fixedTop,
+      left: fixedLeft,
+      width: fixedWidth,
+      height: fixedHeight,
+      right: fixedLeft + fixedWidth,
+      bottom: fixedTop + fixedHeight,
       getBoundingClientRect: function() {
-        return { top: fixedTop, left: fixedLeft, width: fixedWidth, height: fixedHeight, right: fixedLeft + fixedWidth, bottom: fixedTop + fixedHeight, x: fixedLeft, y: fixedTop };
+        return { top: this.top, left: this.left, width: this.width, height: this.height, right: this.right, bottom: this.bottom, x: this.left, y: this.top };
       },
-      querySelector: function() { return null; },
+      querySelector: function() { return null; }
     };
 
     _cachedInvestRect = fixedContainer;
@@ -1168,27 +1163,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return area.inputEl;
   }
 
-  function renderStakeShieldOverlay(input, targetVal) {
+  function renderStakeShieldOverlay(container, targetVal) {
     let overlay = document.getElementById('tradelock-stake-shield-overlay');
     if (!stakeLockState.enforceBrokerStakeLock) {
       if (overlay) overlay.remove();
       return;
     }
 
-    const area = findInvestArea();
-    const container = area.containerEl;
     if (!container) {
       if (overlay) overlay.remove();
       return;
     }
 
-    const rect = container.getBoundingClientRect();
+    const rect = typeof container.getBoundingClientRect === 'function' 
+      ? container.getBoundingClientRect() 
+      : container;
 
-    // Sanity checks: must have valid dimensions and be on the right side
-    const vw = window.innerWidth || 1024;
-    if (rect.width === 0 || rect.height === 0) return;
+    const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+    if (!rect || rect.width === 0 || rect.height === 0) return;
     if (rect.left < vw * 0.5) {
-      console.warn('⚠️ [StakeLock] Container encontrado no lado ESQUERDO (x=' + Math.round(rect.left) + '), ignorando. Precisa estar em x>' + Math.round(vw * 0.5));
+      console.warn('⚠️ [StakeLock] Container no lado ESQUERDO (x=' + Math.round(rect.left) + '), ignorando.');
       if (overlay) overlay.remove();
       return;
     }
@@ -1199,9 +1193,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       document.body.appendChild(overlay);
     }
 
-    overlay.style.cssText = 'position: fixed !important; top: ' + rect.top + 'px !important; left: ' + rect.left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.75) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 20px rgba(16, 185, 129, 0.8) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(2px) !important;';
+    overlay.style.cssText = 'position: fixed !important; top: ' + Math.round(rect.top) + 'px !important; left: ' + Math.round(rect.left) + 'px !important; width: ' + Math.round(rect.width) + 'px !important; height: ' + Math.round(rect.height) + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.85) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 25px rgba(16, 185, 129, 0.9) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(4px) !important;';
 
-    overlay.innerHTML = '<div style="font-family: monospace; font-size: 11px; font-weight: 900; color: #34d399; background: #064e3b; padding: 4px 10px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">🔒 R$ ' + targetVal.toFixed(2) + '</div>';
+    overlay.innerHTML = '<div style="font-family: monospace; font-size: 13px; font-weight: 900; color: #34d399; background: #064e3b; padding: 4px 12px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">🔒 R$ ' + targetVal.toFixed(2) + '</div>';
 
     if (!overlay.__shieldEventsAttached) {
       overlay.__shieldEventsAttached = true;
@@ -1289,61 +1283,63 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return;
     }
 
-    const input = findBrokerStakeInput();
-    if (!input) return;
-
     const targetVal = getTargetStakeAmount();
     if (targetVal == null || isNaN(targetVal) || targetVal <= 0) return;
 
-    const targetStr = targetVal.toString();
+    const area = findInvestArea();
+    const input = area.inputEl;
 
-    // Lock element properties
-    input.readOnly = true;
-    input.style.pointerEvents = 'none';
-    input.style.backgroundColor = 'rgba(6, 78, 59, 0.4)';
-    input.style.borderColor = '#10b981';
-    input.style.color = '#34d399';
-    input.style.fontWeight = 'bold';
+    if (input) {
+      const targetStr = targetVal.toString();
 
-    // Disable surrounding preset / plus / minus buttons
-    const parent = input.closest('.amount-value, .amount-control, .amount__input, .deal-block__amount, .sidebar-option__amount, [class*="amount"], [class*="stake"]');
-    if (parent) {
-      const btnPlusMinus = parent.querySelectorAll('button, div[role="button"], span[class*="plus"], span[class*="minus"], button[class*="add"], button[class*="sub"], [class*="preset"]');
-      btnPlusMinus.forEach(b => {
-        b.style.pointerEvents = 'none';
-        b.style.opacity = '0.3';
-      });
+      // Lock element properties
+      input.readOnly = true;
+      input.style.pointerEvents = 'none';
+      input.style.backgroundColor = 'rgba(6, 78, 59, 0.4)';
+      input.style.borderColor = '#10b981';
+      input.style.color = '#34d399';
+      input.style.fontWeight = 'bold';
+
+      // Disable surrounding preset / plus / minus buttons
+      const parent = input.closest('.amount-value, .amount-control, .amount__input, .deal-block__amount, .sidebar-option__amount, [class*="amount"], [class*="stake"]');
+      if (parent) {
+        const btnPlusMinus = parent.querySelectorAll('button, div[role="button"], span[class*="plus"], span[class*="minus"], button[class*="add"], button[class*="sub"], [class*="preset"]');
+        btnPlusMinus.forEach(b => {
+          b.style.pointerEvents = 'none';
+          b.style.opacity = '0.3';
+        });
+      }
+
+      // Override input value if trader tries to change it or if broker reset it
+      const currentValStr = input.value.replace(/[^0-9.,]/g, '').replace(',', '.');
+      const currentValNum = parseFloat(currentValStr);
+
+      if (isNaN(currentValNum) || Math.abs(currentValNum - targetVal) > 0.01) {
+        console.log('🔒 [Anti-Fúria StakeLock] Forçando valor da stake no input:', targetStr);
+        setNativeInputValue(input, targetStr);
+      }
+
+      // Attach event listeners to prevent keydown/input/paste
+      if (!input.__tradeLockAttached) {
+        input.__tradeLockAttached = true;
+        const blockEvent = function(e) {
+          if (stakeLockState.enforceBrokerStakeLock) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            setNativeInputValue(input, targetStr);
+            return false;
+          }
+        };
+        input.addEventListener('keydown', blockEvent, true);
+        input.addEventListener('keypress', blockEvent, true);
+        input.addEventListener('input', blockEvent, true);
+        input.addEventListener('paste', blockEvent, true);
+        input.addEventListener('change', blockEvent, true);
+      }
     }
 
-    // Override input value if trader tries to change it or if broker reset it
-    const currentValStr = input.value.replace(/[^0-9.,]/g, '').replace(',', '.');
-    const currentValNum = parseFloat(currentValStr);
-
-    if (isNaN(currentValNum) || Math.abs(currentValNum - targetVal) > 0.01) {
-      console.log('🔒 [Anti-Fúria StakeLock] Forçando valor da stake no input:', targetStr);
-      setNativeInputValue(input, targetStr);
-    }
-
-    // Attach event listeners to prevent keydown/input/paste
-    if (!input.__tradeLockAttached) {
-      input.__tradeLockAttached = true;
-      const blockEvent = function(e) {
-        if (stakeLockState.enforceBrokerStakeLock) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          setNativeInputValue(input, targetStr);
-          return false;
-        }
-      };
-      input.addEventListener('keydown', blockEvent, true);
-      input.addEventListener('keypress', blockEvent, true);
-      input.addEventListener('input', blockEvent, true);
-      input.addEventListener('paste', blockEvent, true);
-      input.addEventListener('change', blockEvent, true);
-    }
-
-    renderStakeShieldOverlay(input, targetVal);
+    renderStakeShieldOverlay(area.containerEl, targetVal);
   }
 
   // Loop continuo de enforce a cada 150ms + MutationObserver
