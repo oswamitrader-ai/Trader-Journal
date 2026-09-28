@@ -1122,6 +1122,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }
 
+  function getStakeInputContainer(input) {
+    if (!input) return null;
+
+    // 1. Try specific small input wrapper classes
+    const target = input.closest('.sidebar-option__amount, .amount-value, .amount-control, .amount__input, .deal-block__amount');
+    if (target) {
+      const rect = target.getBoundingClientRect();
+      if (rect.width > 0 && rect.width <= 350 && rect.height > 0 && rect.height <= 120) {
+        return target;
+      }
+    }
+
+    // 2. Walk up parent elements looking for the smallest container with width <= 350px
+    let p = input.parentElement;
+    for (let depth = 0; depth < 5 && p; depth++) {
+      const rect = p.getBoundingClientRect();
+      if (rect.width > 15 && rect.width <= 320 && rect.height > 15 && rect.height <= 100) {
+        return p;
+      }
+      p = p.parentElement;
+    }
+
+    // 3. Fallback to input itself
+    return input;
+  }
+
   function renderStakeShieldOverlay(input, targetVal) {
     let overlay = document.getElementById('tradelock-stake-shield-overlay');
     if (!stakeLockState.enforceBrokerStakeLock) {
@@ -1134,10 +1160,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     if (!input) return;
 
-    const container = input.closest('.sidebar-option__amount, .sidebar-option, .amount-value, .amount-control, .amount__input, .deal-block__amount, [class*="amount"], [class*="stake"], [class*="invest"]') || input.parentElement || input;
+    const container = getStakeInputContainer(input);
+    if (!container) return;
     const rect = container.getBoundingClientRect();
 
-    if (rect.width === 0 || rect.height === 0) return;
+    if (rect.width === 0 || rect.height === 0 || rect.width > 400 || rect.height > 200) return;
 
     if (!overlay) {
       overlay = document.createElement('div');
@@ -1146,7 +1173,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     overlay.style.display = 'flex';
-    overlay.style.cssText = 'position: fixed !important; top: ' + rect.top + 'px !important; left: ' + rect.left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.65) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 25px rgba(16, 185, 129, 0.8) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(3px) !important;';
+    overlay.style.cssText = 'position: fixed !important; top: ' + rect.top + 'px !important; left: ' + rect.left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.75) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 20px rgba(16, 185, 129, 0.8) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(2px) !important;';
 
     overlay.innerHTML = '<div style="font-family: monospace; font-size: 11px; font-weight: 900; color: #34d399; background: #064e3b; padding: 4px 10px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">🔒 R$ ' + targetVal.toFixed(2) + ' (STAKE INVIOLÁVEL)</div>';
 
