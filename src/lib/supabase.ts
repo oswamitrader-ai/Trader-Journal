@@ -487,8 +487,8 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
     let { error } = await supabase.from('risk_settings').upsert(payload);
 
     if (error) {
-      console.warn('First upsert risk_settings attempt failed, trying fallback payload with notes JSON:', error.message);
-      const fallbackPayload: any = {
+      console.warn('Primeira tentativa de salvar risk_settings falhou, tentando fallback:', error.message);
+      const fallbackWithNotes: any = {
         id: settingId,
         initialCapital: settings.initialCapital,
         dailyProfitTarget: settings.dailyProfitTarget,
@@ -500,9 +500,26 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
         notes: managementJson,
         updated_at: new Date().toISOString(),
       };
-      const fallbackRes = await supabase.from('risk_settings').upsert(fallbackPayload);
-      if (fallbackRes.error) {
-        console.error('Fallback upsert risk_settings also failed:', fallbackRes.error.message);
+      
+      let fbRes = await supabase.from('risk_settings').upsert(fallbackWithNotes);
+
+      if (fbRes.error) {
+        console.warn('Fallback com notes falhou, tentando payload limpo sem coluna notes:', fbRes.error.message);
+        const cleanPayload: any = {
+          id: settingId,
+          initialCapital: settings.initialCapital,
+          dailyProfitTarget: settings.dailyProfitTarget,
+          dailyLossLimit: settings.dailyLossLimit,
+          monthlyProfitTarget: settings.monthlyProfitTarget,
+          monthlyLossLimit: settings.monthlyLossLimit,
+          maxTradesPerDay: settings.maxTradesPerDay,
+          alertSoundEnabled: settings.alertSoundEnabled,
+          updated_at: new Date().toISOString(),
+        };
+        fbRes = await supabase.from('risk_settings').upsert(cleanPayload);
+        if (fbRes.error) {
+          console.error('Fallback final de risk_settings falhou:', fbRes.error.message);
+        }
       }
     }
 
@@ -516,7 +533,6 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
         monthlyLossLimit: settings.monthlyLossLimit,
         maxTradesPerDay: settings.maxTradesPerDay,
         alertSoundEnabled: settings.alertSoundEnabled,
-        notes: managementJson,
         updated_at: new Date().toISOString(),
       };
       await supabase.from('risk_settings').upsert(defaultPayload).catch(() => {});
