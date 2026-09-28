@@ -986,6 +986,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // ─── 5. TRAVA INVIOLÁVEL DA STAKE NA CORRETORA (PHYSICAL SHIELD OVERLAY & AUTO-FILL) ─────
   function findBrokerStakeInput() {
+    const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+    const RIGHT_THRESHOLD = vw * 0.5; // Input de invest fica na metade DIREITA da tela
+
+    function isOnRightSide(el) {
+      try {
+        const r = el.getBoundingClientRect();
+        return r.left >= RIGHT_THRESHOLD && r.width > 0 && r.height > 0;
+      } catch(e) { return false; }
+    }
+
+    function isExcluded(el) {
+      return el.closest('.header, .navbar, [class*="search"], [class*="asset-select"], [class*="tab-bar"], [class*="asset-name"]') !== null;
+    }
+
     // 1. Direct specific selectors for broker invest input
     const selectors = [
       'input[data-test="amount-input"]',
@@ -1009,37 +1023,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       'input[name="investment"]',
     ];
 
+    // Collect ALL candidates from selectors, prioritize right-side ones
+    const selectorCandidates = [];
     for (let i = 0; i < selectors.length; i++) {
       const els = Array.from(document.querySelectorAll(selectors[i]));
       for (const el of els) {
-        // Exclude inputs in header, search, or asset selection tabs at top-left
-        const isHeaderOrSearch = el.closest('.header, .navbar, [class*="search"], [class*="asset-select"], [class*="tab-bar"], [class*="asset-name"]') !== null;
-        if (!isHeaderOrSearch) {
-          return el;
-        }
+        if (!isExcluded(el)) selectorCandidates.push(el);
       }
     }
 
-    // 2. Scan visible inputs by checking parent container text (Invest / Valor / Stake / Amount)
+    // First: return a right-side candidate from selectors
+    const rightSideFromSelectors = selectorCandidates.find(el => isOnRightSide(el));
+    if (rightSideFromSelectors) return rightSideFromSelectors;
+
+    // 2. Scan visible inputs by parent text (Invest / Valor / Stake / Amount)
     const allInputs = Array.from(document.querySelectorAll('input')).filter(inp => {
       if (inp.type === 'hidden' || inp.type === 'submit' || inp.type === 'checkbox' || inp.type === 'radio') return false;
-      const isHeaderOrSearch = inp.closest('.header, .navbar, [class*="search"], [class*="asset-select"], [class*="tab-bar"]') !== null;
-      return !isHeaderOrSearch;
+      return !isExcluded(inp);
     });
 
+    const textCandidates = [];
     for (const input of allInputs) {
       let p = input.parentElement;
       for (let depth = 0; depth < 4 && p; depth++) {
         const text = (p.innerText || p.textContent || '').toLowerCase();
         if ((text.includes('invest') || text.includes('amount') || text.includes('stake') || text.includes('valor') || text.includes('monto')) &&
             !text.includes('expir') && !text.includes('tempo') && !text.includes('time') && !text.includes('busca')) {
-          return input;
+          textCandidates.push(input);
+          break;
         }
         p = p.parentElement;
       }
     }
 
-    // 3. Fallback: closest input to CALL / PUT / ACIMA / ABAIXO trading buttons
+    const rightSideFromText = textCandidates.find(el => isOnRightSide(el));
+    if (rightSideFromText) return rightSideFromText;
+
+    // 3. Fallback: closest input to ACIMA/ABAIXO buttons (right-side trading buttons)
     const tradeBtn = document.querySelector('.btn-call, .btn-put, [class*="call"], [class*="put"], [class*="buy"], [class*="sell"], [data-test*="call"], [data-test*="put"]');
     if (tradeBtn && allInputs.length > 0) {
       const btnRect = tradeBtn.getBoundingClientRect();
@@ -1047,6 +1067,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       let minDistance = Infinity;
       for (const input of allInputs) {
         const inputRect = input.getBoundingClientRect();
+        if (inputRect.width === 0 || inputRect.height === 0) continue;
         const dist = Math.hypot(inputRect.left - btnRect.left, inputRect.top - btnRect.top);
         if (dist < minDistance) {
           minDistance = dist;
@@ -1056,7 +1077,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (closestInput) return closestInput;
     }
 
-    return allInputs[0] || null;
+    // 4. Last resort: any right-side input from all candidates
+    const anyRight = allInputs.find(el => isOnRightSide(el));
+    if (anyRight) return anyRight;
+
+    // 5. Absolute fallback: pick the rightmost input on screen
+    let rightmostInput = null;
+    let maxLeft = -1;
+    for (const input of allInputs) {
+      try {
+        const r = input.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && r.left > maxLeft) {
+          maxLeft = r.left;
+          rightmostInput = input;
+        }
+      } catch(e) {}
+    }
+    return rightmostInput || allInputs[0] || null;
   }
 
   function getTargetStakeAmount() {
