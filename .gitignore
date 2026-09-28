@@ -6,3 +6,15 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Electron build artifacts
+dist-electron/
+out/
+
+# Android build artifacts
+android/app/build/
+android/.gradle/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+*.apk
+*.aab

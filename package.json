@@ -68,6 +68,7 @@
     ],
     "win": {
       "target": ["nsis", "portable"],
+      "executableName": "TradeLock Desktop",
       "icon": "public/favicon.svg",
       "requestedExecutionLevel": "requireAdministrator"
     },
