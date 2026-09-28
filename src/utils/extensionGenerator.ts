@@ -1132,8 +1132,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // ──── STRATEGY 4: ABSOLUTE FALLBACK - Right sidebar top area ────
     // Exnova / IQ Option right sidebar Invest field location
     console.log('🔍 [StakeLock S4] Usando posição fixa da barra lateral direita');
-    const sidebarWidth = 160;
-    const fixedLeft = vw - sidebarWidth - 15; // 15px from right edge
+    const sidebarWidth = 195;
+    const fixedLeft = vw - sidebarWidth - 5; // 5px from right edge
     const fixedTop = 75; // Right below top header bar (65px height)
     const fixedWidth = sidebarWidth;
     const fixedHeight = 48;
@@ -1192,7 +1192,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       document.body.appendChild(overlay);
     }
 
-    overlay.style.cssText = 'position: fixed !important; top: ' + Math.round(rect.top) + 'px !important; left: ' + Math.round(rect.left) + 'px !important; width: ' + Math.round(rect.width) + 'px !important; height: ' + Math.round(rect.height) + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.85) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 25px rgba(16, 185, 129, 0.9) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(4px) !important;';
+    // Expand width by +50px so it covers all the way to the right edge (+ and - buttons)
+    const overlayWidth = Math.max(Math.round(rect.width + 50), 195);
+    const overlayHeight = Math.max(Math.round(rect.height), 44);
+    const overlayTop = Math.round(rect.top);
+    const overlayLeft = Math.round(rect.left);
+
+    overlay.style.cssText = 'position: fixed !important; top: ' + overlayTop + 'px !important; left: ' + overlayLeft + 'px !important; width: ' + overlayWidth + 'px !important; height: ' + overlayHeight + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.92) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 30px rgba(16, 185, 129, 0.95) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(4px) !important;';
 
     overlay.innerHTML = '<div style="font-family: monospace; font-size: 13px; font-weight: 900; color: #34d399; background: #064e3b; padding: 4px 12px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">🔒 R$ ' + targetVal.toFixed(2) + '</div>';
 
@@ -1379,22 +1385,88 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }, true);
 
-  // Intercept WebSocket send for order placements
+  // Intercept WebSocket send for order placements & stake enforcement
   const origWSSend = WebSocket.prototype.send;
   WebSocket.prototype.send = function(data) {
-    if (isOrderBlocked() && typeof data === 'string') {
-      const dataLower = data.toLowerCase();
-      if (
-        dataLower.includes('buyv3') ||
-        dataLower.includes('place-order') ||
-        dataLower.includes('open-position') ||
-        dataLower.includes('create-option') ||
-        dataLower.includes('do-deal') ||
-        dataLower.includes('option-buy')
-      ) {
-        console.warn('🛡️ [Anti-Fúria Trava do Bem] Requisição de ordem interceptada e cancelada:', dataLower.substring(0, 100));
-        showTravaDoBemAlert();
-        return; // Block sending
+    if (typeof data === 'string') {
+      // 1. Check if orders are blocked (Stop Loss / Overtrading)
+      if (isOrderBlocked()) {
+        const dataLower = data.toLowerCase();
+        if (
+          dataLower.includes('buyv3') ||
+          dataLower.includes('place-order') ||
+          dataLower.includes('open-position') ||
+          dataLower.includes('create-option') ||
+          dataLower.includes('do-deal') ||
+          dataLower.includes('option-buy') ||
+          dataLower.includes('open-option') ||
+          dataLower.includes('place-digital-option')
+        ) {
+          console.warn('🛡️ [Anti-Fúria Trava do Bem] Requisição de ordem interceptada e cancelada:', dataLower.substring(0, 100));
+          showTravaDoBemAlert();
+          return; // Block sending
+        }
+      }
+
+      // 2. Trava de Stake Inviolável: Overrides the order amount/price/stake in WebSocket packets sent to broker
+      if (stakeLockState.enforceBrokerStakeLock) {
+        const targetVal = getTargetStakeAmount();
+        if (targetVal != null && !isNaN(targetVal) && targetVal > 0) {
+          try {
+            if (data.startsWith('{') || data.startsWith('[')) {
+              let parsed = JSON.parse(data);
+              let modified = false;
+
+              const overrideAmountInObj = (obj) => {
+                if (!obj || typeof obj !== 'object') return;
+
+                if ('price' in obj && typeof obj.price === 'number') {
+                  console.log('🔒 [StakeLock WS] Enforçando valor da stake no pacote (price):', obj.price, '->', targetVal);
+                  obj.price = targetVal;
+                  modified = true;
+                }
+                if ('amount' in obj && typeof obj.amount === 'number') {
+                  console.log('🔒 [StakeLock WS] Enforçando valor da stake no pacote (amount):', obj.amount, '->', targetVal);
+                  obj.amount = targetVal;
+                  modified = true;
+                }
+                if ('sum' in obj && typeof obj.sum === 'number') {
+                  console.log('🔒 [StakeLock WS] Enforçando valor da stake no pacote (sum):', obj.sum, '->', targetVal);
+                  obj.sum = targetVal;
+                  modified = true;
+                }
+                if ('stake' in obj && typeof obj.stake === 'number') {
+                  console.log('🔒 [StakeLock WS] Enforçando valor da stake no pacote (stake):', obj.stake, '->', targetVal);
+                  obj.stake = targetVal;
+                  modified = true;
+                }
+
+                for (const k in obj) {
+                  if (obj[k] && typeof obj[k] === 'object') {
+                    overrideAmountInObj(obj[k]);
+                  }
+                }
+              };
+
+              const strRep = data.toLowerCase();
+              if (
+                strRep.includes('open-option') ||
+                strRep.includes('place-digital-option') ||
+                strRep.includes('buyv3') ||
+                strRep.includes('place-order') ||
+                strRep.includes('create-option') ||
+                strRep.includes('do-deal') ||
+                strRep.includes('option-buy') ||
+                strRep.includes('buy')
+              ) {
+                overrideAmountInObj(parsed);
+                if (modified) {
+                  data = JSON.stringify(parsed);
+                }
+              }
+            }
+          } catch(e) {}
+        }
       }
     }
     return origWSSend.apply(this, arguments);
