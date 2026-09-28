@@ -924,7 +924,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // ─── 4. TRAVA DO BEM: INTERCEPTADOR DE ORDENS, BOTÕES E STAKE LOCK INVIOLÁVEL ─────
   let lockState = { isStopHit: false, isMaxTradesHit: false, maxTradesPerDay: 5, todayTradesCount: 0 };
-  let lockState = { isStopHit: false, isMaxTradesHit: false, maxTradesPerDay: 5, todayTradesCount: 0 };
   let stakeLockState = {
     enforceBrokerStakeLock: true,
     fixedStakeAmount: 50,
