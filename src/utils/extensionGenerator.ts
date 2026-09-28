@@ -984,116 +984,175 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     alert(msg);
   }
 
-  // ─── 5. TRAVA INVIOLÁVEL DA STAKE NA CORRETORA (PHYSICAL SHIELD OVERLAY & AUTO-FILL) ─────
-  function findBrokerStakeInput() {
+  // ─── DETECT INVEST AREA: Find the visual "Invest" widget on the right sidebar ─────
+  // Returns { inputEl: HTMLInputElement|null, containerEl: HTMLElement }
+  function findInvestArea() {
     const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
-    const RIGHT_THRESHOLD = vw * 0.5; // Input de invest fica na metade DIREITA da tela
+    const RIGHT_THRESHOLD = vw * 0.55;
 
-    function isOnRightSide(el) {
-      try {
-        const r = el.getBoundingClientRect();
-        return r.left >= RIGHT_THRESHOLD && r.width > 0 && r.height > 0;
-      } catch(e) { return false; }
+    // ──── STRATEGY 1: Find text "Invest" label on the RIGHT side of the screen ────
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+    let investLabelNode = null;
+    let investLabelRect = null;
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const txt = (node.textContent || '').trim().toLowerCase();
+      if (txt === 'invest' || txt === 'investir' || txt === 'investment' || txt === 'valor' || txt.startsWith('invest ')) {
+        const parent = node.parentElement;
+        if (!parent) continue;
+        const r = parent.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && r.left >= RIGHT_THRESHOLD) {
+          investLabelNode = parent;
+          investLabelRect = r;
+          console.log('🔍 [StakeLock] Encontrou label "' + txt + '" no lado direito em x=' + Math.round(r.left) + ', y=' + Math.round(r.top));
+          break;
+        }
+      }
     }
 
-    function isExcluded(el) {
-      return el.closest('.header, .navbar, [class*="search"], [class*="asset-select"], [class*="tab-bar"], [class*="asset-name"]') !== null;
+    if (investLabelNode) {
+      // Walk up to find the container that wraps the label + value + buttons
+      let container = investLabelNode;
+      for (let depth = 0; depth < 6; depth++) {
+        const p = container.parentElement;
+        if (!p || p === document.body) break;
+        const pr = p.getBoundingClientRect();
+        // Stop walking when container gets too wide (> 250px) or too tall (> 80px)
+        // We want the small widget, not the entire sidebar
+        if (pr.width > 250 || pr.height > 80) break;
+        container = p;
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      console.log('🔍 [StakeLock] Container de invest: tag=' + container.tagName + ', class=' + (container.className || '').toString().substring(0, 60) + ', rect=' + Math.round(containerRect.left) + ',' + Math.round(containerRect.top) + ' ' + Math.round(containerRect.width) + 'x' + Math.round(containerRect.height));
+
+      // Try to find an input inside or near this container
+      let inputEl = container.querySelector('input');
+      if (!inputEl) {
+        // Check siblings and nearby containers for the input
+        const nearbyParent = container.parentElement;
+        if (nearbyParent) {
+          inputEl = nearbyParent.querySelector('input');
+        }
+      }
+
+      return { inputEl: inputEl, containerEl: container };
     }
 
-    // 1. Direct specific selectors for broker invest input
+    // ──── STRATEGY 2: Classic input selectors, prefer RIGHT side ────
     const selectors = [
       'input[data-test="amount-input"]',
       '.sidebar-option__amount input',
-      '.sidebar-option__amount .input-control__input',
       '.amount-value input',
-      '.amount-value .input-control__input',
       '.deal-block__amount input',
-      '.section-deal__amount input',
       '[data-test*="amount"] input',
-      '[data-test*="stake"] input',
       'div[class*="amount"] input',
       'div[class*="invest"] input',
-      'div[class*="stake"] input',
       '.sidebar-option input',
-      '.sidebar-block input',
       'input[name="amount"]',
       'input[name="sum"]',
-      'input[name="value"]',
       'input[name="stake"]',
-      'input[name="investment"]',
     ];
 
-    // Collect ALL candidates from selectors, prioritize right-side ones
-    const selectorCandidates = [];
-    for (let i = 0; i < selectors.length; i++) {
-      const els = Array.from(document.querySelectorAll(selectors[i]));
+    let bestInput = null;
+    let bestLeft = -1;
+    for (const sel of selectors) {
+      const els = document.querySelectorAll(sel);
       for (const el of els) {
-        if (!isExcluded(el)) selectorCandidates.push(el);
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && r.left > bestLeft) {
+          bestLeft = r.left;
+          bestInput = el;
+        }
       }
     }
 
-    // First: return a right-side candidate from selectors
-    const rightSideFromSelectors = selectorCandidates.find(el => isOnRightSide(el));
-    if (rightSideFromSelectors) return rightSideFromSelectors;
+    if (bestInput && bestLeft >= RIGHT_THRESHOLD) {
+      console.log('🔍 [StakeLock] Input encontrado via seletor CSS no lado direito, x=' + Math.round(bestLeft));
+      return { inputEl: bestInput, containerEl: bestInput.parentElement || bestInput };
+    }
 
-    // 2. Scan visible inputs by parent text (Invest / Valor / Stake / Amount)
+    // ──── STRATEGY 3: Scan ALL inputs, pick rightmost ────
     const allInputs = Array.from(document.querySelectorAll('input')).filter(inp => {
       if (inp.type === 'hidden' || inp.type === 'submit' || inp.type === 'checkbox' || inp.type === 'radio') return false;
-      return !isExcluded(inp);
+      const r = inp.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
     });
 
-    const textCandidates = [];
-    for (const input of allInputs) {
-      let p = input.parentElement;
-      for (let depth = 0; depth < 4 && p; depth++) {
-        const text = (p.innerText || p.textContent || '').toLowerCase();
-        if ((text.includes('invest') || text.includes('amount') || text.includes('stake') || text.includes('valor') || text.includes('monto')) &&
-            !text.includes('expir') && !text.includes('tempo') && !text.includes('time') && !text.includes('busca')) {
-          textCandidates.push(input);
-          break;
-        }
-        p = p.parentElement;
-      }
-    }
-
-    const rightSideFromText = textCandidates.find(el => isOnRightSide(el));
-    if (rightSideFromText) return rightSideFromText;
-
-    // 3. Fallback: closest input to ACIMA/ABAIXO buttons (right-side trading buttons)
-    const tradeBtn = document.querySelector('.btn-call, .btn-put, [class*="call"], [class*="put"], [class*="buy"], [class*="sell"], [data-test*="call"], [data-test*="put"]');
-    if (tradeBtn && allInputs.length > 0) {
-      const btnRect = tradeBtn.getBoundingClientRect();
-      let closestInput = null;
-      let minDistance = Infinity;
-      for (const input of allInputs) {
-        const inputRect = input.getBoundingClientRect();
-        if (inputRect.width === 0 || inputRect.height === 0) continue;
-        const dist = Math.hypot(inputRect.left - btnRect.left, inputRect.top - btnRect.top);
-        if (dist < minDistance) {
-          minDistance = dist;
-          closestInput = input;
-        }
-      }
-      if (closestInput) return closestInput;
-    }
-
-    // 4. Last resort: any right-side input from all candidates
-    const anyRight = allInputs.find(el => isOnRightSide(el));
-    if (anyRight) return anyRight;
-
-    // 5. Absolute fallback: pick the rightmost input on screen
     let rightmostInput = null;
-    let maxLeft = -1;
-    for (const input of allInputs) {
-      try {
-        const r = input.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0 && r.left > maxLeft) {
-          maxLeft = r.left;
-          rightmostInput = input;
-        }
-      } catch(e) {}
+    let maxL = -1;
+    for (const inp of allInputs) {
+      const r = inp.getBoundingClientRect();
+      if (r.left > maxL) {
+        maxL = r.left;
+        rightmostInput = inp;
+      }
     }
-    return rightmostInput || allInputs[0] || null;
+
+    if (rightmostInput) {
+      console.log('🔍 [StakeLock] Usando input mais à direita como fallback, x=' + Math.round(maxL));
+      return { inputEl: rightmostInput, containerEl: rightmostInput.parentElement || rightmostInput };
+    }
+
+    console.warn('⚠️ [StakeLock] Nenhum elemento de invest encontrado na página');
+    return { inputEl: null, containerEl: null };
+  }
+
+  function findBrokerStakeInput() {
+    const area = findInvestArea();
+    return area.inputEl;
+  }
+
+  function renderStakeShieldOverlay(input, targetVal) {
+    let overlay = document.getElementById('tradelock-stake-shield-overlay');
+    if (!stakeLockState.enforceBrokerStakeLock) {
+      if (overlay) overlay.remove();
+      return;
+    }
+
+    const area = findInvestArea();
+    const container = area.containerEl;
+    if (!container) {
+      if (overlay) overlay.remove();
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+
+    // Sanity checks: must have valid dimensions and be on the right side
+    const vw = window.innerWidth || 1024;
+    if (rect.width === 0 || rect.height === 0) return;
+    if (rect.left < vw * 0.5) {
+      console.warn('⚠️ [StakeLock] Container encontrado no lado ESQUERDO (x=' + Math.round(rect.left) + '), ignorando. Precisa estar em x>' + Math.round(vw * 0.5));
+      if (overlay) overlay.remove();
+      return;
+    }
+
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'tradelock-stake-shield-overlay';
+      document.body.appendChild(overlay);
+    }
+
+    overlay.style.cssText = 'position: fixed !important; top: ' + rect.top + 'px !important; left: ' + rect.left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.75) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 20px rgba(16, 185, 129, 0.8) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(2px) !important;';
+
+    overlay.innerHTML = '<div style="font-family: monospace; font-size: 11px; font-weight: 900; color: #34d399; background: #064e3b; padding: 4px 10px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">🔒 R$ ' + targetVal.toFixed(2) + '</div>';
+
+    if (!overlay.__shieldEventsAttached) {
+      overlay.__shieldEventsAttached = true;
+      const blockClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        alert('🔒 TRAVA DE STAKE INVIOLÁVEL TRADELOCK:\\n\\nO valor da sua entrada (R$ ' + targetVal.toFixed(2) + ') foi definido na sua Tela de Gestão de Risco e está TRANCADO!\\n\\nVocê não pode alterar a stake na corretora.');
+        return false;
+      };
+
+      ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'dblclick', 'contextmenu'].forEach(evt => {
+        overlay.addEventListener(evt, blockClick, true);
+      });
+    }
   }
 
   function getTargetStakeAmount() {
@@ -1156,77 +1215,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       } catch(e) {}
     } catch(e) {
       input.value = valStr;
-    }
-  }
-
-  function getStakeInputContainer(input) {
-    if (!input) return null;
-
-    // 1. Try specific small input wrapper classes
-    const target = input.closest('.sidebar-option__amount, .amount-value, .amount-control, .amount__input, .deal-block__amount');
-    if (target) {
-      const rect = target.getBoundingClientRect();
-      if (rect.width > 0 && rect.width <= 350 && rect.height > 0 && rect.height <= 120) {
-        return target;
-      }
-    }
-
-    // 2. Walk up parent elements looking for the smallest container with width <= 350px
-    let p = input.parentElement;
-    for (let depth = 0; depth < 5 && p; depth++) {
-      const rect = p.getBoundingClientRect();
-      if (rect.width > 15 && rect.width <= 320 && rect.height > 15 && rect.height <= 100) {
-        return p;
-      }
-      p = p.parentElement;
-    }
-
-    // 3. Fallback to input itself
-    return input;
-  }
-
-  function renderStakeShieldOverlay(input, targetVal) {
-    let overlay = document.getElementById('tradelock-stake-shield-overlay');
-    if (!stakeLockState.enforceBrokerStakeLock) {
-      if (overlay) overlay.remove();
-      return;
-    }
-
-    if (!input) {
-      input = findBrokerStakeInput();
-    }
-    if (!input) return;
-
-    const container = getStakeInputContainer(input);
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-
-    if (rect.width === 0 || rect.height === 0 || rect.width > 400 || rect.height > 200) return;
-
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'tradelock-stake-shield-overlay';
-      document.body.appendChild(overlay);
-    }
-
-    overlay.style.display = 'flex';
-    overlay.style.cssText = 'position: fixed !important; top: ' + rect.top + 'px !important; left: ' + rect.left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.75) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 20px rgba(16, 185, 129, 0.8) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(2px) !important;';
-
-    overlay.innerHTML = '<div style="font-family: monospace; font-size: 11px; font-weight: 900; color: #34d399; background: #064e3b; padding: 4px 10px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">🔒 R$ ' + targetVal.toFixed(2) + ' (STAKE INVIOLÁVEL)</div>';
-
-    if (!overlay.__shieldEventsAttached) {
-      overlay.__shieldEventsAttached = true;
-      const blockClick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        alert('🔒 TRAVA DE STAKE INVIOLÁVEL TRADELOCK:\\n\\nO valor da sua entrada (R$ ' + targetVal.toFixed(2) + ') foi definido na sua Tela de Gestão de Risco e está TRANCADO!\\n\\nVocê não pode alterar a stake na corretora.');
-        return false;
-      };
-
-      ['click', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'dblclick', 'contextmenu'].forEach(evt => {
-        overlay.addEventListener(evt, blockClick, true);
-      });
     }
   }
 
