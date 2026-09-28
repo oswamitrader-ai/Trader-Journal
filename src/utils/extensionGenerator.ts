@@ -1098,6 +1098,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   function setNativeInputValue(input, valStr) {
     if (!input) return;
     try {
+      try { input.focus(); } catch(e) {}
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
         'value'
@@ -1138,12 +1139,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     if (rect.width === 0 || rect.height === 0) return;
 
-    // Prevent rendering on header/top-left asset search (if top < 40 and left < 350)
-    if (rect.top < 40 && rect.left < 350) {
-      if (overlay) overlay.style.display = 'none';
-      return;
-    }
-
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.id = 'tradelock-stake-shield-overlay';
@@ -1151,7 +1146,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     overlay.style.display = 'flex';
-    overlay.style.cssText = 'position: fixed !important; top: ' + rect.top + 'px !important; left: ' + rect.left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.55) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 25px rgba(16, 185, 129, 0.7) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(3px) !important;';
+    overlay.style.cssText = 'position: fixed !important; top: ' + rect.top + 'px !important; left: ' + rect.left + 'px !important; width: ' + rect.width + 'px !important; height: ' + rect.height + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.65) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 25px rgba(16, 185, 129, 0.8) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(3px) !important;';
 
     overlay.innerHTML = '<div style="font-family: monospace; font-size: 11px; font-weight: 900; color: #34d399; background: #064e3b; padding: 4px 10px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">🔒 R$ ' + targetVal.toFixed(2) + ' (STAKE INVIOLÁVEL)</div>';
 
