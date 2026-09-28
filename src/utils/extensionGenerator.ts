@@ -623,7 +623,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     function getDomActiveName() {
       try {
         const title = document.title || '';
-        const match = title.match(/([A-Z]{3}\/[A-Z]{3}(\s*\(OTC\))?)/i) || title.match(/([A-Z]{6}(\s*\(OTC\))?)/i);
+        const match = title.match(/([A-Z]{3}[/][A-Z]{3}(\s*\(OTC\))?)/i) || title.match(/([A-Z]{6}(\s*\(OTC\))?)/i);
         if (match && match[1]) return match[1].toUpperCase();
         const sel = document.querySelector('.active-name, .asset-name, .current-pair, .sidebar-asset-name, .header-asset-name, [data-test="asset-name"]');
         if (sel && sel.textContent && sel.textContent.trim()) return sel.textContent.trim().toUpperCase();
