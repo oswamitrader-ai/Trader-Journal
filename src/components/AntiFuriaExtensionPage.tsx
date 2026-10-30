@@ -46,6 +46,9 @@ interface AntiFuriaExtensionPageProps {
   currentUser?: SystemUser | null;
   blockedDomains?: string[];
   onUpdateBlockedDomains?: (domains: string[]) => void;
+  exnovaCaptureStatus?: ExnovaCaptureStatus;
+  onStartExnovaCapture?: () => void;
+  onStopExnovaCapture?: () => void;
 }
 
 export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
@@ -62,6 +65,9 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
   currentUser,
   blockedDomains,
   onUpdateBlockedDomains,
+  exnovaCaptureStatus,
+  onStartExnovaCapture,
+  onStopExnovaCapture,
 }) => {
   const isAdmin = currentUser?.role === 'ADMIN';
   const [domains, setDomains] = useState<string[]>(() => {
@@ -515,6 +521,69 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
           </button>
         </div>
       </div>
+
+      {window.electronAPI?.isDesktop && (
+        <section className="rounded-3xl border border-cyan-700/50 bg-gradient-to-br from-cyan-950/30 via-black to-slate-950 p-5 sm:p-6 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-700/50 bg-cyan-950/60 text-cyan-300 shrink-0">
+                <Laptop className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-black text-white">Captura nativa da Exnova</h2>
+                  <span className="rounded-full border border-cyan-700/50 bg-cyan-950/60 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-cyan-300">
+                    Sem extensão
+                  </span>
+                </div>
+                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-300">
+                  O TradeLock lê a janela Exnova localmente. As imagens não são salvas nem enviadas para OCR externo.
+                  Operações só entram no diário quando horário, ativo, direção, valor, resultado e conta real/demo forem legíveis.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={exnovaCaptureStatus?.enabled ? onStopExnovaCapture : onStartExnovaCapture}
+              className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-extrabold shadow-lg transition shrink-0 ${
+                exnovaCaptureStatus?.enabled
+                  ? 'border border-rose-700/60 bg-rose-950/60 text-rose-200 hover:bg-rose-900/70'
+                  : 'bg-cyan-600 text-white hover:bg-cyan-500'
+              }`}
+            >
+              {exnovaCaptureStatus?.enabled ? <X className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {exnovaCaptureStatus?.enabled ? 'Pausar captura' : 'Ativar captura Exnova'}
+            </button>
+          </div>
+
+          <div className={`rounded-xl border px-4 py-3 text-xs ${
+            exnovaCaptureStatus?.state === 'error' || exnovaCaptureStatus?.state === 'attention'
+              ? 'border-amber-700/50 bg-amber-950/30 text-amber-200'
+              : exnovaCaptureStatus?.state === 'reading'
+                ? 'border-emerald-700/50 bg-emerald-950/30 text-emerald-200'
+                : 'border-slate-800 bg-slate-950/70 text-slate-300'
+          }`} role="status" aria-live="polite">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex items-center gap-2 font-bold">
+                <span className={`h-2 w-2 rounded-full ${
+                  exnovaCaptureStatus?.state === 'reading' ? 'bg-emerald-400' :
+                    exnovaCaptureStatus?.state === 'attention' || exnovaCaptureStatus?.state === 'error' ? 'bg-amber-400' :
+                      exnovaCaptureStatus?.enabled ? 'bg-cyan-400 animate-pulse' : 'bg-slate-500'
+                }`} />
+                {exnovaCaptureStatus?.message || 'Captura desativada.'}
+              </span>
+              <span className="text-[10px] text-slate-400">
+                {exnovaCaptureStatus?.capturedCount || 0} operação(ões) nesta sessão
+              </span>
+            </div>
+          </div>
+
+          <p className="text-[10px] leading-relaxed text-slate-500">
+            No app desktop da Exnova, deixe o painel de histórico aberto com a data das operações e o tipo de conta visíveis. Na versão web, selecione o filtro de hoje.
+            Se um campo não for reconhecido, o TradeLock avisa e não registra essa operação.
+          </p>
+        </section>
+      )}
 
       {/* PAINEL DE STATUS EM TEMPO REAL */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

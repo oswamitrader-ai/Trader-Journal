@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  RotateCcw,
   Calculator,
   Upload,
   FileText,
@@ -31,6 +30,7 @@ interface NavbarProps {
   todayTradesCount?: number;
   currentCapital?: number;
   supabaseStatus?: SupabaseConnectionStatus;
+  supabaseMessage?: string;
   currentCurrency?: CurrencyCode;
   currentUser?: SystemUser | null;
   onCurrencyChange?: (currency: CurrencyCode) => void;
@@ -57,6 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   todayTradesCount = 0,
   currentCapital,
   supabaseStatus = 'connecting',
+  supabaseMessage,
   currentCurrency = getGlobalCurrency(),
   currentUser,
   onCurrencyChange = (_curr: CurrencyCode) => {},
@@ -114,7 +115,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
           <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
             <span className="hidden sm:inline-block text-slate-500">Sistema de Gestão &amp; Trava de Risco</span>
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" title="Plataforma Conectada" />
+            <span
+              className={`flex h-2 w-2 rounded-full shadow-sm ${
+                supabaseStatus === 'connected'
+                  ? 'bg-emerald-500 shadow-emerald-500/50'
+                  : supabaseStatus === 'connecting'
+                    ? 'bg-amber-400 shadow-amber-400/50 animate-pulse'
+                    : 'bg-rose-500 shadow-rose-500/50'
+              }`}
+              title={supabaseMessage || (supabaseStatus === 'connected' ? 'Sincronização automática ativa' : supabaseStatus === 'connecting' ? 'Conectando à nuvem…' : 'Sincronização automática com falha')}
+            />
+            <span className={`hidden sm:inline ${supabaseStatus === 'connected' ? 'text-emerald-400' : supabaseStatus === 'connecting' ? 'text-amber-300' : 'text-rose-300'}`}>
+              {supabaseStatus === 'connected' ? 'Nuvem sincronizada' : supabaseStatus === 'connecting' ? 'Conectando' : 'Falha na nuvem'}
+            </span>
           </div>
         </div>
       </div>

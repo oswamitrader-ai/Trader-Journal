@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   Calendar as CalendarIcon,
@@ -58,7 +58,6 @@ import {
   fetchTradesFromSupabase,
   fetchRiskSettingsFromSupabase,
   fetchCapitalTransactionsFromSupabase,
-  fetchUsersFromSupabase,
   upsertTradeToSupabase,
   upsertCapitalTransactionToSupabase,
   deleteTradeFromSupabase,
@@ -83,6 +82,12 @@ export default function App() {
     return session;
   });
   const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS' | 'ANTI_FURIA' | 'RISK_MANAGEMENT' | 'CAPITAL_MANAGEMENT'>('JOURNAL');
+  const [exnovaCaptureStatus, setExnovaCaptureStatus] = useState<ExnovaCaptureStatus>({
+    state: 'idle',
+    message: 'Captura desativada.',
+    capturedCount: 0,
+    enabled: false,
+  });
 
   const handleLogout = () => {
     if (isAntiFuriaActive) {
@@ -172,6 +177,13 @@ export default function App() {
     } catch {}
     return [];
   });
+  const tradesRef = useRef(trades);
+  const settingsRef = useRef(settings);
+  const capitalTransactionsRef = useRef(capitalTransactions);
+
+  useEffect(() => { tradesRef.current = trades; }, [trades]);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { capitalTransactionsRef.current = capitalTransactions; }, [capitalTransactions]);
   const [isCapitalModalOpen, setIsCapitalModalOpen] = useState(false);
 
   // Flag para rastrear quando os dados iniciais foram hidratados
@@ -320,252 +332,149 @@ export default function App() {
     return health;
   };
 
-  // Initial Supabase connection check & load data per currentUser
+  // Mantém desktop e web conciliados pela nuvem, mesmo quando Realtime não está habilitado.
   useEffect(() => {
-    let isMounted = true;
+    const email = currentUser?.email?.toLowerCase().trim();
+    if (!email) return;
 
-    const initSupabase = async () => {
+    let isMounted = true;
+    let syncInFlight = false;
+
+    const synchronize = async () => {
+      if (!isMounted || syncInFlight) return;
+      syncInFlight = true;
       try {
         const health = await checkSupabaseConnection();
         if (!isMounted) return;
         setSupabaseHealth(health);
+        if (health.status !== 'connected') return;
 
-        if (health.status === 'connected' && currentUser?.email) {
-          // 1. Carrega trades do Supabase para o usuário logado
-          const cloudTrades = await fetchTradesFromSupabase(currentUser.email);
-          if (!isMounted) return;
-
-          if (cloudTrades.data && cloudTrades.data.length > 0) {
-            const sanitizedCloudTrades = sortAndSanitizeTrades(cloudTrades.data);
-            sanitizedCloudTrades.forEach((t) => {
-              upsertTradeToSupabase(t, currentUser.email).catch(() => {});
-            });
-
-            setTrades(sanitizedCloudTrades);
-            localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(sanitizedCloudTrades));
-          } else {
-            // 2. Se a nuvem ainda não tem os trades do usuário, faz upload dos trades locais existentes para o Supabase
-            const localSaved =
-              localStorage.getItem(TRADES_STORAGE_KEY) ||
-              (currentUser.email.toLowerCase() === 'oswamitrader@gmail.com'
-                ? localStorage.getItem('trader_journal_trades_v2') || localStorage.getItem('trader_journal_trades_v1')
-                : null);
-
-            if (localSaved) {
-              try {
-                const parsed = JSON.parse(localSaved);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  const validLocal = parsed.filter((t) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
-                  if (validLocal.length > 0) {
-                    setTrades(validLocal);
-                    localStorage.setItem(TRADES_STORAGE_KEY, JSON.stringify(validLocal));
-                    syncAllTradesToSupabase(validLocal, currentUser.email);
-                  }
-                }
-              } catch (e) {}
-            }
-          }
-
-          const cloudSettings = await fetchRiskSettingsFromSupabase(currentUser.email);
-          if (!isMounted) return;
-          if (cloudSettings.data) {
-            setSettings((prev) => {
-              const incoming = cloudSettings.data!;
-              const prevLockTime = prev.riskLockUntil ? new Date(prev.riskLockUntil).getTime() : 0;
-              const isPrevLocked = prevLockTime > Date.now();
-
-              const merged: RiskSettings = {
-                ...DEFAULT_RISK_SETTINGS,
-                ...incoming,
-                riskLockUntil: isPrevLocked ? prev.riskLockUntil : incoming.riskLockUntil,
-                riskLockDurationDays: isPrevLocked ? prev.riskLockDurationDays : incoming.riskLockDurationDays,
-                permanentMobileBrokerLockEnabled: Boolean(prev.permanentMobileBrokerLockEnabled || incoming.permanentMobileBrokerLockEnabled),
-                enforceBrokerStakeLock: Boolean(prev.enforceBrokerStakeLock || incoming.enforceBrokerStakeLock),
-                managementStyle: (prev.managementStyle && prev.managementStyle !== 'MAO_FIXA') ? prev.managementStyle : (incoming.managementStyle || 'MAO_FIXA'),
-                fixedStakeAmount: prev.fixedStakeAmount || incoming.fixedStakeAmount || 50,
-                sorosLevel1Stake: prev.sorosLevel1Stake || incoming.sorosLevel1Stake || 93.5,
-                sorosLevel2Stake: prev.sorosLevel2Stake || incoming.sorosLevel2Stake || 174.8,
-                sorosLevel3Stake: prev.sorosLevel3Stake || incoming.sorosLevel3Stake || 326.9,
-                martingaleLevel1Stake: prev.martingaleLevel1Stake || incoming.martingaleLevel1Stake || 100,
-                martingaleLevel2Stake: prev.martingaleLevel2Stake || incoming.martingaleLevel2Stake || 200,
-              };
-
-              try {
-                if (SETTINGS_STORAGE_KEY) {
-                  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
-                }
-                localStorage.setItem('trader_journal_settings_v1', JSON.stringify(merged));
-                localStorage.setItem('trader_journal_settings_default', JSON.stringify(merged));
-              } catch (e) {}
-
-              saveRiskSettingsToSupabase(merged, currentUser.email);
-              return merged;
-            });
-          }
-
-          // 3. Carrega movimentações de capital do Supabase e mescla com o localStorage local (varrendo todas as chaves legadas)
-          let localSavedCapital: CapitalTransaction[] = [];
-          try {
-            const keys = Object.keys(localStorage).filter((k) => k.toLowerCase().includes('capital'));
-            for (const k of keys) {
-              const val = localStorage.getItem(k);
-              if (val && val !== 'undefined' && val !== 'null') {
-                try {
-                  const parsed = JSON.parse(val);
-                  if (Array.isArray(parsed) && parsed.length > 0) {
-                    parsed.forEach((t: any) => localSavedCapital.push(t));
-                  }
-                } catch (e) {}
-              }
-            }
-          } catch (e) {}
-
-          const cloudCapital = await fetchCapitalTransactionsFromSupabase(currentUser.email);
-          if (!isMounted) return;
-
-          const capMap = new Map<string, CapitalTransaction>();
-          localSavedCapital.forEach((t) => capMap.set(t.id, t));
-          if (cloudCapital.data && cloudCapital.data.length > 0) {
-            cloudCapital.data.forEach((t) => capMap.set(t.id, t));
-          }
-
-          const mergedCapital = Array.from(capMap.values()).sort((a, b) => b.date.localeCompare(a.date));
-
-          if (mergedCapital.length > 0) {
-            setCapitalTransactions(mergedCapital);
-            localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(mergedCapital));
-            syncAllCapitalTransactionsToSupabase(mergedCapital, currentUser.email);
-          }
-        }
-      } catch (err) {
-        console.warn('Erro ao inicializar Supabase:', err);
-      }
-    };
-
-    if (currentUser) {
-      initSupabase();
-    }
-
-    // Sincronização em tempo real multidispositivo (Broadcast + Postgres Changes + Polling Heartbeat)
-    const email = currentUser?.email;
-
-    const refetchAllData = async () => {
-      if (!email || !isMounted) return;
-      try {
-        const [tradesRes, settingsRes, capitalRes, usersRes] = await Promise.all([
+        const [tradesResult, settingsResult, capitalResult] = await Promise.all([
           fetchTradesFromSupabase(email),
           fetchRiskSettingsFromSupabase(email),
           fetchCapitalTransactionsFromSupabase(email),
-          fetchUsersFromSupabase(),
         ]);
         if (!isMounted) return;
-        if (tradesRes.data && tradesRes.data.length > 0) {
-          setTrades(tradesRes.data);
-        } else if (tradesRes.data && tradesRes.data.length === 0) {
-          setTrades((prev) => {
-            if (prev.length > 0) {
-              syncAllTradesToSupabase(prev, email);
-              return prev;
-            }
-            return [];
-          });
+        if (tradesResult.error) throw new Error(`Operações: ${tradesResult.error}`);
+        if (settingsResult.error) throw new Error(`Configurações: ${settingsResult.error}`);
+        if (capitalResult.error) throw new Error(`Movimentações: ${capitalResult.error}`);
+
+        // Reúne os dados por ID e usa a data de atualização para resolver alterações concorrentes.
+        const cloudTrades = tradesResult.data || [];
+        const cloudTradeMap = new Map<string, Trade>();
+        cloudTrades.forEach((trade) => cloudTradeMap.set(trade.id, trade));
+        const localDirtyTrades: Trade[] = [];
+        const mergedTradeMap = new Map<string, Trade>(cloudTradeMap);
+        tradesRef.current.forEach((trade) => mergedTradeMap.set(trade.id, trade));
+        for (const localTrade of tradesRef.current) {
+          const cloudTrade = cloudTradeMap.get(localTrade.id);
+          const localUpdatedAt = localTrade.updatedAt ? Date.parse(localTrade.updatedAt) : 0;
+          const cloudUpdatedAt = cloudTrade?.updatedAt ? Date.parse(cloudTrade.updatedAt) : 0;
+          if (!cloudTrade || localUpdatedAt > cloudUpdatedAt) {
+            localDirtyTrades.push(localTrade);
+            mergedTradeMap.set(localTrade.id, localTrade);
+          } else {
+            mergedTradeMap.set(localTrade.id, cloudTrade);
+          }
+        }
+        const mergedTrades = sortAndSanitizeTrades(Array.from(mergedTradeMap.values()));
+        if (JSON.stringify(tradesRef.current) !== JSON.stringify(mergedTrades)) setTrades(mergedTrades);
+        if (localDirtyTrades.length > 0) {
+          const upload = await syncAllTradesToSupabase(localDirtyTrades, email);
+          if (upload.error) throw new Error(`Envio de operações: ${upload.error}`);
         }
 
-        if (settingsRes.data) {
-          setSettings((prev) => {
-            const incoming = settingsRes.data!;
-            const prevTime = prev.riskLockUntil ? new Date(prev.riskLockUntil).getTime() : 0;
-            const incTime = incoming.riskLockUntil ? new Date(incoming.riskLockUntil).getTime() : 0;
-            const now = Date.now();
+        const cloudCapital = capitalResult.data || [];
+        const cloudCapitalIds = new Set(cloudCapital.map((tx) => tx.id));
+        const localOnlyCapital = capitalTransactionsRef.current.filter((tx) => !cloudCapitalIds.has(tx.id));
+        const mergedCapitalMap = new Map<string, CapitalTransaction>();
+        capitalTransactionsRef.current.forEach((tx) => mergedCapitalMap.set(tx.id, tx));
+        cloudCapital.forEach((tx) => mergedCapitalMap.set(tx.id, tx));
+        const mergedCapital = Array.from(mergedCapitalMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+        if (JSON.stringify(capitalTransactionsRef.current) !== JSON.stringify(mergedCapital)) setCapitalTransactions(mergedCapital);
+        if (localOnlyCapital.length > 0) {
+          const upload = await syncAllCapitalTransactionsToSupabase(localOnlyCapital, email);
+          if (upload.error) throw new Error(`Envio de movimentações: ${upload.error}`);
+        }
 
-            const isPrevActive = prevTime > now;
-            const isIncActive = incTime > now;
-
-            let effectiveLockUntil = incoming.riskLockUntil;
-            let effectiveDuration = incoming.riskLockDurationDays;
-
-            if (isPrevActive && (!isIncActive || prevTime > incTime)) {
-              effectiveLockUntil = prev.riskLockUntil;
-              effectiveDuration = prev.riskLockDurationDays;
+        if (settingsResult.data) {
+          const previous = settingsRef.current;
+          const incoming = settingsResult.data;
+          const localUpdatedAt = previous.updatedAt ? Date.parse(previous.updatedAt) : 0;
+          const cloudUpdatedAt = incoming.updatedAt ? Date.parse(incoming.updatedAt) : 0;
+          if (localUpdatedAt > cloudUpdatedAt) {
+            const previousLockTime = previous.riskLockUntil ? new Date(previous.riskLockUntil).getTime() : 0;
+            const cloudLockTime = incoming.riskLockUntil ? new Date(incoming.riskLockUntil).getTime() : 0;
+            const keepActiveCloudLock = cloudLockTime > Date.now() && cloudLockTime > previousLockTime;
+            const localSettingsToUpload = keepActiveCloudLock
+              ? { ...previous, riskLockUntil: incoming.riskLockUntil, riskLockDurationDays: incoming.riskLockDurationDays }
+              : previous;
+            const upload = await saveRiskSettingsToSupabase(localSettingsToUpload, email);
+            if (upload.error) throw new Error(`Envio de configurações: ${upload.error}`);
+            if (keepActiveCloudLock && JSON.stringify(previous) !== JSON.stringify(localSettingsToUpload)) {
+              setSettings(localSettingsToUpload);
             }
-
-            return {
+            if (isMounted) setSupabaseHealth({ status: 'connected', message: 'Configurações locais enviadas para a nuvem.' });
+          } else {
+            const previousLockTime = previous.riskLockUntil ? new Date(previous.riskLockUntil).getTime() : 0;
+            const cloudLockTime = incoming.riskLockUntil ? new Date(incoming.riskLockUntil).getTime() : 0;
+            const keepActiveLocalLock = previousLockTime > Date.now() && previousLockTime > cloudLockTime;
+            const mergedSettings: RiskSettings = {
+              ...DEFAULT_RISK_SETTINGS,
               ...incoming,
-              riskLockUntil: effectiveLockUntil,
-              riskLockDurationDays: effectiveDuration,
-              permanentMobileBrokerLockEnabled: Boolean(prev.permanentMobileBrokerLockEnabled || incoming.permanentMobileBrokerLockEnabled),
-              enforceBrokerStakeLock: Boolean(prev.enforceBrokerStakeLock || incoming.enforceBrokerStakeLock),
-              managementStyle: incoming.managementStyle || prev.managementStyle || 'MAO_FIXA',
-              fixedStakeAmount: incoming.fixedStakeAmount ?? prev.fixedStakeAmount ?? 50,
-              sorosLevel1Stake: incoming.sorosLevel1Stake ?? prev.sorosLevel1Stake ?? 93.5,
-              sorosLevel2Stake: incoming.sorosLevel2Stake ?? prev.sorosLevel2Stake ?? 174.8,
-              sorosLevel3Stake: incoming.sorosLevel3Stake ?? prev.sorosLevel3Stake ?? 326.9,
-              martingaleLevel1Stake: incoming.martingaleLevel1Stake ?? prev.martingaleLevel1Stake ?? 100,
-              martingaleLevel2Stake: incoming.martingaleLevel2Stake ?? prev.martingaleLevel2Stake ?? 200,
+              riskLockUntil: keepActiveLocalLock ? previous.riskLockUntil : incoming.riskLockUntil,
+              riskLockDurationDays: keepActiveLocalLock ? previous.riskLockDurationDays : incoming.riskLockDurationDays,
+              permanentMobileBrokerLockEnabled: Boolean(previous.permanentMobileBrokerLockEnabled || incoming.permanentMobileBrokerLockEnabled),
+              enforceBrokerStakeLock: Boolean(previous.enforceBrokerStakeLock || incoming.enforceBrokerStakeLock),
             };
-          });
+            if (JSON.stringify(previous) !== JSON.stringify(mergedSettings)) setSettings(mergedSettings);
+          }
+        } else {
+          const upload = await saveRiskSettingsToSupabase(settingsRef.current, email);
+          if (upload.error) throw new Error(`Envio de configurações: ${upload.error}`);
         }
 
-        if (capitalRes.data && capitalRes.data.length > 0) {
-          setCapitalTransactions(capitalRes.data);
-          localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(capitalRes.data));
-        } else if (capitalRes.data && capitalRes.data.length === 0) {
-          setCapitalTransactions((prev) => {
-            if (prev.length > 0) {
-              syncAllCapitalTransactionsToSupabase(prev, email);
-              return prev;
-            }
-            return [];
-          });
+        if (isMounted) {
+          setSupabaseHealth({ status: 'connected', message: `Sincronizado automaticamente às ${new Date().toLocaleTimeString()}.` });
         }
-        if (usersRes) {
-          const updatedMe = usersRes.find((u) => u.email.toLowerCase() === email.toLowerCase());
-          if (updatedMe) setCurrentUser(updatedMe);
+      } catch (error: any) {
+        if (isMounted) {
+          setSupabaseHealth({ status: 'error', message: error?.message || 'Falha na sincronização automática com a nuvem.' });
         }
-      } catch (e) {}
+        console.warn('Falha na sincronização automática:', error);
+      } finally {
+        syncInFlight = false;
+      }
     };
 
-    const channelName = `realtime_app_${email ? email.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'global'}_${Date.now()}`;
-
+    const channelName = `realtime_app_${email.replace(/[^a-z0-9]/g, '_')}`;
     const realtimeChannel = supabase
       .channel(channelName)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'trades' },
-        () => refetchAllData()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'risk_settings' },
-        () => refetchAllData()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'capital_transactions' },
-        () => refetchAllData()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'system_users' },
-        () => refetchAllData()
-      )
-      .on(
-        'broadcast',
-        { event: 'SYNC_MUTATION' },
-        () => refetchAllData()
-      )
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trades' }, synchronize)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'risk_settings' }, synchronize)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'capital_transactions' }, synchronize)
+      .on('broadcast', { event: 'SYNC_MUTATION' }, synchronize)
+      .subscribe((status) => {
+        if (!isMounted) return;
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setSupabaseHealth({ status: 'error', message: 'Canal em tempo real indisponível; tentando sincronizar automaticamente.' });
+        }
+      });
 
-    // Heartbeat Polling de 3 segundos para garantir sincronia multidispositivo sem F5
-    const pollInterval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        refetchAllData();
-      }
-    }, 3000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') synchronize();
+    };
+    const onWindowFocus = () => synchronize();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onWindowFocus);
+    const pollInterval = window.setInterval(synchronize, 5000);
+    synchronize();
 
     return () => {
       isMounted = false;
-      clearInterval(pollInterval);
+      window.clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onWindowFocus);
       supabase.removeChannel(realtimeChannel);
     };
   }, [currentUser?.email]);
@@ -749,49 +658,92 @@ export default function App() {
 
   // Ouvinte de trades capturados automaticamente pela Extensão Chrome em tempo real
   useEffect(() => {
+    const acceptCapturedTrade = (tradeData: Trade) => {
+      if (!tradeData || !tradeData.id || !tradeData.date || !tradeData.asset || !Number.isFinite(Number(tradeData.pnl))) return;
+      const capturedTrade: Trade = { ...tradeData, updatedAt: new Date().toISOString() };
+      // OCR só envia operações completas; as antigas capturas DOM continuam sendo descartadas.
+      if (
+        capturedTrade.strategy?.includes('DOM') ||
+        capturedTrade.notes?.includes('DOM') ||
+        capturedTrade.id?.startsWith('dom-')
+      ) return;
+
+      const todayStr = getLocalDateStr();
+      if (!capturedTrade.date || capturedTrade.date > todayStr) capturedTrade.date = todayStr;
+
+      setTrades((prev) => {
+        const isDuplicate = prev.some((t) =>
+          t.id === capturedTrade.id ||
+            t.date === capturedTrade.date &&
+            t.time === capturedTrade.time &&
+            t.asset === capturedTrade.asset &&
+            t.pnl === capturedTrade.pnl &&
+            t.type === capturedTrade.type
+        );
+        if (isDuplicate) return prev;
+        return sortAndSanitizeTrades([capturedTrade, ...prev]);
+      });
+
+      upsertTradeToSupabase(capturedTrade, currentUser?.email).catch(() => {});
+    };
+
     const handleAutoCapturedMessage = (event: MessageEvent) => {
       if (
         event.data &&
         (event.data.type === 'AUTO_TRADE_CAPTURED' || event.data.type === 'TRADER_JOURNAL_AUTO_TRADE') &&
         event.data.trade
       ) {
-        const capturedTrade: Trade = { ...event.data.trade };
-        // Ignora capturas de DOM imprecisas geradas por mutação visual da página da corretora
-        if (
-          capturedTrade.strategy?.includes('DOM') ||
-          capturedTrade.notes?.includes('DOM') ||
-          capturedTrade.id?.startsWith('dom-')
-        ) {
-          return;
-        }
-
-        // Garante data no fuso horário local (evita data de amanhã pelo fuso UTC pós 21h)
-        const todayStr = getLocalDateStr();
-        if (!capturedTrade.date || capturedTrade.date > todayStr) {
-          capturedTrade.date = todayStr;
-        }
-
-        setTrades((prev) => {
-          const isDuplicate = prev.some(
-            (t) =>
-              t.id === capturedTrade.id ||
-              (t.date === capturedTrade.date &&
-                t.time === capturedTrade.time &&
-                t.asset === capturedTrade.asset &&
-                t.pnl === capturedTrade.pnl &&
-                t.type === capturedTrade.type)
-          );
-          if (isDuplicate) return prev;
-          return sortAndSanitizeTrades([capturedTrade, ...prev]);
-        });
-
-        upsertTradeToSupabase(capturedTrade, currentUser?.email).catch(() => {});
+        acceptCapturedTrade(event.data.trade as Trade);
       }
     };
 
     window.addEventListener('message', handleAutoCapturedMessage);
-    return () => window.removeEventListener('message', handleAutoCapturedMessage);
+    const removeDesktopTradeListener = window.electronAPI?.onExnovaTradeCaptured?.((trade) => {
+      acceptCapturedTrade(trade as Trade);
+    });
+    return () => {
+      window.removeEventListener('message', handleAutoCapturedMessage);
+      removeDesktopTradeListener?.();
+    };
   }, [currentUser?.email]);
+
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api?.isDesktop || !api.getExnovaCaptureStatus) return;
+    let mounted = true;
+    api.getExnovaCaptureStatus().then((status) => {
+      if (mounted) setExnovaCaptureStatus(status);
+    }).catch(() => {});
+    const unsubscribe = api.onExnovaCaptureStatus?.((status) => {
+      if (mounted) setExnovaCaptureStatus(status);
+    });
+    return () => {
+      mounted = false;
+      unsubscribe?.();
+    };
+  }, []);
+
+  const startExnovaCapture = () => {
+    window.electronAPI?.startExnovaCapture?.()
+      .then(setExnovaCaptureStatus)
+      .catch((error) => {
+        const message = String(error?.message || error || 'Falha ao iniciar captura.');
+        const handlerMissing = /No handler registered for ['"]start-exnova-capture['"]/.test(message);
+        setExnovaCaptureStatus({
+          state: 'error',
+          message: handlerMissing
+            ? 'Esta versão do TradeLock Desktop não inclui o serviço de captura Exnova. Feche o app completamente e abra a versão atualizada do projeto.'
+            : message,
+          enabled: false,
+        });
+      });
+  };
+
+  const stopExnovaCapture = () => {
+    window.electronAPI?.stopExnovaCapture?.()
+      .then(setExnovaCaptureStatus)
+      .catch((error) => setExnovaCaptureStatus({ state: 'error', message: String(error?.message || 'Falha ao pausar captura.'), enabled: false }));
+  };
 
   // Handlers for CRUD
   const handleSaveTrade = (tradeData: Trade, bypassStopCheck = false) => {
@@ -810,18 +762,19 @@ export default function App() {
       return;
     }
 
+    const tradeToSave: Trade = { ...tradeData, updatedAt: new Date().toISOString() };
     setTrades((prev) => {
-      const existsIndex = prev.findIndex((t) => t.id === tradeData.id);
+      const existsIndex = prev.findIndex((t) => t.id === tradeToSave.id);
       if (existsIndex >= 0) {
         const updated = [...prev];
-        updated[existsIndex] = tradeData;
+        updated[existsIndex] = tradeToSave;
         return sortAndSanitizeTrades(updated);
       }
-      return sortAndSanitizeTrades([tradeData, ...prev]);
+      return sortAndSanitizeTrades([tradeToSave, ...prev]);
     });
 
     // Sync to Supabase in background with userEmail scope
-    upsertTradeToSupabase(tradeData, currentUser?.email).then((res) => {
+    upsertTradeToSupabase(tradeToSave, currentUser?.email).then((res) => {
       if (res.error) {
         console.warn('Erro ao salvar no Supabase:', res.error);
       }
@@ -844,9 +797,10 @@ export default function App() {
       return;
     }
 
-    setTrades((prev) => sortAndSanitizeTrades([...importedTrades, ...prev]));
+    const stampedTrades = importedTrades.map((trade) => ({ ...trade, updatedAt: new Date().toISOString() }));
+    setTrades((prev) => sortAndSanitizeTrades([...stampedTrades, ...prev]));
     // Sync each imported trade to Supabase in background with userEmail scope
-    importedTrades.forEach((trade) => {
+    stampedTrades.forEach((trade) => {
       upsertTradeToSupabase(trade, currentUser?.email).catch((err) => {
         console.warn('Erro ao sincronizar trade importado:', err);
       });
@@ -914,18 +868,19 @@ export default function App() {
       newSettings.maxTradesPerDay = settings.maxTradesPerDay;
     }
 
-    setSettings(newSettings);
+    const settingsToSave: RiskSettings = { ...newSettings, updatedAt: new Date().toISOString() };
+    setSettings(settingsToSave);
     try {
       if (SETTINGS_STORAGE_KEY) {
-        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(newSettings));
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settingsToSave));
       }
-      localStorage.setItem('trader_journal_settings_v1', JSON.stringify(newSettings));
-      localStorage.setItem('trader_journal_settings_default', JSON.stringify(newSettings));
+      localStorage.setItem('trader_journal_settings_v1', JSON.stringify(settingsToSave));
+      localStorage.setItem('trader_journal_settings_default', JSON.stringify(settingsToSave));
     } catch (e) {
       console.warn('Erro ao salvar settings no localStorage:', e);
     }
     // Save to Supabase in background
-    saveRiskSettingsToSupabase(newSettings, currentUser?.email).then((res) => {
+    saveRiskSettingsToSupabase(settingsToSave, currentUser?.email).then((res) => {
       if (res.error) {
         console.warn('Erro ao salvar configurações no Supabase:', res.error);
       }
@@ -1321,6 +1276,9 @@ export default function App() {
         currentUser={currentUser}
         blockedDomains={blockedDomains}
         onUpdateBlockedDomains={(newDomains) => setBlockedDomains(newDomains)}
+        exnovaCaptureStatus={exnovaCaptureStatus}
+        onStartExnovaCapture={startExnovaCapture}
+        onStopExnovaCapture={stopExnovaCapture}
       />
     );
   }
@@ -1367,6 +1325,7 @@ export default function App() {
         todayTradesCount={todayPerformance?.tradesCount || 0}
         currentCapital={metrics.currentCapital}
         supabaseStatus={supabaseHealth.status}
+        supabaseMessage={supabaseHealth.message}
         currentCurrency={currency}
         currentUser={currentUser}
         onCurrencyChange={handleCurrencyChange}

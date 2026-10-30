@@ -25,6 +25,7 @@ export interface SystemUser {
 
 export interface Trade {
   id: string;
+  updatedAt?: string;
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
   asset: string; // e.g., 'WIN' (Mini Índice), 'WDO' (Mini Dólar), 'PETR4', 'BTC/USD'
@@ -59,6 +60,7 @@ export interface CapitalTransaction {
 }
 
 export interface RiskSettings {
+  updatedAt?: string;
   initialCapital: number;
   dailyProfitTarget: number; // Meta de Ganho diária em R$
   dailyLossLimit: number; // Limite de Perda diário (valor positivo em R$, ex: 300)

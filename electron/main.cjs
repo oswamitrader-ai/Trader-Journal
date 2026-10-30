@@ -1,11 +1,23 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, desktopCapturer } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { setNativeLockState } = require('./windowsDaemon.cjs');
+const { createExnovaCaptureService } = require('./exnovaCapture.cjs');
 
 let mainWindow = null;
 let tray = null;
 let currentLockState = { isLockActive: false };
+let exnovaCapture = null;
+
+function sendCaptureUpdate(channel, data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, data);
+  }
+}
+
+function isTrustedRenderer(event) {
+  return mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents;
+}
 
 const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL !== undefined || !app.isPackaged;
 
@@ -96,9 +108,41 @@ ipcMain.handle('get-desktop-status', async () => {
   };
 });
 
+ipcMain.handle('get-exnova-capture-status', async (event) => {
+  if (!isTrustedRenderer(event)) return { state: 'error', message: 'Janela do TradeLock não autorizada.', enabled: false };
+  return exnovaCapture?.getStatus() || {
+    state: process.platform === 'win32' ? 'idle' : 'unavailable',
+    message: process.platform === 'win32' ? 'Captura desativada.' : 'Captura Exnova disponível apenas no Windows.',
+    capturedCount: 0,
+    lastReadAt: null,
+    enabled: false,
+  };
+});
+
+ipcMain.handle('start-exnova-capture', async (event) => {
+  if (!isTrustedRenderer(event)) return { state: 'error', message: 'Janela do TradeLock não autorizada.', enabled: false };
+  if (process.platform !== 'win32') return { state: 'unavailable', message: 'Captura Exnova disponível apenas no Windows.', enabled: false };
+  return exnovaCapture.start();
+});
+
+ipcMain.handle('stop-exnova-capture', async (event) => {
+  if (!isTrustedRenderer(event)) return { state: 'error', message: 'Janela do TradeLock não autorizada.', enabled: false };
+  return exnovaCapture?.stop() || { state: 'idle', message: 'Captura desativada.', enabled: false };
+});
+
 app.whenReady().then(() => {
+  exnovaCapture = createExnovaCaptureService({
+    desktopCapturer,
+    app,
+    onStatus: (status) => sendCaptureUpdate('exnova-capture-status', status),
+    onTrade: (trade) => sendCaptureUpdate('exnova-trade-captured', trade),
+  });
   setupAutoStart();
   createWindow();
+  // A captura nativa começa junto com o TradeLock e só observa a janela da Exnova.
+  exnovaCapture.start().catch((error) => {
+    console.warn('[TradeLock Desktop] Não foi possível iniciar a captura Exnova:', error.message);
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -111,4 +155,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit', () => {
+  exnovaCapture?.stop().catch(() => {});
 });

@@ -152,6 +152,7 @@ export async function fetchTradesFromSupabase(userEmail?: string): Promise<{ dat
 
         return {
           id: String(row.id),
+          updatedAt: row.updated_at ? String(row.updated_at) : undefined,
           date: String(row.date),
           time: String(row.time),
           asset: String(row.asset),
@@ -202,7 +203,7 @@ export async function upsertTradeToSupabase(trade: Trade, userEmail?: string): P
       accountType: trade.accountType ?? null,
       isReal: trade.isReal ?? null,
       isAutoCaptured: trade.isAutoCaptured ?? null,
-      updated_at: new Date().toISOString(),
+      updated_at: trade.updatedAt || new Date().toISOString(),
     };
 
     let { error } = await supabase.from('trades').upsert(payload);
@@ -308,7 +309,7 @@ export async function syncAllTradesToSupabase(trades: Trade[], userEmail?: strin
       accountType: trade.accountType ?? null,
       isReal: trade.isReal ?? null,
       isAutoCaptured: trade.isAutoCaptured ?? null,
-      updated_at: new Date().toISOString(),
+      updated_at: trade.updatedAt || new Date().toISOString(),
     }));
 
     let { error } = await supabase.from('trades').upsert(payload);
@@ -375,6 +376,7 @@ export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise
     }
 
     const settings: RiskSettings = {
+      updatedAt: data.updated_at ? String(data.updated_at) : undefined,
       initialCapital: extraManagement.initialCapital ?? (data.initialCapital != null ? Number(data.initialCapital) : 0),
       dailyProfitTarget: extraManagement.dailyProfitTarget ?? (data.dailyProfitTarget != null ? Number(data.dailyProfitTarget) : 500),
       dailyLossLimit: extraManagement.dailyLossLimit ?? (data.dailyLossLimit != null ? Number(data.dailyLossLimit) : 300),
@@ -462,14 +464,12 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       maxTradesPerDay: settings.maxTradesPerDay,
       alertSoundEnabled: settings.alertSoundEnabled,
       notes: managementJson,
-      updated_at: new Date().toISOString(),
+      updated_at: settings.updatedAt || new Date().toISOString(),
     };
 
     let { error } = await supabase.from('risk_settings').upsert(payload);
 
-    if (error) {
-      console.warn('Erro ao salvar no banco (certifique-se de que a coluna notes existe):', error.message);
-    }
+    if (error) return { success: false, error: error.message };
 
     // Sempre salva um clone exato das configurações no default_settings para sincronia perfeita de novos dispositivos ou sessões sem login
     const defaultPayload: any = {
@@ -477,7 +477,8 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       id: 'default_settings',
     };
     try {
-      await supabase.from('risk_settings').upsert(defaultPayload);
+      const { error: defaultError } = await supabase.from('risk_settings').upsert(defaultPayload);
+      if (defaultError) console.warn('Não foi possível atualizar as configurações padrão:', defaultError.message);
     } catch (e) {}
 
     notifyRealtimeSync('risk_settings', 'UPSERT');
@@ -603,6 +604,7 @@ export async function upsertCapitalTransactionToSupabase(tx: CapitalTransaction,
       const res = await supabase.from('capital_transactions').upsert(payload);
       error = res.error;
     }
+    if (error) return { success: false, error: error.message };
 
     // Backup em risk_settings
     const backupId = `captx_${cleanEmail}_${tx.id}`;
@@ -649,8 +651,9 @@ export async function deleteCapitalTransactionFromSupabase(txId: string, userEma
 /**
  * Sync batch of capital transactions to Supabase
  */
-export async function syncAllCapitalTransactionsToSupabase(txs: CapitalTransaction[], userEmail?: string): Promise<void> {
-  if (!txs || txs.length === 0 || !userEmail) return;
+export async function syncAllCapitalTransactionsToSupabase(txs: CapitalTransaction[], userEmail?: string): Promise<{ count: number; error: string | null }> {
+  if (!txs || txs.length === 0) return { count: 0, error: null };
+  if (!userEmail) return { count: 0, error: 'E-mail do usuário necessário para sincronizar movimentações de capital.' };
   const cleanEmail = userEmail.toLowerCase().trim();
 
   try {
@@ -676,17 +679,20 @@ export async function syncAllCapitalTransactionsToSupabase(txs: CapitalTransacti
     let { error } = await supabase.from('capital_transactions').upsert(payloadBatch);
     if (error && (error.code === 'PGRST204' || error.message.includes('column'))) {
       const cleanBatch = payloadBatch.map(({ status, ...rest }) => rest);
-      await supabase.from('capital_transactions').upsert(cleanBatch);
+      ({ error } = await supabase.from('capital_transactions').upsert(cleanBatch));
     }
-  } catch (e) {}
+    if (error) return { count: 0, error: error.message };
+  } catch (e: any) {
+    return { count: 0, error: e?.message || 'Falha ao enviar movimentações de capital.' };
+  }
 
   for (const tx of txs) {
-    try {
-      await upsertCapitalTransactionToSupabase(tx, cleanEmail);
-    } catch (e) {}
+    const result = await upsertCapitalTransactionToSupabase(tx, cleanEmail);
+    if (!result.success) return { count: 0, error: result.error || 'Falha ao confirmar movimentação de capital.' };
   }
 
   notifyRealtimeSync('capital_transactions', 'UPSERT');
+  return { count: txs.length, error: null };
 }
 
 /**
