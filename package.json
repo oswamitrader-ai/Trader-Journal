@@ -1,7 +1,7 @@
 {
   "name": "tradelock-desktop",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "npm exec tsx server.ts",
@@ -67,7 +67,12 @@
     "asarUnpack": [
       "node_modules/tesseract.js/**",
       "node_modules/tesseract.js-core/**",
-      "node_modules/wasm-feature-detect/**"
+      "node_modules/wasm-feature-detect/**",
+      "node_modules/regenerator-runtime/**",
+      "node_modules/is-url/**",
+      "node_modules/node-fetch/**",
+      "node_modules/bmp-js/**",
+      "node_modules/zlibjs/**"
     ],
     "extraResources": [
       {
