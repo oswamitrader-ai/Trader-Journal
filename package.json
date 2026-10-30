@@ -1,7 +1,7 @@
 {
   "name": "tradelock-desktop",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "npm exec tsx server.ts",
@@ -88,7 +88,7 @@
       ],
       "executableName": "TradeLock Desktop",
       "icon": "public/favicon.svg",
-      "requestedExecutionLevel": "requireAdministrator"
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
