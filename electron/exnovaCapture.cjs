@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const path = require('path');
 const { createWorker } = require('tesseract.js');
 
-const POLL_INTERVAL_MS = 3500;
+const POLL_INTERVAL_MS = 1200;
 const CAPTURE_WIDTH = 1600;
 const CAPTURE_HEIGHT = 1000;
 const MIN_LINE_CONFIDENCE = 72;
@@ -381,6 +381,101 @@ function readTradeLine(line, date, accountType, occurrence, sourceLabel) {
   };
 }
 
+async function readVisibleResultNotification(worker, thumbnail, nativeImage) {
+  const { width, height } = thumbnail.getSize();
+  // The result toast appears over the center-right chart area. Read a focused
+  // crop and binarize it so the small white label stands out from the chart.
+  const crop = {
+    x: Math.round(width * 0.50),
+    y: Math.round(height * 0.34),
+    width: Math.round(width * 0.32),
+    height: Math.round(height * 0.30),
+  };
+  crop.width = Math.min(crop.width, width - crop.x);
+  crop.height = Math.min(crop.height, height - crop.y);
+  if (crop.width < 100 || crop.height < 80) return null;
+
+  const scale = 3;
+  const image = thumbnail.crop(crop).resize({ width: crop.width * scale, height: crop.height * scale });
+  const imageSize = image.getSize();
+  const pixels = Buffer.from(image.toBitmap());
+  for (let offset = 0; offset + 3 < pixels.length; offset += 4) {
+    // Electron returns BGRA pixels on Windows.
+    const luminance = 0.114 * pixels[offset] + 0.587 * pixels[offset + 1] + 0.299 * pixels[offset + 2];
+    const value = luminance > 160 ? 0 : 255;
+    pixels[offset] = value;
+    pixels[offset + 1] = value;
+    pixels[offset + 2] = value;
+    pixels[offset + 3] = 255;
+  }
+  const highContrastImage = nativeImage.createFromBitmap(pixels, imageSize);
+  await worker.setParameters({ tessedit_pageseg_mode: '6' });
+  let data;
+  try {
+    ({ data } = await worker.recognize(highContrastImage.toPNG(), {}, { blocks: true }));
+  } finally {
+    await worker.setParameters({ tessedit_pageseg_mode: '3' });
+  }
+  const lines = getOcrLines(data).filter((line) => line.confidence >= 45);
+  const normalized = normalizeText(`${lines.map((line) => line.text).join(' ')} ${data.text || ''}`);
+  const returnLabel = normalized.match(/\bRET[O0]RN[O0]\b/);
+  if (!returnLabel) return null;
+
+  // Exnova's visible result is the source of truth for this capture path.
+  const followingText = normalized.slice(returnLabel.index + returnLabel[0].length, returnLabel.index + returnLabel[0].length + 120);
+  const moneyMatches = Array.from(followingText.matchAll(/([+-])?\s*(R\s*[$S]|US\$|\$|€|£)\s*((?:\d{1,3}(?:[., ]\d{3})+|\d+)(?:[.,]\d{1,2})?)/g));
+  const match = moneyMatches[moneyMatches.length - 1];
+  if (!match) return null;
+
+  const amount = parseMoney(match[3]);
+  if (amount === null) return null;
+  const sign = match[1] || '';
+  const currency = match[2].replace(/\s+/g, '');
+  const signedAmount = Math.round((sign === '-' ? -amount : amount) * 100) / 100;
+  return { amount: signedAmount, sign, currency, display: `RETORNO ${sign}${currency}${match[3]}` };
+}
+
+function parseVisibleResultTrade(ocrData, notification, now = new Date()) {
+  if (!notification) return null;
+  const lines = getOcrLines(ocrData);
+  const fullText = normalizeText(lines.map((line) => line.text).join(' '));
+  const assetLines = lines
+    .filter((line) => line.top >= 70 && line.top <= 260 && line.left <= 520 && hasTradeAsset(line.text))
+    .sort((a, b) => a.top - b.top);
+  const assetText = assetLines[0]?.text || lines.find((line) => hasTradeAsset(line.text))?.text || '';
+  const assetMatch = normalizeText(assetText).match(/\b([A-Z]{3}\s*\/\s*[A-Z]{3}(?:\s*\(OTC\))?|[A-Z]{6}(?:\s*\(OTC\))?)\b/);
+  const asset = assetMatch ? assetMatch[1].replace(/\s*\/\s*/g, '/').replace(/\s*\(OTC\)/, ' (OTC)') : 'Exnova (ativo não lido)';
+  const accountType = readAccountType(lines) || undefined;
+  const investmentMatch = fullText.match(/\b(?:INVEST|INVESTMENT|INVESTIMENTO)\s*(?:R\s*\$|US\$|\$|€|£)?\s*((?:\d{1,3}(?:[., ]\d{3})+|\d+)(?:[.,]\d{1,2})?)/);
+  const stake = investmentMatch ? parseMoney(investmentMatch[1]) : 0;
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const result = notification.amount > 0 ? 'GAIN' : notification.amount < 0 ? 'LOSS' : 'BREAKEVEN';
+  const identity = [date, time, asset, notification.amount.toFixed(2), stake.toFixed(2), accountType || 'UNKNOWN'].join('|');
+  const id = `exnova-toast-${crypto.createHash('sha256').update(identity).digest('hex').slice(0, 20)}`;
+  const missing = [
+    !assetMatch && 'ativo',
+    !accountType && 'tipo de conta',
+    !(stake > 0) && 'valor investido',
+  ].filter(Boolean);
+  return {
+    id,
+    date,
+    time,
+    asset,
+    type: 'UNKNOWN',
+    strategy: 'Captura local Exnova (aviso de retorno)',
+    result,
+    pnl: notification.amount,
+    contractsOrQuantity: stake,
+    accountType,
+    isReal: accountType ? accountType === 'REAL' : undefined,
+    isAutoCaptured: true,
+    notes: `Resultado registrado diretamente do aviso visível: ${notification.display}. Moeda lida na tela (${notification.currency}), sem conversão.${missing.length ? ` OCR não identificou: ${missing.join(', ')}.` : ''} Direção não exibida no aviso.`,
+    tags: ['Exnova', 'OCR local', 'Aviso de retorno', ...(accountType ? [accountType] : [])],
+  };
+}
+
 function parseClosedTrades(ocrData, now = new Date(), sourceLabel = 'Desktop', requireExnovaBrand = false, preparedLines) {
   const lines = preparedLines || getOcrLines(ocrData);
   const text = lines.map((line) => line.text).join('\n');
@@ -456,7 +551,7 @@ function findExnovaSources(sources) {
   });
 }
 
-function createExnovaCaptureService({ desktopCapturer, app, onStatus, onTrade }) {
+function createExnovaCaptureService({ desktopCapturer, nativeImage, app, onStatus, onTrade }) {
   let timer = null;
   let workerPromise = null;
   let processing = false;
@@ -465,6 +560,8 @@ function createExnovaCaptureService({ desktopCapturer, app, onStatus, onTrade })
   let capturedCount = 0;
   let lastReadAt = null;
   const seenTrades = new Set();
+  let activeResultFingerprint = null;
+  let resultSequence = 0;
 
   function publish(state, message) {
     const status = { state, message, capturedCount, lastReadAt, enabled: !stopped };
@@ -514,13 +611,60 @@ function createExnovaCaptureService({ desktopCapturer, app, onStatus, onTrade })
       }
       const worker = await withTimeout(getWorker(), 30000, 'O OCR local não inicializou no tempo esperado.');
       let recognizedWindow = false;
+      let desktopWindowAvailable = false;
       let validHistoryScreen = false;
       let lastReason = 'Janela Exnova encontrada, mas a imagem não está disponível. Deixe o app aberto e desbloqueado.';
+      let resultNotificationMessage = null;
+      let newTradesThisCycle = 0;
       for (const processInfo of exnovaWindows) {
         const target = processInfo.source;
         if (!target || !target.thumbnail || target.thumbnail.isEmpty()) continue;
         const png = target.thumbnail.toPNG();
         if (!png || png.length < 2048) continue;
+
+        // The desktop app records closed trades from the visible RETORNO toast.
+        // Do this focused OCR first; do not require the history panel to be open.
+        if (processInfo.sourceLabel === 'Desktop') {
+          desktopWindowAvailable = true;
+          const notification = await readVisibleResultNotification(worker, target.thumbnail, nativeImage);
+          recognizedWindow = true;
+          lastReadAt = new Date().toISOString();
+          if (!notification) {
+            activeResultFingerprint = null;
+            continue;
+          }
+
+          const { data } = await withTimeout(
+            worker.recognize(png, {}, { blocks: true }),
+            20000,
+            'A leitura OCR excedeu o tempo esperado.'
+          );
+          if (stopped) return;
+          const parsedResult = parseVisibleResultTrade(data, notification, new Date());
+          if (!parsedResult) {
+            lastReason = `O aviso “RETORNO” apareceu (${notification.display}), mas os campos complementares não puderam ser lidos. O resultado não foi registrado.`;
+            activeResultFingerprint = null;
+            continue;
+          }
+          const fingerprint = `${parsedResult.asset}|${parsedResult.pnl}|${parsedResult.contractsOrQuantity}|${parsedResult.accountType || 'UNKNOWN'}`;
+          resultNotificationMessage = `Resultado da tela capturado: ${notification.display}.`;
+          if (fingerprint !== activeResultFingerprint) {
+            activeResultFingerprint = fingerprint;
+            resultSequence += 1;
+            parsedResult.id = `${parsedResult.id}-${resultSequence}`;
+            if (!seenTrades.has(parsedResult.id)) {
+              seenTrades.add(parsedResult.id);
+              capturedCount += 1;
+              newTradesThisCycle += 1;
+              onTrade?.(parsedResult);
+            }
+            resultNotificationMessage += ` Operação registrada${parsedResult.type === 'UNKNOWN' ? '; direção não identificada' : ''}.`;
+          } else {
+            resultNotificationMessage += ' Operação já registrada; aviso repetido ignorado.';
+          }
+          lastReason = resultNotificationMessage;
+          continue;
+        }
 
         const { data } = await withTimeout(
           worker.recognize(png, {}, { blocks: true }),
@@ -530,12 +674,9 @@ function createExnovaCaptureService({ desktopCapturer, app, onStatus, onTrade })
         if (stopped) return;
         recognizedWindow = true;
         lastReadAt = new Date().toISOString();
-        const preparedLines = processInfo.sourceLabel === 'Desktop'
-          ? await readDesktopHistoryLines(worker, target.thumbnail)
-          : undefined;
-        const parsed = parseClosedTrades(data, new Date(), processInfo.sourceLabel, processInfo.requireExnovaBrand, preparedLines);
+        const parsed = parseClosedTrades(data, new Date(), processInfo.sourceLabel, processInfo.requireExnovaBrand);
         if (parsed.state === 'attention') {
-          lastReason = parsed.reason;
+          if (!resultNotificationMessage) lastReason = parsed.reason;
           continue;
         }
         validHistoryScreen = true;
@@ -544,6 +685,7 @@ function createExnovaCaptureService({ desktopCapturer, app, onStatus, onTrade })
           if (seenTrades.has(trade.id)) continue;
           seenTrades.add(trade.id);
           capturedCount += 1;
+          newTradesThisCycle += 1;
           onTrade?.(trade);
         }
       }
@@ -553,8 +695,16 @@ function createExnovaCaptureService({ desktopCapturer, app, onStatus, onTrade })
         return;
       }
 
-      if (!validHistoryScreen) {
+      if (!validHistoryScreen && !newTradesThisCycle && !resultNotificationMessage) {
+        if (desktopWindowAvailable) {
+          publish('reading', 'Exnova Desktop detectada; monitorando o aviso “RETORNO”. Nenhuma operação fechada detectada nesta leitura.');
+          return;
+        }
         publish('attention', lastReason);
+        return;
+      }
+      if (resultNotificationMessage) {
+        publish('reading', resultNotificationMessage);
         return;
       }
       publish('reading', capturedCount

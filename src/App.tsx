@@ -50,7 +50,7 @@ import { ImportTradesModal } from './components/ImportTradesModal';
 import { PDFReportModal } from './components/PDFReportModal';
 import { LoginScreen } from './components/LoginScreen';
 import { AdminUserManagementPage } from './components/AdminUserManagementPage';
-import { getCurrentSession, setCurrentSession, logoutUser, INITIAL_ADMIN_USER } from './utils/auth';
+import { restoreAuthenticatedUser, applyJournalReset, logoutUser } from './utils/auth';
 import { SystemUser } from './types';
 import {
   supabase,
@@ -58,6 +58,8 @@ import {
   fetchTradesFromSupabase,
   fetchRiskSettingsFromSupabase,
   fetchCapitalTransactionsFromSupabase,
+  fetchDeletedRecordIds,
+  purgeCloudRecordsDeletedByUser,
   upsertTradeToSupabase,
   upsertCapitalTransactionToSupabase,
   deleteTradeFromSupabase,
@@ -71,21 +73,42 @@ import {
 
 type ActiveView = 'all' | 'charts' | 'calendar' | 'weekly' | 'trades';
 
+function readDeletedIds(key: string): Set<string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch { return new Set(); }
+}
+
+function saveDeletedId(key: string, id: string): void {
+  const ids = readDeletedIds(key);
+  ids.add(id);
+  try { localStorage.setItem(key, JSON.stringify(Array.from(ids))); } catch {}
+}
+
 export default function App() {
   // 0. Auth State
-  const [currentUser, setCurrentUser] = useState<SystemUser | null>(() => {
-    const session = getCurrentSession();
-    if (!session && typeof window !== 'undefined' && (window as any).electronAPI?.isDesktop) {
-      setCurrentSession(INITIAL_ADMIN_USER);
-      return INITIAL_ADMIN_USER;
-    }
-    return session;
-  });
+  const [currentUser, setCurrentUser] = useState<SystemUser | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    const refresh = () => { restoreAuthenticatedUser().then(user => { if(mounted) setCurrentUser(user); }).catch(() => { if(mounted) setCurrentUser(null); }); };
+    refresh();
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((event) => {
+      if(event === 'SIGNED_OUT') setCurrentUser(null);
+      else if(event === 'SIGNED_IN') setTimeout(refresh,0);
+    });
+    return () => { mounted=false; subscription.unsubscribe(); };
+  }, []);
   const [currentView, setCurrentView] = useState<'JOURNAL' | 'ADMIN_CLIENTS' | 'ANTI_FURIA' | 'RISK_MANAGEMENT' | 'CAPITAL_MANAGEMENT'>('JOURNAL');
   const [exnovaCaptureStatus, setExnovaCaptureStatus] = useState<ExnovaCaptureStatus>({
     state: 'idle',
     message: 'Captura desativada.',
     capturedCount: 0,
+    enabled: false,
+  });
+  const [exnovaStakeShieldStatus, setExnovaStakeShieldStatus] = useState<ExnovaStakeShieldStatus>({
+    state: 'disabled',
+    message: 'Aguardando sincronização da trava de valor.',
     enabled: false,
   });
 
@@ -106,6 +129,8 @@ export default function App() {
   const TRADES_STORAGE_KEY = `trader_journal_trades_${userEmailKey}`;
   const SETTINGS_STORAGE_KEY = `trader_journal_settings_${userEmailKey}`;
   const CAPITAL_STORAGE_KEY = `trader_journal_capital_txs_${userEmailKey}`;
+  const DELETED_TRADES_KEY = `${TRADES_STORAGE_KEY}_deleted`;
+  const DELETED_CAPITAL_KEY = `${CAPITAL_STORAGE_KEY}_deleted`;
 
   // 1. Trades State (Sync Initial Hydration to Eliminate 0/Empty State Flash & Timezone Fix)
   const [trades, setTrades] = useState<Trade[]>(() => {
@@ -115,7 +140,8 @@ export default function App() {
       if (savedTrades && savedTrades !== 'undefined' && savedTrades !== 'null') {
         const parsed = JSON.parse(savedTrades);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const valid = parsed.filter((t: any) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
+          const deleted = readDeletedIds(DELETED_TRADES_KEY);
+          const valid = parsed.filter((t: any) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024' && !deleted.has(String(t.id)));
           return sortAndSanitizeTrades(valid);
         }
       }
@@ -124,7 +150,8 @@ export default function App() {
         if (legacySaved && legacySaved !== 'undefined' && legacySaved !== 'null') {
           const parsed = JSON.parse(legacySaved);
           if (Array.isArray(parsed)) {
-            const valid = parsed.filter((t: any) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
+            const deleted = readDeletedIds(DELETED_TRADES_KEY);
+            const valid = parsed.filter((t: any) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024' && !deleted.has(String(t.id)));
             return sortAndSanitizeTrades(valid);
           }
         }
@@ -140,18 +167,6 @@ export default function App() {
       if (savedSettings && savedSettings !== 'undefined' && savedSettings !== 'null') {
         return { ...DEFAULT_RISK_SETTINGS, ...JSON.parse(savedSettings) };
       }
-      const keys = Object.keys(localStorage).filter((k) => k.toLowerCase().includes('settings'));
-      for (const k of keys) {
-        const val = localStorage.getItem(k);
-        if (val && val !== 'undefined' && val !== 'null') {
-          try {
-            const parsed = JSON.parse(val);
-            if (parsed && typeof parsed === 'object') {
-              return { ...DEFAULT_RISK_SETTINGS, ...parsed };
-            }
-          } catch (e) {}
-        }
-      }
     } catch {}
     return DEFAULT_RISK_SETTINGS;
   });
@@ -162,17 +177,9 @@ export default function App() {
       const savedTxs = localStorage.getItem(CAPITAL_STORAGE_KEY);
       if (savedTxs && savedTxs !== 'undefined' && savedTxs !== 'null') {
         const parsed = JSON.parse(savedTxs);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-      const keys = Object.keys(localStorage).filter((k) => k.toLowerCase().includes('capital'));
-      for (const k of keys) {
-        const val = localStorage.getItem(k);
-        if (val && val !== 'undefined' && val !== 'null') {
-          try {
-            const parsed = JSON.parse(val);
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-          } catch (e) {}
-        }
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed.some((tx: any) => tx && typeof tx === 'object' && tx.id)) {
+            return parsed.filter((tx: any) => tx && typeof tx === 'object' && tx.id && !readDeletedIds(DELETED_CAPITAL_KEY).has(String(tx.id)));
+          }
       }
     } catch {}
     return [];
@@ -201,7 +208,8 @@ export default function App() {
       if (savedTrades && savedTrades !== 'undefined' && savedTrades !== 'null') {
         const parsed = JSON.parse(savedTrades);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          loadedTrades = parsed.filter((t) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
+          const deleted = readDeletedIds(DELETED_TRADES_KEY);
+          loadedTrades = parsed.filter((t) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024' && !deleted.has(String(t.id)));
         }
       }
 
@@ -211,12 +219,13 @@ export default function App() {
         if (legacySaved && legacySaved !== 'undefined' && legacySaved !== 'null') {
           const parsed = JSON.parse(legacySaved);
           if (Array.isArray(parsed)) {
-            loadedTrades = parsed.filter((t) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024');
+            const deleted = readDeletedIds(DELETED_TRADES_KEY);
+            loadedTrades = parsed.filter((t) => !/^tr-0\d{2}$/.test(t.id) && t.id !== 'tr-024' && !deleted.has(String(t.id)));
           }
         }
       }
 
-      if (loadedTrades.length > 0) setTrades(sortAndSanitizeTrades(loadedTrades));
+      setTrades(sortAndSanitizeTrades(loadedTrades));
     } catch {}
 
     // Load user's isolated risk settings
@@ -224,7 +233,7 @@ export default function App() {
       const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (savedSettings && savedSettings !== 'undefined' && savedSettings !== 'null') {
         setSettings({ ...DEFAULT_RISK_SETTINGS, ...JSON.parse(savedSettings) });
-      }
+      } else { setSettings(DEFAULT_RISK_SETTINGS); }
     } catch {}
 
     // Load user's isolated capital transactions (com fallback para chaves legadas)
@@ -233,24 +242,9 @@ export default function App() {
       let loadedCap: CapitalTransaction[] = [];
       if (savedTxs && savedTxs !== 'undefined' && savedTxs !== 'null') {
         const parsed = JSON.parse(savedTxs);
-        if (Array.isArray(parsed) && parsed.length > 0) loadedCap = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) loadedCap = parsed.filter((tx: CapitalTransaction) => tx && typeof tx === 'object' && tx.id && !readDeletedIds(DELETED_CAPITAL_KEY).has(String(tx.id)));
       }
-      if (loadedCap.length === 0) {
-        const keys = Object.keys(localStorage).filter((k) => k.toLowerCase().includes('capital'));
-        for (const k of keys) {
-          const val = localStorage.getItem(k);
-          if (val && val !== 'undefined' && val !== 'null') {
-            try {
-              const parsed = JSON.parse(val);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                loadedCap = parsed;
-                break;
-              }
-            } catch (e) {}
-          }
-        }
-      }
-      if (loadedCap.length > 0) setCapitalTransactions(loadedCap);
+      setCapitalTransactions(loadedCap);
     } catch {}
 
     setIsDataLoaded(true);
@@ -349,6 +343,12 @@ export default function App() {
         setSupabaseHealth(health);
         if (health.status !== 'connected') return;
 
+        if (await applyJournalReset(email)) {
+          tradesRef.current = [];
+          capitalTransactionsRef.current = [];
+          setTrades([]);
+          setCapitalTransactions([]);
+        }
         const [tradesResult, settingsResult, capitalResult] = await Promise.all([
           fetchTradesFromSupabase(email),
           fetchRiskSettingsFromSupabase(email),
@@ -359,14 +359,22 @@ export default function App() {
         if (settingsResult.error) throw new Error(`Configurações: ${settingsResult.error}`);
         if (capitalResult.error) throw new Error(`Movimentações: ${capitalResult.error}`);
 
+        const deletedRecords = await fetchDeletedRecordIds(email);
+        if (deletedRecords.error) throw new Error(`Exclusões sincronizadas: ${deletedRecords.error}`);
+        const locallyDeletedTrades = readDeletedIds(DELETED_TRADES_KEY);
+        const locallyDeletedCapital = readDeletedIds(DELETED_CAPITAL_KEY);
+
         // Reúne os dados por ID e usa a data de atualização para resolver alterações concorrentes.
         const cloudTrades = tradesResult.data || [];
         const cloudTradeMap = new Map<string, Trade>();
         cloudTrades.forEach((trade) => cloudTradeMap.set(trade.id, trade));
         const localDirtyTrades: Trade[] = [];
         const mergedTradeMap = new Map<string, Trade>(cloudTradeMap);
-        tradesRef.current.forEach((trade) => mergedTradeMap.set(trade.id, trade));
-        for (const localTrade of tradesRef.current) {
+        const activeLocalTrades = tradesRef.current.filter((trade) =>
+          !deletedRecords.tradeIds.has(trade.id) && !locallyDeletedTrades.has(trade.id)
+        );
+        activeLocalTrades.forEach((trade) => mergedTradeMap.set(trade.id, trade));
+        for (const localTrade of activeLocalTrades) {
           const cloudTrade = cloudTradeMap.get(localTrade.id);
           const localUpdatedAt = localTrade.updatedAt ? Date.parse(localTrade.updatedAt) : 0;
           const cloudUpdatedAt = cloudTrade?.updatedAt ? Date.parse(cloudTrade.updatedAt) : 0;
@@ -386,9 +394,12 @@ export default function App() {
 
         const cloudCapital = capitalResult.data || [];
         const cloudCapitalIds = new Set(cloudCapital.map((tx) => tx.id));
-        const localOnlyCapital = capitalTransactionsRef.current.filter((tx) => !cloudCapitalIds.has(tx.id));
+        const activeLocalCapital = capitalTransactionsRef.current.filter((tx) =>
+          !deletedRecords.capitalIds.has(tx.id) && !locallyDeletedCapital.has(tx.id)
+        );
+        const localOnlyCapital = activeLocalCapital.filter((tx) => !cloudCapitalIds.has(tx.id));
         const mergedCapitalMap = new Map<string, CapitalTransaction>();
-        capitalTransactionsRef.current.forEach((tx) => mergedCapitalMap.set(tx.id, tx));
+        activeLocalCapital.forEach((tx) => mergedCapitalMap.set(tx.id, tx));
         cloudCapital.forEach((tx) => mergedCapitalMap.set(tx.id, tx));
         const mergedCapital = Array.from(mergedCapitalMap.values()).sort((a, b) => b.date.localeCompare(a.date));
         if (JSON.stringify(capitalTransactionsRef.current) !== JSON.stringify(mergedCapital)) setCapitalTransactions(mergedCapital);
@@ -396,6 +407,8 @@ export default function App() {
           const upload = await syncAllCapitalTransactionsToSupabase(localOnlyCapital, email);
           if (upload.error) throw new Error(`Envio de movimentações: ${upload.error}`);
         }
+        const purgeError = await purgeCloudRecordsDeletedByUser(email, deletedRecords.tradeIds, deletedRecords.capitalIds);
+        if (purgeError) throw new Error(`Remoção de itens excluídos: ${purgeError}`);
 
         if (settingsResult.data) {
           const previous = settingsRef.current;
@@ -452,6 +465,8 @@ export default function App() {
       .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trades' }, synchronize)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'risk_settings' }, synchronize)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'management_settings' }, synchronize)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deleted_records' }, synchronize)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'capital_transactions' }, synchronize)
       .on('broadcast', { event: 'SYNC_MUTATION' }, synchronize)
       .subscribe((status) => {
@@ -542,6 +557,17 @@ export default function App() {
 
   const todayPnl = todayPerformance?.pnl || 0;
   const todayTradesCount = todayPerformance?.tradesCount || 0;
+  const stakeStreak = useMemo(() => {
+    const ordered = trades.filter((trade) => trade.date === todayStr).slice().sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+    let consecutiveWins = 0;
+    let consecutiveLosses = 0;
+    for (const trade of ordered) {
+      if (trade.result === 'GAIN' && consecutiveLosses === 0) consecutiveWins += 1;
+      else if (trade.result === 'LOSS' && consecutiveWins === 0) consecutiveLosses += 1;
+      else break;
+    }
+    return { consecutiveWins, consecutiveLosses };
+  }, [trades, todayStr]);
   
   // Anti-Fúria lock triggers if REAL account daily loss or total daily loss reaches limit
   const isStopHit =
@@ -642,6 +668,16 @@ export default function App() {
           todayTradesCount,
           currentCapital: metrics.currentCapital,
           blockedDomains: blockedDomains,
+          enforceBrokerStakeLock: settings.enforceBrokerStakeLock,
+          fixedStakeAmount: settings.fixedStakeAmount,
+          sorosLevel1Stake: settings.sorosLevel1Stake,
+          sorosLevel2Stake: settings.sorosLevel2Stake,
+          sorosLevel3Stake: settings.sorosLevel3Stake,
+          martingaleLevel1Stake: settings.martingaleLevel1Stake,
+          martingaleLevel2Stake: settings.martingaleLevel2Stake,
+          managementStyle: settings.managementStyle,
+          consecutiveWins: stakeStreak.consecutiveWins,
+          consecutiveLosses: stakeStreak.consecutiveLosses,
         });
       }
     } catch (e) {
@@ -654,6 +690,8 @@ export default function App() {
     metrics.winRate,
     todayTradesCount,
     blockedDomains,
+    stakeStreak.consecutiveWins,
+    stakeStreak.consecutiveLosses,
   ]);
 
   // Ouvinte de trades capturados automaticamente pela Extensão Chrome em tempo real
@@ -672,13 +710,15 @@ export default function App() {
       if (!capturedTrade.date || capturedTrade.date > todayStr) capturedTrade.date = todayStr;
 
       setTrades((prev) => {
+        const resultToast = capturedTrade.id.startsWith('exnova-toast-');
         const isDuplicate = prev.some((t) =>
           t.id === capturedTrade.id ||
+            (!resultToast &&
             t.date === capturedTrade.date &&
             t.time === capturedTrade.time &&
             t.asset === capturedTrade.asset &&
             t.pnl === capturedTrade.pnl &&
-            t.type === capturedTrade.type
+            t.type === capturedTrade.type)
         );
         if (isDuplicate) return prev;
         return sortAndSanitizeTrades([capturedTrade, ...prev]);
@@ -716,6 +756,22 @@ export default function App() {
     }).catch(() => {});
     const unsubscribe = api.onExnovaCaptureStatus?.((status) => {
       if (mounted) setExnovaCaptureStatus(status);
+    });
+    return () => {
+      mounted = false;
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api?.isDesktop || !api.getExnovaStakeShieldStatus) return;
+    let mounted = true;
+    api.getExnovaStakeShieldStatus().then((status) => {
+      if (mounted) setExnovaStakeShieldStatus(status);
+    }).catch(() => {});
+    const unsubscribe = api.onExnovaStakeShieldStatus?.((status) => {
+      if (mounted) setExnovaStakeShieldStatus(status);
     });
     return () => {
       mounted = false;
@@ -817,8 +873,13 @@ export default function App() {
     }
 
     if (window.confirm('Tem certeza que deseja excluir esta operação do diário?')) {
-      setTrades((prev) => prev.filter((t) => t.id !== id));
-      deleteTradeFromSupabase(id).catch((err) => {
+      saveDeletedId(DELETED_TRADES_KEY, id);
+      const remaining = tradesRef.current.filter((t) => t.id !== id);
+      tradesRef.current = remaining;
+      setTrades(remaining);
+      deleteTradeFromSupabase(id, currentUser?.email).then((result) => {
+        if (!result.success) console.warn('Falha ao confirmar exclusão da operação na nuvem:', result.error);
+      }).catch((err) => {
         console.warn('Erro ao remover do Supabase:', err);
       });
     }
@@ -843,9 +904,14 @@ export default function App() {
       window.confirm(`Deseja realmente excluir as ${deletableIds.length} operações selecionadas?`)
     ) {
       const idSet = new Set(deletableIds);
-      setTrades((prev) => prev.filter((t) => !idSet.has(t.id)));
+      deletableIds.forEach((id) => saveDeletedId(DELETED_TRADES_KEY, id));
+      const remaining = tradesRef.current.filter((t) => !idSet.has(t.id));
+      tradesRef.current = remaining;
+      setTrades(remaining);
       deletableIds.forEach((id) => {
-        deleteTradeFromSupabase(id).catch((err) => {
+        deleteTradeFromSupabase(id, currentUser?.email).then((result) => {
+          if (!result.success) console.warn('Falha ao confirmar exclusão da operação na nuvem:', result.error);
+        }).catch((err) => {
           console.warn('Erro ao remover do Supabase:', err);
         });
       });
@@ -966,9 +1032,11 @@ export default function App() {
       }
       if (supabaseHealth.status === 'connected') {
         try {
-          await clearAllTradesFromSupabase();
+          const result = await clearAllTradesFromSupabase(currentUser?.email);
+          if (!result.success) throw new Error(result.error || 'Falha ao limpar operações na nuvem.');
         } catch (e) {
           console.warn('Erro ao limpar Supabase:', e);
+          alert(`As operações foram limpas localmente, mas a nuvem não confirmou a exclusão: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
     }
@@ -1093,15 +1161,14 @@ export default function App() {
   };
 
   const handleDeleteCapitalTransaction = (id: string) => {
-    setCapitalTransactions((prev) => {
-      const updated = prev.filter((t) => t.id !== id);
-      try {
-        localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
+    saveDeletedId(DELETED_CAPITAL_KEY, id);
+    const updated = capitalTransactionsRef.current.filter((t) => t.id !== id);
+    capitalTransactionsRef.current = updated;
+    setCapitalTransactions(updated);
     if (currentUser?.email) {
-      deleteCapitalTransactionFromSupabase(id, currentUser.email).catch((err) => {
+      deleteCapitalTransactionFromSupabase(id, currentUser.email).then((result) => {
+        if (!result.success) console.warn('Falha ao confirmar exclusão da movimentação na nuvem:', result.error);
+      }).catch((err) => {
         console.warn('Erro ao remover movimentação de capital no Supabase:', err);
       });
     }
@@ -1109,16 +1176,15 @@ export default function App() {
 
   const handleDeleteMultipleCapitalTransactions = (ids: string[]) => {
     if (!ids || ids.length === 0) return;
-    setCapitalTransactions((prev) => {
-      const updated = prev.filter((t) => !ids.includes(t.id));
-      try {
-        localStorage.setItem(CAPITAL_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
+    ids.forEach((id) => saveDeletedId(DELETED_CAPITAL_KEY, id));
+    const updated = capitalTransactionsRef.current.filter((t) => !ids.includes(t.id));
+    capitalTransactionsRef.current = updated;
+    setCapitalTransactions(updated);
     if (currentUser?.email) {
       ids.forEach((id) => {
-        deleteCapitalTransactionFromSupabase(id, currentUser.email).catch((err) => {
+        deleteCapitalTransactionFromSupabase(id, currentUser.email).then((result) => {
+          if (!result.success) console.warn('Falha ao confirmar exclusão da movimentação na nuvem:', result.error);
+        }).catch((err) => {
           console.warn('Erro ao remover movimentação de capital no Supabase:', err);
         });
       });
@@ -1277,6 +1343,7 @@ export default function App() {
         blockedDomains={blockedDomains}
         onUpdateBlockedDomains={(newDomains) => setBlockedDomains(newDomains)}
         exnovaCaptureStatus={exnovaCaptureStatus}
+        exnovaStakeShieldStatus={exnovaStakeShieldStatus}
         onStartExnovaCapture={startExnovaCapture}
         onStopExnovaCapture={stopExnovaCapture}
       />

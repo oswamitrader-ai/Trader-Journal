@@ -696,8 +696,8 @@ export const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
                           <div className="h-4 w-px bg-slate-800" />
                           <div>
                             <span className="text-slate-400">Tipo: </span>
-                            <span className={`font-semibold ${hoveredCandle.type === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {hoveredCandle.type === 'BUY' ? 'COMPRA (CALL)' : 'VENDA (PUT)'}
+                            <span className={`font-semibold ${hoveredCandle.type === 'BUY' ? 'text-emerald-400' : hoveredCandle.type === 'SELL' ? 'text-rose-400' : 'text-slate-300'}`}>
+                              {hoveredCandle.type === 'BUY' ? 'COMPRA (CALL)' : hoveredCandle.type === 'SELL' ? 'VENDA (PUT)' : 'DIREÇÃO NÃO IDENTIFICADA'}
                             </span>
                           </div>
                           <div className="h-4 w-px bg-slate-800" />

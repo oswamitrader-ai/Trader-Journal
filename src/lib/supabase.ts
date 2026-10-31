@@ -8,19 +8,15 @@ export const SUPABASE_URL =
 
 export const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXlrZHJieWZyd3FvdnNsZXFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1MDQ1NTcsImV4cCI6MjEwNTA4MDU1N30.X8JibBnbQh47nkHv51srbAWrdHZDLojs1xVupV3og1g';
+  'sb_publishable_6ntxWuCoI_0Upy2PVIB6Nw__mMUiPUX';
 
-export const SUPABASE_SERVICE_ROLE_KEY =
-  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXlrZHJieWZyd3FvdnNsZXFpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTUwNDU1NywiZXhwIjoyMTA1MDgwNTU3fQ.jFaxN67eNfjCG_OJKKdwG7srYFMEGU10HlUA8Aoqk5Q';
-
-export const isSupabaseConfigured = Boolean(SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY));
-
-// Service Role Key takes precedence to ensure database operations and RLS bypass for admin user management work 100%
-export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
-  auth: { persistSession: false },
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
-
+export function journalEpoch(email?: string): string | null {
+  return email ? localStorage.getItem('journal_epoch_' + email.toLowerCase().trim()) : null;
+}
 // Broadcast Channel dedicado para sincronização instantânea (<50ms) entre Web, Desktop (Electron) e Mobile
 export const syncBroadcastChannel = supabase.channel('tradelock_realtime_broadcast', {
   config: { broadcast: { self: true } },
@@ -130,9 +126,13 @@ export async function fetchTradesFromSupabase(userEmail?: string): Promise<{ dat
     }
 
     const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
+    const deletedResult = await fetchDeletedRecordIds(cleanEmail);
+    if (deletedResult.error) return { data: null, error: deletedResult.error };
+    const deletedIds = deletedResult.tradeIds;
 
     const trades: Trade[] = (data || [])
       .filter((row: any) => !/^tr-0\d{2}$/.test(String(row.id)) && String(row.id) !== 'tr-024')
+      .filter((row: any) => !deletedIds.has(String(row.id)))
       .filter((row: any) => {
         if (!cleanEmail) return true;
         const rowUserEmail = row.user_email ? String(row.user_email).toLowerCase().trim() : '';
@@ -156,7 +156,9 @@ export async function fetchTradesFromSupabase(userEmail?: string): Promise<{ dat
           date: String(row.date),
           time: String(row.time),
           asset: String(row.asset),
-          type: row.type === 'BUY' ? 'BUY' : 'SELL',
+          type: Array.isArray(row.tags) && row.tags.includes('DIRECTION_UNKNOWN')
+            ? 'UNKNOWN'
+            : row.type === 'BUY' ? 'BUY' : row.type === 'SELL' ? 'SELL' : 'UNKNOWN',
           strategy: String(row.strategy),
           result: row.result === 'GAIN' ? 'GAIN' : row.result === 'LOSS' ? 'LOSS' : 'BREAKEVEN',
           pnl: Number(row.pnl) || 0,
@@ -183,15 +185,22 @@ export async function fetchTradesFromSupabase(userEmail?: string): Promise<{ dat
  */
 export async function upsertTradeToSupabase(trade: Trade, userEmail?: string): Promise<{ success: boolean; error: string | null }> {
   try {
+    const cleanEmail = userEmail?.toLowerCase().trim();
+    if (cleanEmail) {
+      const deleted = await fetchDeletedRecordIds(cleanEmail);
+      if (deleted.error) return { success: false, error: deleted.error };
+      if (deleted.tradeIds.has(trade.id)) return { success: true, error: null };
+    }
     const deviceId = getClientDeviceId();
     const payload: any = {
       id: trade.id,
       device_id: deviceId,
-      user_email: userEmail || null,
+      user_email: userEmail?.toLowerCase().trim() || null,
+      data_epoch: journalEpoch(userEmail),
       date: trade.date,
       time: trade.time,
       asset: trade.asset,
-      type: trade.type,
+      type: trade.type === 'UNKNOWN' ? 'BUY' : trade.type,
       strategy: trade.strategy,
       result: trade.result,
       pnl: trade.pnl,
@@ -199,7 +208,7 @@ export async function upsertTradeToSupabase(trade: Trade, userEmail?: string): P
       entryPrice: trade.entryPrice ?? null,
       exitPrice: trade.exitPrice ?? null,
       notes: trade.notes ?? null,
-      tags: trade.tags ?? [],
+      tags: [...(trade.tags ?? []), ...(trade.type === 'UNKNOWN' ? ['DIRECTION_UNKNOWN'] : [])],
       accountType: trade.accountType ?? null,
       isReal: trade.isReal ?? null,
       isAutoCaptured: trade.isAutoCaptured ?? null,
@@ -231,7 +240,7 @@ export async function upsertTradeToSupabase(trade: Trade, userEmail?: string): P
 /**
  * Delete a trade from Supabase
  */
-export async function deleteTradeFromSupabase(tradeId: string): Promise<{ success: boolean; error: string | null }> {
+export async function deleteTradeFromSupabase(tradeId: string, userEmail?: string): Promise<{ success: boolean; error: string | null }> {
   try {
     // 1. Consulta se a operação é da Conta Real (protegida pelo Anti-Fúria)
     const { data: existing } = await supabase.from('trades').select('*').eq('id', tradeId).maybeSingle();
@@ -242,6 +251,8 @@ export async function deleteTradeFromSupabase(tradeId: string): Promise<{ succes
       };
     }
 
+    const tombstone = await createDeletedRecordTombstone('trade', tradeId, userEmail);
+    if (tombstone) return { success: false, error: tombstone };
     const { error } = await supabase.from('trades').delete().eq('id', tradeId);
     if (error) {
       return { success: false, error: error.message };
@@ -253,27 +264,89 @@ export async function deleteTradeFromSupabase(tradeId: string): Promise<{ succes
   }
 }
 
+export async function fetchDeletedRecordIds(userEmail: string): Promise<{ tradeIds: Set<string>; capitalIds: Set<string>; error: string | null }> {
+  if (!userEmail) return { tradeIds: new Set(), capitalIds: new Set(), error: null };
+  try {
+    const cleanEmail = userEmail.toLowerCase().trim();
+    const [tradesResult, capitalResult] = await Promise.all([
+      supabase.from('deleted_records').select('record_id').eq('user_email', cleanEmail).eq('record_type', 'trade'),
+      supabase.from('deleted_records').select('record_id').eq('user_email', cleanEmail).eq('record_type', 'capital'),
+    ]);
+    const error = tradesResult.error || capitalResult.error;
+    if (error) return { tradeIds: new Set(), capitalIds: new Set(), error: error.message };
+    return {
+      tradeIds: new Set((tradesResult.data || []).map((row: any) => String(row.record_id))),
+      capitalIds: new Set((capitalResult.data || []).map((row: any) => String(row.record_id))),
+      error: null,
+    };
+  } catch (err: any) {
+    return { tradeIds: new Set(), capitalIds: new Set(), error: err?.message || 'Falha ao consultar exclusões sincronizadas.' };
+  }
+}
+
+export async function purgeCloudRecordsDeletedByUser(userEmail: string, tradeIds: Set<string>, capitalIds: Set<string>): Promise<string | null> {
+  const cleanEmail = userEmail.toLowerCase().trim();
+  try {
+    for (const id of tradeIds) {
+      const { error } = await supabase.from('trades').delete().eq('id', id);
+      if (error) return error.message;
+    }
+    for (const id of capitalIds) {
+      const { error } = await supabase.from('capital_transactions').delete().eq('id', id).eq('user_email', cleanEmail);
+      if (error) return error.message;
+    }
+    return null;
+  } catch (err: any) {
+    return err?.message || 'Falha ao remover registros marcados como excluídos.';
+  }
+}
+
+async function createDeletedRecordTombstone(kind: 'trade' | 'capital', recordId: string, userEmail?: string): Promise<string | null> {
+  const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
+  if (!cleanEmail) return 'Não foi possível sincronizar a exclusão: e-mail da conta ausente.';
+  try {
+    const { error } = await supabase.from('deleted_records').upsert({
+      id: `${kind}_${cleanEmail}_${recordId}`,
+      user_email: cleanEmail,
+      record_type: kind,
+      record_id: recordId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_email,record_type,record_id' });
+    return error?.message || null;
+  } catch (err: any) {
+    return err?.message || 'Falha ao registrar a exclusão sincronizada.';
+  }
+}
+
 /**
  * Delete all trades from Supabase for this device/user
  */
 export async function clearAllTradesFromSupabase(userEmail?: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    const deviceId = getClientDeviceId();
-    let query = supabase.from('trades').delete();
-    if (userEmail) {
-      query = query.eq('user_email', userEmail);
-    } else {
-      query = query.eq('device_id', deviceId);
+    const cleanEmail = userEmail?.toLowerCase().trim();
+    if (!cleanEmail) return { success: false, error: 'E-mail da conta ausente; a limpeza foi cancelada.' };
+
+    const { data, error: fetchError } = await supabase
+      .from('trades')
+      .select('id')
+      .eq('user_email', cleanEmail);
+    if (fetchError) return { success: false, error: fetchError.message };
+
+    const ids = (data || []).map((row: { id: string }) => String(row.id));
+    for (const id of ids) {
+      const tombstoneError = await createDeletedRecordTombstone('trade', id, cleanEmail);
+      if (tombstoneError) return { success: false, error: tombstoneError };
     }
 
-    let { error } = await query;
-    if (error) {
-      const fallback = await supabase.from('trades').delete().neq('id', '___all_records_cleanup___');
-      error = fallback.error;
+    if (ids.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('trades')
+        .delete()
+        .eq('user_email', cleanEmail)
+        .in('id', ids);
+      if (deleteError) return { success: false, error: deleteError.message };
     }
-    if (error) {
-      return { success: false, error: error.message };
-    }
+    notifyRealtimeSync('trades', 'DELETE');
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao limpar dados do Supabase.' };
@@ -289,15 +362,23 @@ export async function syncAllTradesToSupabase(trades: Trade[], userEmail?: strin
   }
 
   try {
+    const cleanEmail = userEmail?.toLowerCase().trim();
+    if (!cleanEmail) return { count: 0, error: 'E-mail da conta ausente; sincronização cancelada.' };
+    const deleted = await fetchDeletedRecordIds(cleanEmail);
+    if (deleted.error) return { count: 0, error: deleted.error };
+    const activeTrades = trades.filter((trade) => !deleted.tradeIds.has(trade.id));
+    if (activeTrades.length === 0) return { count: 0, error: null };
+
     const deviceId = getClientDeviceId();
-    const payload = trades.map((trade) => ({
+    const payload = activeTrades.map((trade) => ({
       id: trade.id,
       device_id: deviceId,
-      user_email: userEmail || null,
+      user_email: userEmail?.toLowerCase().trim() || null,
+      data_epoch: journalEpoch(userEmail),
       date: trade.date,
       time: trade.time,
       asset: trade.asset,
-      type: trade.type,
+      type: trade.type === 'UNKNOWN' ? 'BUY' : trade.type,
       strategy: trade.strategy,
       result: trade.result,
       pnl: trade.pnl,
@@ -305,7 +386,7 @@ export async function syncAllTradesToSupabase(trades: Trade[], userEmail?: strin
       entryPrice: trade.entryPrice ?? null,
       exitPrice: trade.exitPrice ?? null,
       notes: trade.notes ?? null,
-      tags: trade.tags ?? [],
+      tags: [...(trade.tags ?? []), ...(trade.type === 'UNKNOWN' ? ['DIRECTION_UNKNOWN'] : [])],
       accountType: trade.accountType ?? null,
       isReal: trade.isReal ?? null,
       isAutoCaptured: trade.isAutoCaptured ?? null,
@@ -334,45 +415,52 @@ export async function syncAllTradesToSupabase(trades: Trade[], userEmail?: strin
 export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise<{ data: RiskSettings | null; error: string | null }> {
   try {
     const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
-    const settingId = cleanEmail ? `settings_${cleanEmail}` : `settings_${getClientDeviceId()}`;
+    let settingId = cleanEmail ? `settings_${cleanEmail}` : `settings_${getClientDeviceId()}`;
 
-    let { data } = await supabase
+    let { data, error } = await supabase
       .from('risk_settings')
       .select('*')
       .eq('id', settingId)
       .maybeSingle();
+    if (error) return { data: null, error: error.message };
 
     if (!data && cleanEmail) {
-      // Fallback para id baseado em dispositivo ou default_settings
-      const deviceSetting = await supabase
+      settingId = `settings_${getClientDeviceId()}`;
+      const deviceSettings = await supabase
         .from('risk_settings')
         .select('*')
-        .eq('id', `settings_${getClientDeviceId()}`)
+        .eq('id', settingId)
         .maybeSingle();
-      data = deviceSetting.data;
+      data = deviceSettings.data;
+      error = deviceSettings.error;
+      if (error) return { data: null, error: error.message };
     }
 
-    if (!data) {
-      const fallback = await supabase
-        .from('risk_settings')
-        .select('*')
-        .eq('id', 'default_settings')
-        .maybeSingle();
-      data = fallback.data;
-    }
+    const { data: managementRow, error: managementError } = await supabase
+      .from('management_settings')
+      .select('settings')
+      .eq('id', settingId)
+      .maybeSingle();
+    if (managementError) return { data: null, error: managementError.message };
 
     if (!data) {
       return { data: null, error: null };
     }
 
     let extraManagement: Partial<RiskSettings> = {};
-    if (data.notes && typeof data.notes === 'string' && data.notes.trim().startsWith('{')) {
+    const managementValue = managementRow?.settings;
+    if (managementValue && typeof managementValue === 'object') {
+      extraManagement = managementValue as Partial<RiskSettings>;
+    } else if (typeof managementValue === 'string' && managementValue.trim().startsWith('{')) {
       try {
-        const parsedNotes = JSON.parse(data.notes);
+        const parsedNotes = JSON.parse(managementValue);
         if (parsedNotes && typeof parsedNotes === 'object') {
           extraManagement = parsedNotes;
         }
       } catch (e) {}
+    } else if (typeof data.notes === 'string' && data.notes.trim().startsWith('{')) {
+      // Compatibilidade temporária com linhas gravadas antes da migração.
+      try { extraManagement = JSON.parse(data.notes); } catch (e) {}
     }
 
     const settings: RiskSettings = {
@@ -427,14 +515,7 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
     const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
     const settingId = cleanEmail ? `settings_${cleanEmail}` : `settings_${getClientDeviceId()}`;
 
-    const managementJson = JSON.stringify({
-      initialCapital: settings.initialCapital,
-      dailyProfitTarget: settings.dailyProfitTarget,
-      dailyLossLimit: settings.dailyLossLimit,
-      monthlyProfitTarget: settings.monthlyProfitTarget,
-      monthlyLossLimit: settings.monthlyLossLimit,
-      maxTradesPerDay: settings.maxTradesPerDay,
-      alertSoundEnabled: settings.alertSoundEnabled,
+    const managementSettings = {
       riskLockUntil: settings.riskLockUntil,
       riskLockDurationDays: settings.riskLockDurationDays,
       managementStyle: settings.managementStyle,
@@ -442,9 +523,6 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       estimatedWinRate: settings.estimatedWinRate,
       stakePercent: settings.stakePercent,
       permanentMobileBrokerLockEnabled: settings.permanentMobileBrokerLockEnabled,
-      antiFuriaCustomWindowEnabled: settings.antiFuriaCustomWindowEnabled,
-      antiFuriaStartTime: settings.antiFuriaStartTime,
-      antiFuriaEndTime: settings.antiFuriaEndTime,
       enforceBrokerStakeLock: settings.enforceBrokerStakeLock,
       fixedStakeAmount: settings.fixedStakeAmount,
       sorosLevel1Stake: settings.sorosLevel1Stake,
@@ -452,7 +530,7 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       sorosLevel3Stake: settings.sorosLevel3Stake,
       martingaleLevel1Stake: settings.martingaleLevel1Stake,
       martingaleLevel2Stake: settings.martingaleLevel2Stake,
-    });
+    };
 
     const payload: any = {
       id: settingId,
@@ -463,25 +541,25 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       monthlyLossLimit: settings.monthlyLossLimit,
       maxTradesPerDay: settings.maxTradesPerDay,
       alertSoundEnabled: settings.alertSoundEnabled,
-      notes: managementJson,
+      antiFuriaCustomWindowEnabled: settings.antiFuriaCustomWindowEnabled,
+      antiFuriaStartTime: settings.antiFuriaStartTime,
+      antiFuriaEndTime: settings.antiFuriaEndTime,
       updated_at: settings.updatedAt || new Date().toISOString(),
     };
 
-    let { error } = await supabase.from('risk_settings').upsert(payload);
+    const { error } = await supabase.from('risk_settings').upsert(payload);
 
     if (error) return { success: false, error: error.message };
 
-    // Sempre salva um clone exato das configurações no default_settings para sincronia perfeita de novos dispositivos ou sessões sem login
-    const defaultPayload: any = {
-      ...payload,
-      id: 'default_settings',
-    };
-    try {
-      const { error: defaultError } = await supabase.from('risk_settings').upsert(defaultPayload);
-      if (defaultError) console.warn('Não foi possível atualizar as configurações padrão:', defaultError.message);
-    } catch (e) {}
+    const { error: managementError } = await supabase.from('management_settings').upsert({
+      id: settingId,
+      settings: managementSettings,
+      updated_at: payload.updated_at,
+    });
+    if (managementError) return { success: false, error: managementError.message };
 
     notifyRealtimeSync('risk_settings', 'UPSERT');
+    notifyRealtimeSync('management_settings', 'UPSERT');
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao salvar configurações de risco.' };
@@ -495,6 +573,8 @@ export async function fetchCapitalTransactionsFromSupabase(userEmail?: string): 
   try {
     const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
     if (!cleanEmail) return { data: null, error: null };
+    const deletedResult = await fetchDeletedRecordIds(cleanEmail);
+    if (deletedResult.error) return { data: null, error: deletedResult.error };
 
     const capMap = new Map<string, CapitalTransaction>();
 
@@ -506,7 +586,7 @@ export async function fetchCapitalTransactionsFromSupabase(userEmail?: string): 
       .order('date', { ascending: false });
 
     if (!error && data) {
-      data.forEach((row: any) => {
+      data.filter((row: any) => !deletedResult.capitalIds.has(String(row.id))).forEach((row: any) => {
         let extractedNotes = row.notes ? String(row.notes) : undefined;
         let extractedStatus: import('../types').CapitalTransactionStatus = row.status ? (row.status as import('../types').CapitalTransactionStatus) : 'COMPLETED';
 
@@ -535,32 +615,6 @@ export async function fetchCapitalTransactionsFromSupabase(userEmail?: string): 
       });
     }
 
-    // 2. Backup fallback: busca em risk_settings com id captx_*
-    const prefix = `captx_${cleanEmail}_`;
-    const { data: backupRows } = await supabase.from('risk_settings').select('*').like('id', `${prefix}%`);
-    if (backupRows && backupRows.length > 0) {
-      backupRows.forEach((row: any) => {
-        const txId = String(row.id.replace(prefix, ''));
-        if (!capMap.has(txId)) {
-          let meta: any = {};
-          if (row.notes && row.notes.startsWith('{')) {
-            try { meta = JSON.parse(row.notes); } catch (e) {}
-          }
-          capMap.set(txId, {
-            id: txId,
-            type: row.monthlyProfitTarget === 1 ? 'DEPOSIT' : 'WITHDRAWAL',
-            amount: Number(row.initialCapital) || 0,
-            fee: Number(row.dailyProfitTarget) || 0,
-            date: String(row.antiFuriaStartTime || new Date().toISOString().split('T')[0]),
-            time: meta.time || undefined,
-            broker: meta.broker || (typeof row.notes === 'string' && !row.notes.startsWith('{') ? row.notes : undefined),
-            notes: meta.notes || meta.text || undefined,
-            status: meta.status || 'COMPLETED',
-          });
-        }
-      });
-    }
-
     const txs = Array.from(capMap.values()).sort((a, b) => b.date.localeCompare(a.date));
     return { data: txs, error: null };
   } catch (err: any) {
@@ -586,6 +640,7 @@ export async function upsertCapitalTransactionToSupabase(tx: CapitalTransaction,
     const payload: any = {
       id: tx.id,
       user_email: cleanEmail,
+      data_epoch: journalEpoch(cleanEmail),
       date: tx.date,
       time: tx.time || '12:00',
       type: tx.type,
@@ -606,24 +661,6 @@ export async function upsertCapitalTransactionToSupabase(tx: CapitalTransaction,
     }
     if (error) return { success: false, error: error.message };
 
-    // Backup em risk_settings
-    const backupId = `captx_${cleanEmail}_${tx.id}`;
-    const backupPayload: any = {
-      id: backupId,
-      initialCapital: tx.amount,
-      dailyProfitTarget: tx.fee ?? 0,
-      dailyLossLimit: 0,
-      monthlyProfitTarget: tx.type === 'DEPOSIT' ? 1 : 2,
-      monthlyLossLimit: 0,
-      maxTradesPerDay: 0,
-      alertSoundEnabled: true,
-      antiFuriaCustomWindowEnabled: false,
-      antiFuriaStartTime: tx.date,
-      notes: notesPayload,
-      updated_at: new Date().toISOString(),
-    };
-    await supabase.from('risk_settings').upsert(backupPayload);
-
     notifyRealtimeSync('capital_transactions', 'UPSERT');
     return { success: true, error: null };
   } catch (err: any) {
@@ -637,10 +674,10 @@ export async function upsertCapitalTransactionToSupabase(tx: CapitalTransaction,
 export async function deleteCapitalTransactionFromSupabase(txId: string, userEmail?: string): Promise<{ success: boolean; error: string | null }> {
   try {
     const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
-    await supabase.from('capital_transactions').delete().eq('id', txId);
-    if (cleanEmail) {
-      await supabase.from('risk_settings').delete().eq('id', `captx_${cleanEmail}_${txId}`);
-    }
+    const tombstone = await createDeletedRecordTombstone('capital', txId, cleanEmail);
+    if (tombstone) return { success: false, error: tombstone };
+    const { error } = await supabase.from('capital_transactions').delete().eq('id', txId).eq('user_email', cleanEmail);
+    if (error) return { success: false, error: error.message };
     notifyRealtimeSync('capital_transactions', 'DELETE');
     return { success: true, error: null };
   } catch (err: any) {
@@ -660,6 +697,7 @@ export async function syncAllCapitalTransactionsToSupabase(txs: CapitalTransacti
     const payloadBatch = txs.map((tx) => ({
       id: tx.id,
       user_email: cleanEmail,
+      data_epoch: journalEpoch(cleanEmail),
       date: tx.date,
       time: tx.time || '12:00',
       type: tx.type,
@@ -696,213 +734,26 @@ export async function syncAllCapitalTransactionsToSupabase(txs: CapitalTransacti
 }
 
 /**
- * Fetch all registered system users from Supabase (combining Supabase Auth, system_users, and risk_settings backup)
+ * Fetch all registered system users from Supabase Auth and system_users.
  */
+
 export async function fetchUsersFromSupabase(): Promise<SystemUser[] | null> {
-  try {
-    const userMap = new Map<string, SystemUser>();
-
-    // 1. Fetch from Supabase Auth Users list (Supabase Dashboard "Users" screen)
-    try {
-      const { data: authData } = await supabase.auth.admin.listUsers();
-      if (authData?.users && authData.users.length > 0) {
-        for (const u of authData.users as any[]) {
-          if (!u.email) continue;
-          const emailClean = String(u.email).toLowerCase().trim();
-          const meta = u.user_metadata || {};
-          userMap.set(emailClean, {
-            id: u.id,
-            email: emailClean,
-            name: String(meta.name || u.email.split('@')[0]),
-            role: meta.role === 'ADMIN' || emailClean === 'oswamitrader@gmail.com' ? 'ADMIN' : 'CLIENT',
-            active: meta.active !== false,
-            createdAt: u.created_at || new Date().toISOString(),
-            lastLoginAt: u.last_sign_in_at || undefined,
-            password: meta.password || (emailClean === 'oswamitrader@gmail.com' ? 'admin123' : 'cliente123'),
-          });
-        }
-      }
-    } catch (e) {
-      console.warn('Erro ao consultar Supabase Auth:', e);
-    }
-
-    // 2. Fetch from system_users table
-    try {
-      const { data: dbUsers, error } = await supabase.from('system_users').select('*');
-      if (!error && dbUsers && dbUsers.length > 0) {
-        for (const u of dbUsers) {
-          const emailClean = String(u.email).toLowerCase().trim();
-          const existing = userMap.get(emailClean);
-          userMap.set(emailClean, {
-            id: String(u.id || existing?.id || `usr-${Date.now()}`),
-            email: emailClean,
-            name: String(u.name || existing?.name || emailClean),
-            role: u.role === 'ADMIN' || emailClean === 'oswamitrader@gmail.com' ? 'ADMIN' : 'CLIENT',
-            active: Boolean(u.active),
-            createdAt: u.createdAt || existing?.createdAt || new Date().toISOString(),
-            lastLoginAt: u.lastLoginAt || existing?.lastLoginAt,
-            password: u.password || existing?.password || 'admin123',
-          });
-        }
-      }
-    } catch (e) {
-      console.warn('Erro ao consultar tabela system_users:', e);
-    }
-
-    // 3. Backup fallback: fetch usr-* records from risk_settings table
-    try {
-      const { data: backupRows } = await supabase.from('risk_settings').select('*').like('id', 'usr-%');
-      if (backupRows && backupRows.length > 0) {
-        for (const row of backupRows) {
-          const emailClean = String(row.id.replace('usr-', '')).toLowerCase().trim();
-          const existing = userMap.get(emailClean);
-          if (!existing || !existing.password || existing.password === 'admin123') {
-            userMap.set(emailClean, {
-              id: existing?.id || String(row.id),
-              email: emailClean,
-              name: String(row.notes || existing?.name || emailClean),
-              role: row.monthlyProfitTarget === 999 || emailClean === 'oswamitrader@gmail.com' ? 'ADMIN' : 'CLIENT',
-              active: row.alertSoundEnabled !== false,
-              createdAt: row.updated_at || existing?.createdAt || new Date().toISOString(),
-              password: row.antiFuriaStartTime || existing?.password || 'admin123',
-            });
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Erro ao consultar backup em risk_settings:', e);
-    }
-
-    if (userMap.size > 0) {
-      return Array.from(userMap.values());
-    }
-
-    return null;
-  } catch (err) {
-    console.warn('Erro ao carregar usuários do Supabase:', err);
-    return null;
+  const { data, error } = await supabase.functions.invoke('manage-users', { body: { action: 'list' } });
+  if (error) {
+    const own = await supabase.from('system_users').select('*');
+    if (own.error) throw own.error;
+    return own.data as SystemUser[];
   }
+  return data.users;
 }
-
-/**
- * Insert or update a system user in Supabase (persists to Supabase Auth, system_users AND risk_settings backup)
- */
 export async function upsertUserToSupabase(user: SystemUser): Promise<{ success: boolean; error: string | null }> {
-  try {
-    const cleanEmail = user.email.toLowerCase().trim();
-    const pass = user.password || 'cliente123';
-
-    // 1. Sync into Supabase Auth Users table (auth.users - visible on Supabase dashboard)
-    try {
-      const { data: authList } = await supabase.auth.admin.listUsers();
-      const usersArray = (authList?.users || []) as any[];
-      const existingAuthUser = usersArray.find((u: any) => u.email?.toLowerCase().trim() === cleanEmail);
-
-      if (existingAuthUser) {
-        await supabase.auth.admin.updateUserById(existingAuthUser.id, {
-          password: pass,
-          user_metadata: {
-            name: user.name.trim(),
-            role: user.role,
-            active: user.active,
-            password: pass,
-          },
-        });
-      } else {
-        await supabase.auth.admin.createUser({
-          email: cleanEmail,
-          password: pass,
-          email_confirm: true,
-          user_metadata: {
-            name: user.name.trim(),
-            role: user.role,
-            active: user.active,
-            password: pass,
-          },
-        });
-      }
-    } catch (e) {
-      console.warn('Erro ao atualizar Supabase Auth Users:', e);
-    }
-
-    // 2. Sync into system_users table
-    const payload = {
-      id: user.id,
-      email: cleanEmail,
-      name: user.name.trim(),
-      role: user.role,
-      active: user.active,
-      password: pass,
-      createdAt: user.createdAt,
-      lastLoginAt: user.lastLoginAt ?? null,
-    };
-    await supabase.from('system_users').upsert(payload);
-
-    // 3. Sync backup into risk_settings table
-    const backupPayload: any = {
-      id: `usr-${cleanEmail}`,
-      initialCapital: 0,
-      dailyProfitTarget: 0,
-      dailyLossLimit: 0,
-      monthlyProfitTarget: user.role === 'ADMIN' ? 999 : 111,
-      monthlyLossLimit: 0,
-      maxTradesPerDay: 0,
-      alertSoundEnabled: user.active,
-      antiFuriaCustomWindowEnabled: false,
-      antiFuriaStartTime: pass,
-      notes: user.name.trim(),
-      updated_at: new Date().toISOString(),
-    };
-    await supabase.from('risk_settings').upsert(backupPayload);
-
-    return { success: true, error: null };
-  } catch (err: any) {
-    return { success: false, error: err?.message || 'Erro ao salvar usuário no Supabase.' };
-  }
+  const { data, error } = await supabase.functions.invoke('manage-users', { body: { action: 'upsert', user } });
+  return { success: !error && !data?.error, error: error?.message || data?.error || null };
 }
-
-/**
- * Delete a user from Supabase (removes from Supabase Auth, system_users, and risk_settings backup)
- */
 export async function deleteUserFromSupabase(userId: string, userEmail?: string): Promise<{ success: boolean; error: string | null }> {
-  try {
-    const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : '';
-
-    // 1. Remove from Supabase Auth Users table
-    try {
-      const { data: authList } = await supabase.auth.admin.listUsers();
-      const usersArray = (authList?.users || []) as any[];
-      const existingAuthUser = usersArray.find(
-        (u: any) => u.id === userId || (cleanEmail && u.email?.toLowerCase().trim() === cleanEmail)
-      );
-      if (existingAuthUser) {
-        await supabase.auth.admin.deleteUser(existingAuthUser.id);
-      }
-    } catch (e) {
-      console.warn('Erro ao deletar de Supabase Auth:', e);
-    }
-
-    // 2. Remove from system_users table
-    await supabase.from('system_users').delete().eq('id', userId);
-    if (cleanEmail) {
-      await supabase.from('system_users').delete().eq('email', cleanEmail);
-      // 3. Remove from risk_settings backup
-      await supabase.from('risk_settings').delete().eq('id', `usr-${cleanEmail}`);
-    }
-
-    return { success: true, error: null };
-  } catch (err: any) {
-    return { success: false, error: err?.message || 'Erro ao deletar usuário do Supabase.' };
-  }
+  const { data, error } = await supabase.functions.invoke('manage-users', { body: { action: 'delete', id: userId } });
+  return { success: !error && !data?.error, error: error?.message || data?.error || null };
 }
-
-/**
- * Sync batch of users to Supabase
- */
-export async function syncAllUsersToSupabase(users: SystemUser[]): Promise<void> {
-  if (!users || users.length === 0) return;
-  for (const user of users) {
-    await upsertUserToSupabase(user);
-  }
+export async function syncAllUsersToSupabase(_users: SystemUser[]): Promise<void> {
+  throw new Error('Usuários locais não podem ser enviados automaticamente. Use o cadastro autenticado.');
 }
-

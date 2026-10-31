@@ -17,6 +17,14 @@ interface ExnovaCaptureStatus {
   enabled?: boolean;
 }
 
+interface ExnovaStakeShieldStatus {
+  state: 'disabled' | 'waiting' | 'locked' | 'error';
+  message: string;
+  enabled?: boolean;
+  amount?: number;
+  bounds?: { x: number; y: number; width: number; height: number };
+}
+
 interface Window {
   electronAPI?: {
     isDesktop?: boolean;
@@ -25,6 +33,8 @@ interface Window {
     getExnovaCaptureStatus?: () => Promise<ExnovaCaptureStatus>;
     startExnovaCapture?: () => Promise<ExnovaCaptureStatus>;
     stopExnovaCapture?: () => Promise<ExnovaCaptureStatus>;
+    getExnovaStakeShieldStatus?: () => Promise<ExnovaStakeShieldStatus>;
+    onExnovaStakeShieldStatus?: (callback: (status: ExnovaStakeShieldStatus) => void) => () => void;
     onExnovaCaptureStatus?: (callback: (status: ExnovaCaptureStatus) => void) => () => void;
     onExnovaTradeCaptured?: (callback: (trade: unknown) => void) => () => void;
     onLockStateChanged?: (callback: (data: unknown) => void) => void;

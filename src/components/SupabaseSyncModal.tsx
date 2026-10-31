@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import {
   SUPABASE_URL,
+  supabase,
   SupabaseHealthResult,
   checkSupabaseConnection,
   syncAllTradesToSupabase,
@@ -35,90 +36,7 @@ interface SupabaseSyncModalProps {
   onTradesLoadedFromCloud: (trades: Trade[]) => void;
 }
 
-const SQL_SCHEMA_SCRIPT = `-- SCHEMA E MIGRAÇÃO DE SEGURANÇA NO SUPABASE
--- Copie e cole este código no Supabase: SQL Editor -> New Query -> Run
-
--- 1. Garante a existência da tabela de trades
-CREATE TABLE IF NOT EXISTS public.trades (
-  id TEXT PRIMARY KEY,
-  date TEXT NOT NULL,
-  time TEXT NOT NULL,
-  asset TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('BUY', 'SELL')),
-  strategy TEXT NOT NULL,
-  result TEXT NOT NULL CHECK (result IN ('GAIN', 'LOSS', 'BREAKEVEN')),
-  pnl NUMERIC NOT NULL
-);
-
--- 2. Adiciona todas as colunas de segurança se ainda não existirem
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS user_email TEXT;
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS device_id TEXT;
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "contractsOrQuantity" NUMERIC DEFAULT 1;
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "entryPrice" NUMERIC;
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "exitPrice" NUMERIC;
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS notes TEXT;
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS tags TEXT[];
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "accountType" TEXT;
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "isReal" BOOLEAN DEFAULT false;
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS "isAutoCaptured" BOOLEAN DEFAULT false;
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
-ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
-
--- 3. Ativa a segurança RLS
-ALTER TABLE public.trades ENABLE ROW LEVEL SECURITY;
-
--- 4. Cria as políticas de segurança RLS
-DROP POLICY IF EXISTS "Trades Read Access" ON public.trades;
-CREATE POLICY "Trades Read Access" ON public.trades FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Trades Insert Access" ON public.trades;
-CREATE POLICY "Trades Insert Access" ON public.trades FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Trades Update Access" ON public.trades;
-CREATE POLICY "Trades Update Access" ON public.trades FOR UPDATE USING (
-  COALESCE("isReal", false) IS NOT TRUE AND COALESCE("isAutoCaptured", false) IS NOT TRUE
-);
-
-DROP POLICY IF EXISTS "Trades Delete Access" ON public.trades;
-CREATE POLICY "Trades Delete Access" ON public.trades FOR DELETE USING (
-  COALESCE("isReal", false) IS NOT TRUE AND COALESCE("isAutoCaptured", false) IS NOT TRUE
-);
-
--- 5. Tabela de Configurações de Risco
-CREATE TABLE IF NOT EXISTS public.risk_settings (
-  id TEXT PRIMARY KEY DEFAULT 'default_settings',
-  "initialCapital" NUMERIC NOT NULL DEFAULT 10000,
-  "dailyProfitTarget" NUMERIC NOT NULL DEFAULT 500,
-  "dailyLossLimit" NUMERIC NOT NULL DEFAULT 300,
-  "monthlyProfitTarget" NUMERIC NOT NULL DEFAULT 5000,
-  "monthlyLossLimit" NUMERIC NOT NULL DEFAULT 3000,
-  "maxTradesPerDay" NUMERIC NOT NULL DEFAULT 5,
-  "alertSoundEnabled" BOOLEAN NOT NULL DEFAULT true,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
-);
-
-ALTER TABLE public.risk_settings ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Risk Settings Access" ON public.risk_settings;
-CREATE POLICY "Risk Settings Access" ON public.risk_settings FOR ALL USING (true);
-
--- 6. Tabela de Usuários Cadastrados
-CREATE TABLE IF NOT EXISTS public.system_users (
-  id TEXT PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'CLIENT',
-  active BOOLEAN NOT NULL DEFAULT true,
-  password TEXT NOT NULL DEFAULT 'cliente123',
-  "createdAt" TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
-  "lastLoginAt" TIMESTAMPTZ
-);
-
-ALTER TABLE public.system_users ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "System Users Access" ON public.system_users;
-CREATE POLICY "System Users Access" ON public.system_users FOR ALL USING (true);
-`;
+const SQL_SCHEMA_SCRIPT = "-- As migrações de segurança são administradas no servidor.\n-- Este diagnóstico não altera políticas nem libera acesso público.\nSELECT tablename, policyname, cmd, qual FROM pg_policies WHERE schemaname = 'public';";
 
 export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
   isOpen,
@@ -154,8 +72,8 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
     setIsSyncingUp(true);
     setSyncFeedback(null);
     try {
-      const tradesResult = await syncAllTradesToSupabase(trades);
-      const settingsResult = await saveRiskSettingsToSupabase(settings);
+      const tradesResult = await syncAllTradesToSupabase(trades, (await supabase.auth.getUser()).data.user?.email);
+      const settingsResult = await saveRiskSettingsToSupabase(settings, (await supabase.auth.getUser()).data.user?.email);
 
       if (tradesResult.error) {
         setSyncFeedback({
@@ -188,7 +106,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
     setIsSyncingDown(true);
     setSyncFeedback(null);
     try {
-      const result = await fetchTradesFromSupabase();
+      const result = await fetchTradesFromSupabase((await supabase.auth.getUser()).data.user?.email);
       if (result.error) {
         setSyncFeedback({
           type: 'error',
@@ -222,7 +140,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
     setIsClearingCloud(true);
     setSyncFeedback(null);
     try {
-      const res = await clearAllTradesFromSupabase();
+      const res = await clearAllTradesFromSupabase((await supabase.auth.getUser()).data.user?.email);
       if (res.error) {
         setSyncFeedback({
           type: 'error',

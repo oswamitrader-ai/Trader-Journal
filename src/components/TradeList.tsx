@@ -484,29 +484,37 @@ export const TradeList: React.FC<TradeListProps> = ({
                     className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider border ${
                       trade.type === 'BUY'
                         ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-                        : 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm'
+                        : trade.type === 'SELL'
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm'
+                          : 'bg-slate-500/20 text-slate-300 border-slate-500/40'
                     }`}
                   >
                     {trade.type === 'BUY' ? (
                       <>
                         <ArrowUp className="h-3 w-3" /> Compra
                       </>
-                    ) : (
+                    ) : trade.type === 'SELL' ? (
                       <>
                         <ArrowDown className="h-3 w-3" /> Venda
                       </>
+                    ) : (
+                      <>Direção não identificada</>
                     )}
                   </span>
 
                   {/* Account Type Badge (REAL vs DEMO) */}
                   <span
                     className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold border ${
-                      trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
+                      !trade.accountType && trade.isReal == null
+                        ? 'bg-slate-500/10 text-slate-300 border-slate-500/30'
+                        : trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
                         ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                         : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                     }`}
                   >
-                    {trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
+                    {!trade.accountType && trade.isReal == null
+                      ? 'CONTA NÃO IDENTIFICADA'
+                      : trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
                       ? 'DEMO 🧪'
                       : 'REAL 💵'}
                   </span>
@@ -666,28 +674,36 @@ export const TradeList: React.FC<TradeListProps> = ({
                           className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${
                             trade.type === 'BUY'
                               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-                              : 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm'
+                              : trade.type === 'SELL'
+                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm'
+                                : 'bg-slate-500/20 text-slate-300 border-slate-500/40'
                           }`}
                         >
                           {trade.type === 'BUY' ? (
                             <>
                               <ArrowUp className="h-3 w-3" /> Compra
                             </>
-                          ) : (
+                          ) : trade.type === 'SELL' ? (
                             <>
                               <ArrowDown className="h-3 w-3" /> Venda
                             </>
+                          ) : (
+                            <>Direção não identificada</>
                           )}
                         </span>
 
                         <span
                           className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold border ${
-                            trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
+                            !trade.accountType && trade.isReal == null
+                              ? 'bg-slate-500/10 text-slate-300 border-slate-500/30'
+                              : trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
                               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                               : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                           }`}
                         >
-                          {trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
+                          {!trade.accountType && trade.isReal == null
+                            ? 'CONTA NÃO IDENTIFICADA'
+                            : trade.accountType === 'DEMO' || trade.isReal === false || (trade.tags && trade.tags.some(t => t.toUpperCase().includes('DEMO')))
                             ? 'DEMO 🧪'
                             : 'REAL 💵'}
                         </span>

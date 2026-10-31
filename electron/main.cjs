@@ -1,13 +1,17 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, desktopCapturer, screen } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { setNativeLockState } = require('./windowsDaemon.cjs');
 const { createExnovaCaptureService } = require('./exnovaCapture.cjs');
+const { createExnovaStakeShield } = require('./exnovaStakeShield.cjs');
 
 let mainWindow = null;
 let tray = null;
 let currentLockState = { isLockActive: false };
 let exnovaCapture = null;
+let exnovaStakeShield = null;
+let exnovaTradeListenerReady = false;
+const pendingExnovaTrades = [];
 
 function sendCaptureUpdate(channel, data) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -17,6 +21,15 @@ function sendCaptureUpdate(channel, data) {
 
 function isTrustedRenderer(event) {
   return mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents;
+}
+
+function deliverExnovaTrade(trade) {
+  if (!exnovaTradeListenerReady || !mainWindow || mainWindow.isDestroyed()) {
+    pendingExnovaTrades.push(trade);
+    if (pendingExnovaTrades.length > 100) pendingExnovaTrades.shift();
+    return;
+  }
+  mainWindow.webContents.send('exnova-trade-captured', trade);
 }
 
 const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL !== undefined || !app.isPackaged;
@@ -63,6 +76,10 @@ function createWindow() {
     console.log('🚀 [TradeLock Desktop] Janela principal iniciada com sucesso.');
   });
 
+  mainWindow.webContents.on('did-start-loading', () => {
+    exnovaTradeListenerReady = false;
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -98,6 +115,20 @@ ipcMain.on('sync-lock-state', (event, data) => {
 
   // Aplica blindagem nativa do Windows Daemon
   setNativeLockState(isLockActive, data.blockedDomains || []);
+  exnovaStakeShield?.setLockState(data);
+});
+
+ipcMain.on('subscribe-exnova-trade-captured', (event) => {
+  if (!isTrustedRenderer(event)) return;
+  exnovaTradeListenerReady = true;
+  while (pendingExnovaTrades.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('exnova-trade-captured', pendingExnovaTrades.shift());
+  }
+});
+
+ipcMain.handle('get-exnova-stake-shield-status', async (event) => {
+  if (!isTrustedRenderer(event)) return { state: 'error', message: 'Janela do TradeLock não autorizada.', enabled: false };
+  return exnovaStakeShield?.getStatus() || { state: 'disabled', message: 'Trava nativa não inicializada.', enabled: false };
 });
 
 ipcMain.handle('get-desktop-status', async () => {
@@ -133,9 +164,20 @@ ipcMain.handle('stop-exnova-capture', async (event) => {
 app.whenReady().then(() => {
   exnovaCapture = createExnovaCaptureService({
     desktopCapturer,
+    nativeImage,
     app,
     onStatus: (status) => sendCaptureUpdate('exnova-capture-status', status),
-    onTrade: (trade) => sendCaptureUpdate('exnova-trade-captured', trade),
+    onTrade: deliverExnovaTrade,
+  });
+  exnovaStakeShield = createExnovaStakeShield({
+    desktopCapturer,
+    screen,
+    BrowserWindow,
+    app,
+    onStatus: (status) => sendCaptureUpdate('exnova-stake-shield-status', status),
+  });
+  exnovaStakeShield.start().catch((error) => {
+    console.warn('[TradeLock Desktop] Não foi possível iniciar o escudo de entrada:', error.message);
   });
   setupAutoStart();
   createWindow();
@@ -159,4 +201,5 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   exnovaCapture?.stop().catch(() => {});
+  exnovaStakeShield?.stop().catch(() => {});
 });

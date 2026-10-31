@@ -8,6 +8,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getExnovaCaptureStatus: () => ipcRenderer.invoke('get-exnova-capture-status'),
   startExnovaCapture: () => ipcRenderer.invoke('start-exnova-capture'),
   stopExnovaCapture: () => ipcRenderer.invoke('stop-exnova-capture'),
+  getExnovaStakeShieldStatus: () => ipcRenderer.invoke('get-exnova-stake-shield-status'),
+  onExnovaStakeShieldStatus: (callback) => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('exnova-stake-shield-status', listener);
+    return () => ipcRenderer.removeListener('exnova-stake-shield-status', listener);
+  },
   onExnovaCaptureStatus: (callback) => {
     const listener = (_event, data) => callback(data);
     ipcRenderer.on('exnova-capture-status', listener);
@@ -16,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onExnovaTradeCaptured: (callback) => {
     const listener = (_event, trade) => callback(trade);
     ipcRenderer.on('exnova-trade-captured', listener);
+    ipcRenderer.send('subscribe-exnova-trade-captured');
     return () => ipcRenderer.removeListener('exnova-trade-captured', listener);
   },
   onLockStateChanged: (callback) => {

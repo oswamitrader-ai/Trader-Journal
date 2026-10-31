@@ -1,16 +1,29 @@
 import React, { useState, useEffect } from 'react';
+import { LoginScreen } from '../../src/components/LoginScreen';
+import { restoreAuthenticatedUser } from '../../src/utils/auth';
+import { supabase } from '../../src/lib/supabase';
+import { SystemUser } from '../../src/types';
 import { mobileSyncService, MobileLockState } from '../../src/services/mobileSyncService';
 
 export const TradeLockMobileApp: React.FC = () => {
+  const [user,setUser] = useState<SystemUser|null>(null);
+  useEffect(() => {
+    restoreAuthenticatedUser().then(setUser).catch(()=>setUser(null));
+    const {data:{subscription}}=supabase.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT')setUser(null);});
+    return ()=>subscription.unsubscribe();
+  },[]);
+  return user ? <AuthenticatedMobile key={user.id} email={user.email}/> : <LoginScreen onLoginSuccess={setUser}/>;
+};
+const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
   const [lockState, setLockState] = useState<MobileLockState>(mobileSyncService.getState());
   const [activeTab, setActiveTab] = useState<'SHIELD' | 'KPI'>('SHIELD');
   const [countdown, setCountdown] = useState<string>('00:00:00');
-  const [inputEmail, setInputEmail] = useState<string>(lockState.userEmail || 'oswamitrader@gmail.com');
+  const [inputEmail, setInputEmail] = useState<string>(email);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
   useEffect(() => {
-    mobileSyncService.setUserEmail(inputEmail);
+    mobileSyncService.setUserEmail(email);
     const unsubscribe = mobileSyncService.subscribe((state) => {
       setLockState(state);
       if (state.userEmail && state.userEmail !== inputEmail) {

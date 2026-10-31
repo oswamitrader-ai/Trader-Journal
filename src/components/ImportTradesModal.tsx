@@ -432,7 +432,7 @@ export const ImportTradesModal: React.FC<ImportTradesModalProps> = ({
                                   : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                               }`}
                             >
-                              {trade.type === 'BUY' ? 'CALL ↑' : 'PUT ↓'}
+                              {trade.type === 'BUY' ? 'CALL ↑' : trade.type === 'SELL' ? 'PUT ↓' : 'Direção não identificada'}
                             </span>
                           </td>
                           <td className="p-3 whitespace-nowrap text-slate-300">

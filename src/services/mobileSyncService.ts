@@ -57,10 +57,7 @@ class MobileSyncService {
   private usersChannel: any = null;
   private pollInterval: any = null;
 
-  constructor() {
-    const savedEmail = typeof window !== 'undefined' ? localStorage.getItem('tradelock_user_email') || 'oswamitrader@gmail.com' : 'oswamitrader@gmail.com';
-    this.setUserEmail(savedEmail);
-  }
+  constructor() {}
 
   public subscribe(callback: NativeLockCallback): () => void {
     this.listeners.add(callback);
@@ -152,18 +149,12 @@ class MobileSyncService {
       try {
         const cleanEmail = this.currentState.userEmail.toLowerCase().trim();
         const settingId = `settings_${cleanEmail}`;
-        const { data: existing } = await supabase.from('risk_settings').select('*').eq('id', settingId).maybeSingle();
+        const { data: existing } = await supabase.from('management_settings').select('settings').eq('id', settingId).maybeSingle();
+        const settings = existing?.settings && typeof existing.settings === 'object' ? existing.settings : {};
 
-        let notesObj: any = {};
-        if (existing?.notes) {
-          try { notesObj = JSON.parse(existing.notes); } catch {}
-        }
-        notesObj.permanentMobileBrokerLockEnabled = enabled;
-
-        await supabase.from('risk_settings').upsert({
+        await supabase.from('management_settings').upsert({
           id: settingId,
-          dailyLossLimit: existing?.dailyLossLimit ?? this.currentState.dailyLossLimit,
-          notes: JSON.stringify(notesObj),
+          settings: { ...settings, permanentMobileBrokerLockEnabled: enabled },
           updated_at: new Date().toISOString()
         });
       } catch (e) {
@@ -174,6 +165,8 @@ class MobileSyncService {
 
   public async fetchDataAndSubscribe(email: string): Promise<void> {
     if (!email) return;
+    const {data:{user},error:authError}=await supabase.auth.getUser();
+    if(authError || !user?.email || user.email.toLowerCase()!==email.toLowerCase()) return;
 
     // 🔒 ANTI-BYPASS: Redireciona a busca para o e-mail travado caso a trava esteja ativa hoje
     const lockedInfo = this.getLockedEmailInfo();
@@ -200,37 +193,32 @@ class MobileSyncService {
         });
       }
 
-      // 2. Fetch risk settings by ID ('settings_' + email) with fallback to default_settings
-      const settingsId = `settings_${email}`;
-      let { data: settingsData } = await supabase
+      // 2. Risk and management settings are separate records scoped to this account.
+      const settingsId = `settings_${activeEmail}`;
+      const [{ data: settingsData }, { data: managementData }] = await Promise.all([
+        supabase
         .from('risk_settings')
-        .select('*')
+        .select('dailyLossLimit,dailyProfitTarget,maxTradesPerDay')
         .eq('id', settingsId)
-        .maybeSingle();
+        .maybeSingle(),
+        supabase
+          .from('management_settings')
+          .select('settings')
+          .eq('id', settingsId)
+          .maybeSingle(),
+      ]);
 
-      if (!settingsData) {
-        const { data: defData } = await supabase
-          .from('risk_settings')
-          .select('*')
-          .eq('id', 'default_settings')
-          .maybeSingle();
-        settingsData = defData;
-      }
+      const dailyLossLimit = settingsData?.dailyLossLimit ?? (settingsData as any)?.daily_loss_limit ?? 60;
+      const dailyProfitTarget = settingsData?.dailyProfitTarget ?? (settingsData as any)?.daily_profit_target ?? 70;
+      const maxTradesPerDay = settingsData?.maxTradesPerDay ?? (settingsData as any)?.max_trades_per_day ?? 4;
 
-      const dailyLossLimit = settingsData?.dailyLossLimit ?? settingsData?.daily_loss_limit ?? 60;
-      const dailyProfitTarget = settingsData?.dailyProfitTarget ?? settingsData?.daily_profit_target ?? 70;
-      const maxTradesPerDay = settingsData?.maxTradesPerDay ?? settingsData?.max_trades_per_day ?? 4;
-
-      let extraNotes: any = {};
-      if (settingsData?.notes && typeof settingsData.notes === 'string' && settingsData.notes.trim().startsWith('{')) {
-        try { extraNotes = JSON.parse(settingsData.notes); } catch {}
-      }
+      const extraSettings = managementData?.settings && typeof managementData.settings === 'object'
+        ? managementData.settings
+        : {};
 
       const localPerm = typeof window !== 'undefined' ? localStorage.getItem('tradelock_permanent_mobile_lock') === 'true' : false;
       const permanentMobileBrokerLockEnabled = Boolean(
-        settingsData?.permanentMobileBrokerLockEnabled ??
-        settingsData?.permanent_mobile_lock ??
-        extraNotes?.permanentMobileBrokerLockEnabled ??
+        extraSettings.permanentMobileBrokerLockEnabled ??
         localPerm
       );
 
@@ -247,19 +235,6 @@ class MobileSyncService {
       }
 
       let allTrades: any[] = trades || [];
-      if (allTrades.length === 0 && typeof window !== 'undefined') {
-        const userKey = email.toLowerCase().trim();
-        const localSaved = localStorage.getItem(`trader_journal_trades_${userKey}`) || localStorage.getItem('trader_journal_trades_v2') || localStorage.getItem('trader_journal_trades_v1');
-        if (localSaved) {
-          try {
-            const parsed = JSON.parse(localSaved);
-            if (Array.isArray(parsed)) {
-              allTrades = parsed.filter((t: any) => t.date === todayStr);
-            }
-          } catch (e) {}
-        }
-      }
-
       const todayRealTrades = allTrades.filter(t => t.accountType !== 'DEMO' && t.isReal !== false && t.account_type !== 'DEMO');
       const todayPnl = todayRealTrades.reduce((acc, t) => acc + (Number(t.pnl) || 0), 0);
       const totalTodayPnl = allTrades.reduce((acc, t) => acc + (Number(t.pnl) || 0), 0);
@@ -325,6 +300,13 @@ class MobileSyncService {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'risk_settings' },
+        () => {
+          this.fetchDataAndSubscribe(email);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'management_settings' },
         () => {
           this.fetchDataAndSubscribe(email);
         }

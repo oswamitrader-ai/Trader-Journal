@@ -1,5 +1,5 @@
 export type TradeResult = 'GAIN' | 'LOSS' | 'BREAKEVEN';
-export type TradeType = 'BUY' | 'SELL';
+export type TradeType = 'BUY' | 'SELL' | 'UNKNOWN';
 
 export type UserRole = 'ADMIN' | 'CLIENT';
 

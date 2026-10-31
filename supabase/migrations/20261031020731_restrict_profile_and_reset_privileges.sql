@@ -1,0 +1,1 @@
+REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.system_users,public.journal_resets FROM authenticated; REVOKE TRUNCATE,REFERENCES,TRIGGER ON public.trades,public.capital_transactions,public.risk_settings,public.management_settings,public.deleted_records FROM authenticated;

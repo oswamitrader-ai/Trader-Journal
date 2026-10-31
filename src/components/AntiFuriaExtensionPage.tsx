@@ -47,6 +47,7 @@ interface AntiFuriaExtensionPageProps {
   blockedDomains?: string[];
   onUpdateBlockedDomains?: (domains: string[]) => void;
   exnovaCaptureStatus?: ExnovaCaptureStatus;
+  exnovaStakeShieldStatus?: ExnovaStakeShieldStatus;
   onStartExnovaCapture?: () => void;
   onStopExnovaCapture?: () => void;
 }
@@ -66,6 +67,7 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
   blockedDomains,
   onUpdateBlockedDomains,
   exnovaCaptureStatus,
+  exnovaStakeShieldStatus,
   onStartExnovaCapture,
   onStopExnovaCapture,
 }) => {
@@ -538,7 +540,7 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
                 </div>
                 <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-300">
                   O TradeLock lê a janela Exnova localmente. As imagens não são salvas nem enviadas para OCR externo.
-                  Operações só entram no diário quando horário, ativo, direção, valor, resultado e conta real/demo forem legíveis.
+                  O retorno financeiro visível registra a operação imediatamente. Ativo, direção, valor investido e conta são preenchidos quando reconhecidos; campos que o OCR não identificar ficam sinalizados no diário.
                 </p>
               </div>
             </div>
@@ -578,9 +580,22 @@ export const AntiFuriaExtensionPage: React.FC<AntiFuriaExtensionPageProps> = ({
             </div>
           </div>
 
+          {typeof window !== 'undefined' && window.electronAPI?.isDesktop && (
+            <div className={`rounded-xl border px-4 py-3 text-xs ${
+              exnovaStakeShieldStatus?.state === 'locked'
+                ? 'border-emerald-700/50 bg-emerald-950/30 text-emerald-200'
+                : exnovaStakeShieldStatus?.state === 'error'
+                  ? 'border-rose-700/50 bg-rose-950/30 text-rose-200'
+                  : 'border-amber-700/50 bg-amber-950/30 text-amber-200'
+            }`} role="status" aria-live="polite">
+              <span className="font-bold">Trava de entrada no Exnova Desktop: </span>
+              {exnovaStakeShieldStatus?.message || 'Aguardando estado da trava.'}
+            </div>
+          )}
+
           <p className="text-[10px] leading-relaxed text-slate-500">
-            No app desktop da Exnova, deixe o painel de histórico aberto com a data das operações e o tipo de conta visíveis. Na versão web, selecione o filtro de hoje.
-            Se um campo não for reconhecido, o TradeLock avisa e não registra essa operação.
+            No app desktop, o TradeLock registra o retorno financeiro assim que o aviso aparece na tela; não depende do histórico para salvar o resultado.
+            Na versão web, mantenha o filtro de hoje selecionado.
           </p>
         </section>
       )}

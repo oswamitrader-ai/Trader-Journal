@@ -1,7 +1,7 @@
 const { Client } = require('pg');
 
 const ref = 'mreykdrbyfrwqovsleqi';
-const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXlrZHJieWZyd3FvdnNsZXFpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTUwNDU1NywiZXhwIjoyMTA1MDgwNTU3fQ.jFaxN67eNfjCG_OJKKdwG7srYFMEGU10HlUA8Aoqk5Q';
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 async function tryPooler() {
   const client = new Client({

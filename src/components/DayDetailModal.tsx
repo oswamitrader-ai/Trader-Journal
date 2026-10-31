@@ -278,20 +278,26 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                           className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold border ${
                             t.type === 'BUY'
                               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                              : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                              : t.type === 'SELL'
+                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                : 'bg-slate-500/20 text-slate-300 border-slate-500/40'
                           }`}
                         >
-                          {t.type === 'BUY' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {t.type === 'BUY' ? 'Compra' : 'Venda'}
+                          {t.type === 'BUY' ? <ArrowUp className="h-3 w-3" /> : t.type === 'SELL' ? <ArrowDown className="h-3 w-3" /> : null}
+                          {t.type === 'BUY' ? 'Compra' : t.type === 'SELL' ? 'Venda' : 'Direção não identificada'}
                         </span>
                         <span
                           className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold border ${
-                            t.accountType === 'DEMO' || t.isReal === false || (t.tags && t.tags.some(tag => tag.toUpperCase().includes('DEMO')))
+                            !t.accountType && t.isReal == null
+                              ? 'bg-slate-500/10 text-slate-300 border-slate-500/30'
+                              : t.accountType === 'DEMO' || t.isReal === false || (t.tags && t.tags.some(tag => tag.toUpperCase().includes('DEMO')))
                               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                               : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                           }`}
                         >
-                          {t.accountType === 'DEMO' || t.isReal === false || (t.tags && t.tags.some(tag => tag.toUpperCase().includes('DEMO')))
+                          {!t.accountType && t.isReal == null
+                            ? 'CONTA NÃO IDENTIFICADA'
+                            : t.accountType === 'DEMO' || t.isReal === false || (t.tags && t.tags.some(tag => tag.toUpperCase().includes('DEMO')))
                             ? 'DEMO 🧪'
                             : 'REAL 💵'}
                         </span>
