@@ -568,7 +568,8 @@ export default function App() {
   const todayPnl = todayPerformance?.pnl || 0;
   const todayTradesCount = todayPerformance?.tradesCount || 0;
   const stakeStreak = useMemo(() => {
-    const ordered = trades.filter((trade) => trade.date === todayStr).slice().sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+    const ordered = trades.filter((trade) => trade.date === todayStr).slice().sort((a, b) =>
+      (b.time || '').localeCompare(a.time || '') || String((b as any).updatedAt || '').localeCompare(String((a as any).updatedAt || '')));
     let consecutiveWins = 0;
     let consecutiveLosses = 0;
     for (const trade of ordered) {

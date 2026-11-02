@@ -15,6 +15,7 @@ function toTargetAmount(state) {
   if (['MARTINGALE', 'SOROSGALE'].includes(style) && losses > 0 && losses <= 2) return Number(state[`martingaleLevel${losses}Stake`]) || [0, 100, 200][losses];
   return fixed;
 }
+
 function investmentRect(lines, size, crop, scale, unit = 1) {
   // Regex principal: INVEST / INVESTMENT / INVESTIMENTO
   // Regex ampliada: variações OCR comuns em interfaces de baixo contraste
@@ -55,22 +56,35 @@ function geometryFor(frame, region, screen) {
   const b = frame.bounds;
   return screen.screenToDipRect(null,{x:Math.round(b.x+b.width*region.x),y:Math.round(b.y+b.height*region.y),width:Math.round(b.width*region.width),height:Math.round(b.height*region.height)});
 }
-function makeShieldPage(amount,verified) {
+function makeShieldPage(amount, verified) {
   const value=Number(amount).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   return `<!doctype html><html><meta charset="utf-8"><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#064e3b}body{display:flex;align-items:center;justify-content:center;border:2px solid #10b981;border-radius:5px;color:#d1fae5;font:bold 12px 'Segoe UI',sans-serif;user-select:none;cursor:not-allowed}</style><body>${verified?'🔒':'⏳'} R$ ${value}</body></html>`;
 }
+
 function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onStatus,trackerFactory=createWindowTracker,inputFactory=createStakeInput}) {
   let stopped=true,processing=false,timer,overlay,workerPromise;
   let lockState={},calibration=null,lastAmount=null,lastPublished='',lastAttempt=0;
   let confirmedAmount=null,editing=false,lastWriteAt=0;
   let writeKey='',writeAttempts=0,validationError='',lastConfirmedKey='';
+
+  // FIX 1: Memoização de bounds para evitar flickering
+  // Só chama setBounds() quando a posição muda de fato
+  let lastBoundsKey='';
+  let overlayVisible=false;
+
   const input=inputFactory();
   const tracker=trackerFactory(()=>position());
   function publish(state,message,extra={}) {
     const data={state,message,enabled:Boolean(lockState.enforceBrokerStakeLock),...extra},key=JSON.stringify(data);
     if(key!==lastPublished){lastPublished=key;onStatus?.(data);}
   }
-  function hide(){if(overlay&&!overlay.isDestroyed())overlay.hide();}
+  function hide(){
+    if(overlay&&!overlay.isDestroyed()&&overlayVisible){
+      overlay.hide();
+      overlayVisible=false;
+    }
+    lastBoundsKey='';
+  }
   function frameKey(f){return `${f.handle}:${f.bounds.width}:${f.bounds.height}`;}
   function position(){
     const frame=tracker.getState(),amount=toTargetAmount(lockState);
@@ -79,15 +93,32 @@ function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onSta
     if(!calibration||calibration.key!==frameKey(frame)){hide();return;}
     if(!overlay||overlay.isDestroyed()){
       overlay=new BrowserWindow({width:120,height:40,show:false,frame:false,transparent:true,resizable:false,movable:false,minimizable:false,maximizable:false,closable:false,focusable:false,skipTaskbar:true,hasShadow:false,webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true}});
-      overlay.setAlwaysOnTop(true,'screen-saver');overlay.setIgnoreMouseEvents(false);
-      overlay.webContents.on('did-finish-load',()=>position());
+      overlay.setAlwaysOnTop(true,'screen-saver');
+      // FIX 2: ignora eventos do mouse no overlay para não bloquear interação,
+      // mas o valor é protegido via write automático — overlay é apenas visual
+      overlay.setIgnoreMouseEvents(false);
+      overlay.webContents.on('did-finish-load',()=>{
+        if(!overlay.isDestroyed()&&!overlayVisible){overlay.showInactive();overlayVisible=true;}
+      });
+      overlayVisible=false;
+      lastBoundsKey='';
     }
-    const bounds=geometryFor(frame,calibration.region,screen);overlay.setBounds(bounds,false);
+    // FIX 1: Só reposiciona quando bounds realmente mudam
+    const bounds=geometryFor(frame,calibration.region,screen);
+    const bKey=`${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`;
+    if(bKey!==lastBoundsKey){lastBoundsKey=bKey;overlay.setBounds(bounds,false);}
     const verified=confirmedAmount!==null&&Math.abs(confirmedAmount-amount)<.005;
     const renderKey=amount+':'+verified;
-    if(lastAmount!==renderKey){lastAmount=renderKey;overlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(makeShieldPage(amount,verified))}`).catch(()=>{});}
-    if(!overlay.webContents.isLoading())overlay.showInactive();
-    publish(validationError?'error':verified?'locked':'verifying',validationError|| (verified?`Invest confirmado: R$ ${amount.toFixed(2)}. Campo protegido.`:`Entrada definida: R$ ${amount.toFixed(2)}. Confirmando o valor no Invest…`),{amount,bounds,verified});
+    if(lastAmount!==renderKey){
+      lastAmount=renderKey;
+      overlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(makeShieldPage(amount,verified))}`).catch(()=>{});
+      overlayVisible=false; // loadURL vai chamar did-finish-load que mostra o overlay
+    } else if(!overlay.webContents.isLoading()&&!overlayVisible){
+      // FIX 1: Só chama showInactive se não estiver visível (evita flickering)
+      overlay.showInactive();
+      overlayVisible=true;
+    }
+    publish(validationError?'error':verified?'locked':'verifying',validationError||(verified?`Invest confirmado: R$ ${amount.toFixed(2)}. Campo protegido.`:`Entrada definida: R$ ${amount.toFixed(2)}. Confirmando o valor no Invest…`),{amount,bounds,verified});
   }
   async function poll(){
     if(stopped)return;
@@ -133,11 +164,14 @@ function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onSta
       if(stopped||tracker.getState()?.handle!==frame.handle)return;
       calibration={key:frameKey(frame),region};position();
       const amount=toTargetAmount(lockState);
-      const nextKey=frameKey(frame)+':'+amount;
+      // FIX 3: writeKey inclui consecutiveWins/Losses para que mudança de gestão
+      // (ex: Soros após WIN) force redigitação do novo valor no campo
+      const streakKey=`${lockState.consecutiveWins||0}:${lockState.consecutiveLosses||0}`;
+      const nextKey=frameKey(frame)+':'+amount+':'+streakKey;
       if(nextKey!==writeKey){writeKey=nextKey;writeAttempts=0;lastWriteAt=0;validationError='';}
       const fullLines=lines.map(l=>({...l,bbox:{x0:crop.x+l.bbox.x0/scale,y0:crop.y+l.bbox.y0/scale,x1:crop.x+l.bbox.x1/scale,y1:crop.y+l.bbox.y1/scale}}));
       const observed=readInvestAmount(fullLines,size,region);
-      if(!app.isPackaged) console.log('[Exnova Invest readback]',JSON.stringify({expected:amount,observed,lines:fullLines.filter(l=>l.bbox.y0>=size.height*region.y&&l.bbox.y1<=size.height*(region.y+region.height)+2).map(l=>({text:l.text,confidence:l.confidence}))}));
+      if(!app.isPackaged) console.log('[Exnova Invest readback]',JSON.stringify({expected:amount,observed,streak:streakKey,lines:fullLines.filter(l=>l.bbox.y0>=size.height*region.y&&l.bbox.y1<=size.height*(region.y+region.height)+2).map(l=>({text:l.text,confidence:l.confidence}))}));
       if(observed!==null&&Math.abs(observed-amount)<.005){lastConfirmedKey=nextKey;confirmedAmount=amount;writeAttempts=0;validationError='';position();return;}
       confirmedAmount=null;
       // An unreadable frame is not evidence that the broker changed the value.
@@ -150,7 +184,15 @@ function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onSta
       if(stopped||toTargetAmount(lockState)!==amount)return;
       if(!tracker.getState()?.foreground||frameKey(tracker.getState())!==frameKey(frame))return;
       lastWriteAt=Date.now();writeAttempts++;editing=true;hide();
-      try{await new Promise(resolve=>setTimeout(resolve,150));if(stopped||toTargetAmount(lockState)!==amount)return;await input.write(frame,physicalField(frame,region),amount);}
+      try{
+        await new Promise(resolve=>setTimeout(resolve,150));
+        if(stopped||toTargetAmount(lockState)!==amount)return;
+        await input.write(frame,physicalField(frame,region),amount);
+        // FIX 2: Após digitar o valor, aguarda 120ms e fecha o modal da calculadora
+        // que a Exnova Desktop abre quando o campo Invest recebe um clique
+        await new Promise(resolve=>setTimeout(resolve,120));
+        await input.closeModal();
+      }
       finally{editing=false;position();}
       // Confirmation is deliberately deferred to a NEW frame, after broker formatting.
       publish('verifying',`Valor enviado ao Invest; aguardando confirmação de R$ ${amount.toFixed(2)}.`,{amount,verified:false});
@@ -161,7 +203,7 @@ function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onSta
     getStatus:()=>lastPublished?JSON.parse(lastPublished):{state:'waiting',enabled:false,message:'Inicializando trava nativa.'},
     setLockState(state){lockState={...lockState,...state};position();if(!stopped)void poll();},
     async start(){if(!stopped)return;stopped=false;tracker.start();timer=setInterval(()=>void poll(),250);timer.unref?.();await poll();},
-    async stop(){stopped=true;clearInterval(timer);tracker.stop();input.stop();hide();if(workerPromise){try{await(await workerPromise).terminate();}catch{}workerPromise=null;}overlay?.destroy();overlay=null;},
+    async stop(){stopped=true;clearInterval(timer);tracker.stop();input.stop();hide();if(workerPromise){try{await(await workerPromise).terminate();}catch{}workerPromise=null;}overlay?.destroy();overlay=null;overlayVisible=false;lastBoundsKey='';},
   };
 }
 module.exports={createExnovaStakeShield,toTargetAmount,investmentRect,geometryFor,readInvestAmount,physicalField};

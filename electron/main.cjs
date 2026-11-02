@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const { setNativeLockState } = require('./windowsDaemon.cjs');
 const { createExnovaCaptureService } = require('./exnovaCapture.cjs');
-const { createExnovaStakeShield } = require('./exnovaStakeShield.cjs');
+const { createExnovaStakeShield, toTargetAmount } = require('./exnovaStakeShield.cjs');
+let lastShieldData = {};
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.quit();
 
@@ -36,6 +37,13 @@ function isTrustedRenderer(event) {
 }
 
 function deliverExnovaTrade(trade) {
+  if (trade && !(Number(trade.contractsOrQuantity) > 0)) {
+    // Aviso de retorno não mostra INVEST: usa o valor que a trava estava impondo
+    const locked = toTargetAmount(lastShieldData);
+    if (locked > 0) {
+      trade = { ...trade, contractsOrQuantity: locked, notes: `${trade.notes || ''} Valor de entrada obtido da trava (R$ ${locked.toFixed(2)}).`.trim() };
+    }
+  }
   if (!exnovaTradeListenerReady || !mainWindow || mainWindow.isDestroyed()) {
     pendingExnovaTrades.push(trade);
     if (pendingExnovaTrades.length > 100) pendingExnovaTrades.shift();
@@ -128,6 +136,7 @@ ipcMain.on('sync-lock-state', (event, data) => {
 
   // Aplica blindagem nativa do Windows Daemon
   setNativeLockState(isLockActive, data.blockedDomains || []);
+  lastShieldData = { ...lastShieldData, ...data };
   exnovaStakeShield?.setLockState(data);
   if (data.userEmail) saveShieldState(data);
 });
@@ -196,7 +205,8 @@ app.whenReady().then(() => {
   });
   try {
     const saved=fs.readFileSync(path.join(app.getPath('userData'),'exnova-stake-state.json'),'utf8');
-    exnovaStakeShield.setLockState(JSON.parse(saved));persistedShieldState=saved;
+    lastShieldData = JSON.parse(saved);
+    exnovaStakeShield.setLockState(lastShieldData);persistedShieldState=saved;
   } catch {}
   exnovaStakeShield.start().catch((error) => {
     console.warn('[TradeLock Desktop] Não foi possível iniciar o escudo de entrada:', error.message);

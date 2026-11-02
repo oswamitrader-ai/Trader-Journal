@@ -74,13 +74,25 @@ public static class ExnovaStakeInput {
     return "keyboard";
   }
   static uint GetProcessId(IntPtr handle){uint pid;GetWindowThreadProcessId(handle,out pid);return pid;}
+  public static string CloseModal() {
+    // Envia VK_ESCAPE (27) para fechar qualquer modal aberto (ex: calculadora do Invest na Exnova)
+    var esc = new INPUT[]{Key(27,false),Key(27,true)};
+    SendInput(2,esc,Marshal.SizeOf(typeof(INPUT)));
+    return "esc";
+  }
 }
 '@
 Write-Output '{"ready":true}'
 while ($null -ne ($line = [Console]::ReadLine())) {
   try {
     $r = $line | ConvertFrom-Json
-    $mode=[ExnovaStakeInput]::Write([long]$r.handle,[int]$r.bounds.x,[int]$r.bounds.y,[int]$r.bounds.width,[int]$r.bounds.height,[int]$r.field.x,[int]$r.field.y,[int]$r.field.width,[int]$r.field.height,[string]$r.amount)
-    @{id=$r.id;ok=$true;mode=$mode} | ConvertTo-Json -Compress
+    if ($r.action -eq 'closeModal') {
+      $mode=[ExnovaStakeInput]::CloseModal()
+      @{id=$r.id;ok=$true;mode=$mode} | ConvertTo-Json -Compress
+    } else {
+      $mode=[ExnovaStakeInput]::Write([long]$r.handle,[int]$r.bounds.x,[int]$r.bounds.y,[int]$r.bounds.width,[int]$r.bounds.height,[int]$r.field.x,[int]$r.field.y,[int]$r.field.width,[int]$r.field.height,[string]$r.amount)
+      @{id=$r.id;ok=$true;mode=$mode} | ConvertTo-Json -Compress
+    }
   } catch { @{id=$r.id;ok=$false;error=$_.Exception.Message} | ConvertTo-Json -Compress }
 }
+

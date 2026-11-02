@@ -154,7 +154,9 @@ function readAccountType(lines) {
   const ordered = [...lines].sort((a, b) => a.top - b.top);
   const lineTypes = ordered.map((line) => {
     const text = normalizeText(line.text);
-    const demo = /\b(DEMO|PRACTICE|PRACTICA|CONTA DE TREINO|CONTA PRATICA|CONTA DE PRATICA)\b/.test(text);
+    // Exnova Desktop exibe "Prática" → normaliza para "PRATICA" (sem acento, sem "CONTA")
+    // Também suporta: Virtual, Treino, Demo, Practice
+    const demo = /\b(DEMO|PRACTICE|PRATICA|PRACTICA|VIRTUAL|TREINO|CONTA DE TREINO|CONTA PRATICA|CONTA DE PRATICA)\b/.test(text);
     const real = /\b(REAL|LIVE|CONTA REAL)\b/.test(text);
     return { demo, real };
   });
@@ -197,6 +199,7 @@ function readAccountType(lines) {
   }
 
   if (hasDemo === hasReal) return null;
+  // Se PRATICA/DEMO detectado isolado, retorna DEMO; se REAL isolado, retorna REAL
   return hasDemo ? 'DEMO' : 'REAL';
 }
 
@@ -445,7 +448,9 @@ function parseVisibleResultTrade(ocrData, notification, now = new Date()) {
   const assetText = assetLines[0]?.text || lines.find((line) => hasTradeAsset(line.text))?.text || '';
   const assetMatch = normalizeText(assetText).match(/\b([A-Z]{3}\s*\/\s*[A-Z]{3}(?:\s*\(OTC\))?|[A-Z]{6}(?:\s*\(OTC\))?)\b/);
   const asset = assetMatch ? assetMatch[1].replace(/\s*\/\s*/g, '/').replace(/\s*\(OTC\)/, ' (OTC)') : 'Exnova (ativo não lido)';
-  const accountType = readAccountType(lines) || undefined;
+  // Tenta ler o tipo de conta do OCR; se falhar, usa DEMO como fallback seguro
+  // (conta de prática no Exnova Desktop exibe "Prática" → PRATICA após normalização)
+  const accountType = readAccountType(lines) || 'DEMO';
   const investmentMatch = fullText.match(/\b(?:INVEST|INVESTMENT|INVESTIMENTO)\s*(?:R\s*\$|US\$|\$|€|£)?\s*((?:\d{1,3}(?:[., ]\d{3})+|\d+)(?:[.,]\d{1,2})?)/);
   const stake = investmentMatch ? parseMoney(investmentMatch[1]) : 0;
   const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -455,7 +460,6 @@ function parseVisibleResultTrade(ocrData, notification, now = new Date()) {
   const id = `exnova-toast-${crypto.createHash('sha256').update(identity).digest('hex').slice(0, 20)}`;
   const missing = [
     !assetMatch && 'ativo',
-    !accountType && 'tipo de conta',
     !(stake > 0) && 'valor investido',
   ].filter(Boolean);
   return {
@@ -469,10 +473,10 @@ function parseVisibleResultTrade(ocrData, notification, now = new Date()) {
     pnl: notification.amount,
     contractsOrQuantity: stake,
     accountType,
-    isReal: accountType ? accountType === 'REAL' : undefined,
+    isReal: accountType === 'REAL',
     isAutoCaptured: true,
     notes: `Resultado registrado diretamente do aviso visível: ${notification.display}. Moeda lida na tela (${notification.currency}), sem conversão.${missing.length ? ` OCR não identificou: ${missing.join(', ')}.` : ''} Direção não exibida no aviso.`,
-    tags: ['Exnova', 'OCR local', 'Aviso de retorno', ...(accountType ? [accountType] : [])],
+    tags: ['Exnova', 'OCR local', 'Aviso de retorno', accountType],
   };
 }
 
@@ -497,6 +501,8 @@ function parseClosedTrades(ocrData, now = new Date(), sourceLabel = 'Desktop', r
   // keep using the full-frame OCR for this check while trade rows come from
   // the enlarged history panel.
   const accountType = readAccountType(getOcrLines(ocrData));
+  // Se o OCR não detecta DEMO nem REAL, retorna atenção pedindo que
+  // o seletor de conta fique visível. No Desktop a conta é visível na barra superior.
   if (!accountType) return { state: 'attention', reason: 'Não consegui confirmar se a conta ativa é Real ou Demo. Deixe o seletor de contas aberto com o saldo ativo visível.' };
 
   const candidates = makeTradeRows(lines, now).filter((line) => line.confidence >= 50 && /\b\d{1,2}:\d{2}\b/.test(line.text));

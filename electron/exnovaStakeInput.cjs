@@ -26,7 +26,17 @@ function createStakeInput(){
         child.stdin.write(JSON.stringify({id,handle:frame.handle,bounds:frame.bounds,field,amount:String(Number(Number(amount).toFixed(2)))})+'\n');
       });
     },
-    stop(){fail('Preenchimento encerrado.');child?.kill();child=null;}
+    stop(){fail('Preenchimento encerrado.');child?.kill();child=null;},
+    closeModal(){
+      // Envia Escape para fechar o modal da calculadora que a Exnova Desktop
+      // abre quando o campo Invest recebe um clique físico.
+      if(!child)return Promise.resolve();
+      return new Promise((resolve,reject)=>{
+        const id=++counter;
+        request={id,resolve,reject,timer:setTimeout(()=>{fail('Tempo excedido ao fechar modal.');},3000)};
+        child.stdin.write(JSON.stringify({id,action:'closeModal'})+'\n');
+      }).catch(()=>{});  // ignora erros — fechar modal é best-effort
+    }
   };
 }
 module.exports={createStakeInput};
