@@ -58,7 +58,9 @@ function geometryFor(frame, region, screen) {
 }
 function makeShieldPage(amount, verified) {
   const value=Number(amount).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  return `<!doctype html><html><meta charset="utf-8"><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#064e3b}body{display:flex;align-items:center;justify-content:center;border:2px solid #10b981;border-radius:5px;color:#d1fae5;font:bold 12px 'Segoe UI',sans-serif;user-select:none;cursor:not-allowed}</style><body>${verified?'🔒':'⏳'} R$ ${value}</body></html>`;
+  const bg=verified?'#064e3b':'#78350f',border=verified?'#10b981':'#f59e0b',fg=verified?'#d1fae5':'#fef3c7';
+  const label=verified?`🔒 R$ ${value}`:`⏳ aplicando R$ ${value}`;
+  return `<!doctype html><html><meta charset="utf-8"><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:${bg}}body{display:flex;align-items:center;justify-content:center;border:2px solid ${border};border-radius:5px;color:${fg};font:bold ${verified?12:10}px 'Segoe UI',sans-serif;white-space:nowrap;user-select:none;cursor:not-allowed}</style><body>${label}</body></html>`;
 }
 
 function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onStatus,trackerFactory=createWindowTracker,inputFactory=createStakeInput}) {
@@ -178,8 +180,11 @@ function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onSta
       // Keep reporting unverified, but do not retype a previously confirmed target.
       if(observed===null&&lastConfirmedKey===nextKey){validationError='Leitura do Invest temporariamente indisponível; aguardando nova confirmação.';position();return;}
       if(observed!==null)lastConfirmedKey='';
-      if(writeAttempts>=2){validationError='Não foi possível confirmar o valor do Invest. A entrada ainda não está validada.';position();return;}
-      if(Date.now()-lastWriteAt<5000)return;
+      if(writeAttempts>=2){
+        if(Date.now()-lastWriteAt<6000){validationError='Valor do Invest diferente do card; nova tentativa em instantes.';position();return;}
+        writeAttempts=0;
+      }
+      if(Date.now()-lastWriteAt<2500)return;
       await input.ready();
       if(stopped||toTargetAmount(lockState)!==amount)return;
       if(!tracker.getState()?.foreground||frameKey(tracker.getState())!==frameKey(frame))return;

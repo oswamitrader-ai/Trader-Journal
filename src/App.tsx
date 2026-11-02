@@ -414,12 +414,20 @@ export default function App() {
         const activeLocalTrades = tradesRef.current.filter((trade) =>
           !deletedRecords.tradeIds.has(trade.id) && !locallyDeletedTrades.has(trade.id)
         );
-        activeLocalTrades.forEach((trade) => mergedTradeMap.set(trade.id, trade));
+        // Não sobrescreve no mapa trades que o cloud já não tem (foram deletados no banco)
+        // Só promove o local para o mapa se o cloud também tem esse ID ou se é um trade novo local
+        activeLocalTrades.forEach((trade) => {
+          if (!mergedTradeMap.has(trade.id)) {
+            // Trade existe só localmente — promover apenas se não foi deletado na nuvem
+            if (!deletedRecords.tradeIds.has(trade.id)) mergedTradeMap.set(trade.id, trade);
+          }
+        });
         for (const localTrade of activeLocalTrades) {
           const cloudTrade = cloudTradeMap.get(localTrade.id);
+          if (!cloudTrade) continue; // trade só existe local — já tratado acima
           const localUpdatedAt = localTrade.updatedAt ? Date.parse(localTrade.updatedAt) : 0;
           const cloudUpdatedAt = cloudTrade?.updatedAt ? Date.parse(cloudTrade.updatedAt) : 0;
-          if (!cloudTrade || localUpdatedAt > cloudUpdatedAt) {
+          if (localUpdatedAt > cloudUpdatedAt) {
             localDirtyTrades.push(localTrade);
             mergedTradeMap.set(localTrade.id, localTrade);
           } else {
@@ -715,6 +723,9 @@ export default function App() {
   useEffect(() => {
     const acceptCapturedTrade = (tradeData: Trade) => {
       if (!tradeData || !tradeData.id || !tradeData.date || !tradeData.asset || !Number.isFinite(Number(tradeData.pnl))) return;
+      // ❌ Não reinsere operações que o usuário excluiu (local ou na nuvem)
+      const localDeleted = readDeletedIds(DELETED_TRADES_KEY);
+      if (localDeleted.has(tradeData.id)) return;
       const capturedTrade: Trade = { ...tradeData, updatedAt: new Date().toISOString() };
       // OCR só envia operações completas; as antigas capturas DOM continuam sendo descartadas.
       if (

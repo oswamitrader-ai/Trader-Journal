@@ -58,13 +58,22 @@ public static class ExnovaStakeInput {
     // amount field, uses only numeric text and Tab, and NEVER sends Enter or order actions.
     Guard(handle,x,y,width,height);
     POINT previousCursor;GetCursorPos(out previousCursor);
-    SetCursorPos(px,py);
+    POINT cursor;bool placed=false;
+    // Confere o cursor ANTES de clicar: abortar depois do clique deixava a
+    // calculadora da Exnova aberta sem o valor digitado ("clique fantasma").
+    for(int attempt=0;attempt<3&&!placed;attempt++){
+      SetCursorPos(px,py);
+      System.Threading.Thread.Sleep(30);
+      GetCursorPos(out cursor);
+      placed=Math.Abs(cursor.X-px)<=3&&Math.Abs(cursor.Y-py)<=3;
+    }
+    if(!placed)throw new Exception("Interação do usuário detectada; preenchimento cancelado.");
+    Guard(handle,x,y,width,height);
     var click=new INPUT[]{new INPUT{type=0,data=new INPUTUNION{mi=new MOUSEINPUT{dwFlags=2}}},new INPUT{type=0,data=new INPUTUNION{mi=new MOUSEINPUT{dwFlags=4}}}};
     if(SendInput(2,click,Marshal.SizeOf(typeof(INPUT)))!=2)throw new Exception("Windows recusou o foco no campo.");
     System.Threading.Thread.Sleep(80);
-    Guard(handle,x,y,width,height);
-    POINT cursor;GetCursorPos(out cursor);
-    if(cursor.X!=px || cursor.Y!=py)throw new Exception("Interação do usuário detectada; preenchimento cancelado.");
+    // Após o clique, o valor é SEMPRE digitado (sem abortar no meio).
+    if(GetForegroundWindow()!=handle)throw new Exception("A Exnova perdeu o foco; preenchimento cancelado.");
     var keys=new List<INPUT>{Key(17,false),Key(65,false),Key(65,true),Key(17,true)};
     foreach(char c in value){keys.Add(Text(c,false));keys.Add(Text(c,true));}
     keys.Add(Key(9,false));keys.Add(Key(9,true));

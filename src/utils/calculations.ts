@@ -81,8 +81,11 @@ export function isTradeProtected(trade: Trade, isAntiFuriaActiveToday: boolean =
     return true;
   }
 
-  // 4. Operações de Conta Real capturadas ao vivo via WebSocket são estritamente protegidas
-  return true;
+  // 4. Só bloqueia se a operação for EXPLICITAMENTE de Conta Real E capturada ao vivo.
+  //    Se isReal for null/undefined (campo não preenchido pelo OCR antigo), libera a exclusão.
+  const isExplicitlyReal = trade.isReal === true;
+  const isCapturedLive = trade.isAutoCaptured === true;
+  return isExplicitlyReal && isCapturedLive;
 }
 
 /**

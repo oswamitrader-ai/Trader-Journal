@@ -243,11 +243,12 @@ export async function upsertTradeToSupabase(trade: Trade, userEmail?: string): P
 export async function deleteTradeFromSupabase(tradeId: string, userEmail?: string): Promise<{ success: boolean; error: string | null }> {
   try {
     // 1. Consulta se a operação é da Conta Real (protegida pelo Anti-Fúria)
-    const { data: existing } = await supabase.from('trades').select('*').eq('id', tradeId).maybeSingle();
-    if (existing && isTradeProtected(existing as Trade)) {
+    const { data: existing } = await supabase.from('trades').select('isReal,isAutoCaptured').eq('id', tradeId).maybeSingle();
+    // Bloquear apenas se explicitamente Real E capturado ao vivo
+    if (existing && existing.isReal === true && existing.isAutoCaptured === true) {
       return {
         success: false,
-        error: 'Operação de Conta Real capturada é estritamente protegida pelo Sistema Anti-Fúria e não pode ser excluída.',
+        error: 'Operação de Conta Real capturada ao vivo é estritamente protegida pelo Sistema Anti-Fúria e não pode ser excluída.',
       };
     }
 
