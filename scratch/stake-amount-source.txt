@@ -1,0 +1,23 @@
+function toTargetAmount(state) {
+  if (!state?.enforceBrokerStakeLock) return null;
+  const fixed = Number(state.fixedStakeAmount) || 50;
+  const wins = Math.max(0, Number(state.consecutiveWins) || 0);
+  const losses = Math.max(0, Number(state.consecutiveLosses) || 0);
+  const style = String(state.managementStyle || 'MAO_FIXA').toUpperCase();
+  if (style === 'SOROS_1' && wins === 1) return Number(state.sorosLevel1Stake) || 93.5;
+  if (style === 'SOROS_2') {
+    if (wins === 1) return Number(state.sorosLevel1Stake) || 93.5;
+    if (wins === 2) return Number(state.sorosLevel2Stake) || 174.8;
+  }
+  if (style === 'SOROS_3') {
+    if (wins === 1) return Number(state.sorosLevel1Stake) || 93.5;
+    if (wins === 2) return Number(state.sorosLevel2Stake) || 174.8;
+    if (wins === 3) return Number(state.sorosLevel3Stake) || 326.9;
+  }
+  if (style === 'MARTINGALE' || style === 'SOROSGALE') {
+    if (losses === 1) return Number(state.martingaleLevel1Stake) || 100;
+    if (losses === 2) return Number(state.martingaleLevel2Stake) || 200;
+  }
+  return fixed;
+}
+

@@ -23,6 +23,8 @@ export interface MobileLockState {
   winRate: number;
   profitFactor: number;
   isRealtimeConnected: boolean;
+  syncError: string | null;
+  lastSyncedAt: string | null;
 }
 
 export type NativeLockCallback = (state: MobileLockState) => void;
@@ -35,8 +37,8 @@ class MobileSyncService {
     isUserActive: true,
     subscriptionStatus: 'ACTIVE',
     userRole: 'CLIENT',
-    userEmail: 'oswamitrader@gmail.com',
-    isLockActive: false,
+    userEmail: '',
+    isLockActive: true,
     reason: null,
     todayPnl: 0,
     totalTodayPnl: 0,
@@ -50,12 +52,40 @@ class MobileSyncService {
     winRate: 0,
     profitFactor: 0,
     isRealtimeConnected: false,
+    syncError: 'Aguardando sincronização autenticada.',
+    lastSyncedAt: null,
   };
 
   private listeners: Set<NativeLockCallback> = new Set();
   private tradesChannel: any = null;
   private usersChannel: any = null;
   private pollInterval: any = null;
+  private fetching = false;
+  private queued = false;
+  private generation = 0;
+  private realtimeEmail = '';
+  private desiredEmail = '';
+  private authSubscription: { unsubscribe(): void } | null = null;
+  private wake = () => { if (this.desiredEmail) void this.fetchDataAndSubscribe(this.desiredEmail); };
+
+  public stop(): void {
+    this.generation++;
+    this.desiredEmail = '';
+    this.queued = false;
+    if (this.tradesChannel) void supabase.removeChannel(this.tradesChannel);
+    this.tradesChannel = null;
+    this.realtimeEmail = '';
+    clearInterval(this.pollInterval);
+    this.authSubscription?.unsubscribe(); this.authSubscription = null;
+    if (typeof window !== 'undefined') { window.removeEventListener('online', this.wake); window.removeEventListener('focus', this.wake); }
+  }
+
+  private async sendSessionToNative(): Promise<void> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (typeof window !== 'undefined' && session) {
+      (window as any).TradeLockAndroidBridge?.setAuthSession?.(JSON.stringify({access_token:session.access_token,refresh_token:session.refresh_token,expires_at:session.expires_at,user:session.user}));
+    }
+  }
 
   constructor() {}
 
@@ -98,6 +128,7 @@ class MobileSyncService {
     }
 
     this.currentState.userEmail = cleanEmail;
+    this.desiredEmail = cleanEmail;
     if (typeof window !== 'undefined') {
       localStorage.setItem('tradelock_user_email', cleanEmail);
     }
@@ -109,7 +140,7 @@ class MobileSyncService {
     const updated = { ...this.currentState, ...partial };
 
     const isSubscriptionBlocked = !updated.isUserActive || updated.subscriptionStatus !== 'ACTIVE';
-    const isAntiFuriaActive = updated.isStopHit || updated.isMaxTradesHit || updated.permanentMobileBrokerLockEnabled;
+    const isAntiFuriaActive = updated.isStopHit || updated.isMaxTradesHit || updated.permanentMobileBrokerLockEnabled || Boolean(updated.syncError);
     
     updated.isLockActive = isSubscriptionBlocked || isAntiFuriaActive;
     
@@ -121,6 +152,8 @@ class MobileSyncService {
       updated.reason = 'Stop Loss Diário Atingido (Trava Anti-Fúria)';
     } else if (updated.isMaxTradesHit) {
       updated.reason = 'Limite Máximo de Operações Diárias Atingido';
+    } else if (updated.syncError) {
+      updated.reason = 'Proteção mantida: não foi possível confirmar os dados na nuvem.';
     } else {
       updated.reason = null;
     }
@@ -140,33 +173,45 @@ class MobileSyncService {
   }
 
   public async setPermanentMobileBrokerLock(enabled: boolean): Promise<void> {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('tradelock_permanent_mobile_lock', enabled ? 'true' : 'false');
-    }
-    this.updateState({ permanentMobileBrokerLockEnabled: enabled });
+    if (!enabled && (this.currentState.syncError || this.currentState.isStopHit || this.currentState.isMaxTradesHit)) throw new Error('Confirme a sincronização e respeite os limites do dia antes de desativar a trava.');
 
     if (this.currentState.userEmail) {
       try {
         const cleanEmail = this.currentState.userEmail.toLowerCase().trim();
         const settingId = `settings_${cleanEmail}`;
-        const { data: existing } = await supabase.from('management_settings').select('settings').eq('id', settingId).maybeSingle();
+        const { data: existing, error: readError } = await supabase.from('management_settings').select('settings,updated_at').eq('id', settingId).maybeSingle();
+        if (readError) throw readError;
         const settings = existing?.settings && typeof existing.settings === 'object' ? existing.settings : {};
 
-        await supabase.from('management_settings').upsert({
-          id: settingId,
+        const payload = {
           settings: { ...settings, permanentMobileBrokerLockEnabled: enabled },
           updated_at: new Date().toISOString()
-        });
+        };
+        const result = existing
+          ? await supabase.from('management_settings').update(payload).eq('id',settingId).eq('updated_at',existing.updated_at).select('id')
+          : await supabase.from('management_settings').insert({id:settingId,...payload}).select('id');
+        if (result.error) throw result.error;
+        if (!result.data?.length) throw new Error('Configurações alteradas em outro dispositivo. Atualize e tente novamente.');
+        if (typeof window !== 'undefined') localStorage.setItem(`tradelock_permanent_mobile_lock_${cleanEmail}`, String(enabled));
+        this.updateState({ permanentMobileBrokerLockEnabled: enabled });
+        await this.fetchDataAndSubscribe(cleanEmail);
       } catch (e) {
         console.warn('Erro ao salvar permanentMobileBrokerLockEnabled no Supabase:', e);
+        throw e;
       }
     }
   }
 
   public async fetchDataAndSubscribe(email: string): Promise<void> {
     if (!email) return;
+    if (this.fetching) { this.queued = true; return; }
+    this.fetching = true;
+    const generation = this.generation;
+    try {
     const {data:{user},error:authError}=await supabase.auth.getUser();
-    if(authError || !user?.email || user.email.toLowerCase()!==email.toLowerCase()) return;
+    if (generation !== this.generation) return;
+    if(authError || !user?.email || user.email.toLowerCase()!==email.toLowerCase()) throw new Error('Entre novamente com a conta autenticada.');
+    await this.sendSessionToNative();
 
     // 🔒 ANTI-BYPASS: Redireciona a busca para o e-mail travado caso a trava esteja ativa hoje
     const lockedInfo = this.getLockedEmailInfo();
@@ -177,25 +222,25 @@ class MobileSyncService {
       this.currentState.userEmail = activeEmail;
     }
 
-    try {
       // 1. Fetch user subscription status
-      const { data: userData } = await supabase
+      const { data: userData, error: profileError } = await supabase
         .from('system_users')
         .select('*')
         .eq('email', email)
         .maybeSingle();
+      if (profileError || !userData) throw profileError || new Error('Perfil não encontrado.');
 
       if (userData) {
         this.updateState({
           isUserActive: userData.active !== false,
-          subscriptionStatus: userData.subscription_status || 'ACTIVE',
+          subscriptionStatus: user.app_metadata.subscriptionStatus || 'ACTIVE',
           userRole: userData.role === 'ADMIN' ? 'ADMIN' : 'CLIENT',
         });
       }
 
       // 2. Risk and management settings are separate records scoped to this account.
       const settingsId = `settings_${activeEmail}`;
-      const [{ data: settingsData }, { data: managementData }] = await Promise.all([
+      const [riskResult, managementResult] = await Promise.all([
         supabase
         .from('risk_settings')
         .select('dailyLossLimit,dailyProfitTarget,maxTradesPerDay')
@@ -207,6 +252,9 @@ class MobileSyncService {
           .eq('id', settingsId)
           .maybeSingle(),
       ]);
+      if (riskResult.error || managementResult.error) throw riskResult.error || managementResult.error;
+      const settingsData = riskResult.data, managementData = managementResult.data;
+      if (!settingsData || !managementData) throw new Error('Configure a gestão de risco no TradeLock antes de operar.');
 
       const dailyLossLimit = settingsData?.dailyLossLimit ?? (settingsData as any)?.daily_loss_limit ?? 60;
       const dailyProfitTarget = settingsData?.dailyProfitTarget ?? (settingsData as any)?.daily_profit_target ?? 70;
@@ -216,7 +264,7 @@ class MobileSyncService {
         ? managementData.settings
         : {};
 
-      const localPerm = typeof window !== 'undefined' ? localStorage.getItem('tradelock_permanent_mobile_lock') === 'true' : false;
+      const localPerm = typeof window !== 'undefined' ? localStorage.getItem(`tradelock_permanent_mobile_lock_${activeEmail}`) === 'true' : false;
       const permanentMobileBrokerLockEnabled = Boolean(
         extraSettings.permanentMobileBrokerLockEnabled ??
         localPerm
@@ -231,7 +279,7 @@ class MobileSyncService {
         .eq('date', todayStr);
 
       if (tradesError) {
-        console.warn('[MobileSyncService] Erro ao buscar trades:', tradesError.message);
+        throw tradesError;
       }
 
       let allTrades: any[] = trades || [];
@@ -251,11 +299,12 @@ class MobileSyncService {
       const totalLosses = Math.abs(todayRealTrades.filter(t => Number(t.pnl) < 0).reduce((s, t) => s + Number(t.pnl), 0));
       const profitFactor = totalLosses > 0 ? parseFloat((totalGains / totalLosses).toFixed(2)) : (totalGains > 0 ? 999 : 0);
 
-      const isStopHit = dailyLossLimit > 0 && (todayPnl <= -dailyLossLimit || effectivePnl <= -dailyLossLimit) && (todayPnl < 0 || effectivePnl < 0);
+      const isStopHit = dailyLossLimit > 0 && ((todayPnl < 0 && todayPnl <= -dailyLossLimit + .001) || (totalTodayPnl < 0 && totalTodayPnl <= -dailyLossLimit + .001));
       const isMaxTradesHit = maxTradesPerDay > 0 && todayTradesCount >= maxTradesPerDay;
 
       console.log(`[MobileSyncService] Dados carregados: PnL Real=${todayPnl}, Total=${totalTodayPnl}, Trades=${todayTradesCount}, StopLoss=${dailyLossLimit}, PermanentLock=${permanentMobileBrokerLockEnabled}`);
 
+      if (generation !== this.generation) return;
       this.updateState({
         todayPnl: effectivePnl,
         totalTodayPnl,
@@ -271,17 +320,25 @@ class MobileSyncService {
         isStopHit,
         isMaxTradesHit,
         permanentMobileBrokerLockEnabled,
-        isRealtimeConnected: true,
+        syncError: null,
+        lastSyncedAt: new Date().toISOString(),
       });
 
       // 4. Setup Supabase Realtime Channels
       this.subscribeRealtime(email);
-    } catch (err) {
+    } catch (err: any) {
+      if (generation === this.generation) this.updateState({syncError:err?.message || 'Falha ao sincronizar.'});
       console.warn('Erro ao carregar dados do Supabase no mobileSyncService:', err);
+    } finally {
+      this.fetching = false;
+      if (generation === this.generation) this.subscribeRealtime(email);
+      if (this.queued && this.desiredEmail) { this.queued = false; void this.fetchDataAndSubscribe(this.desiredEmail); }
     }
   }
 
   private subscribeRealtime(email: string): void {
+    if (this.tradesChannel && this.realtimeEmail === email) return;
+    this.realtimeEmail = email;
     if (this.tradesChannel) supabase.removeChannel(this.tradesChannel);
     if (this.usersChannel) supabase.removeChannel(this.usersChannel);
     if (this.pollInterval) clearInterval(this.pollInterval);
@@ -316,13 +373,6 @@ class MobileSyncService {
         { event: '*', schema: 'public', table: 'system_users' },
         (payload: any) => {
           this.fetchDataAndSubscribe(email);
-          if (payload.new && payload.new.email && payload.new.email.toLowerCase().trim() === cleanEmail) {
-            this.updateState({
-              isUserActive: payload.new.active !== false,
-              subscriptionStatus: payload.new.subscription_status || 'ACTIVE',
-              userRole: payload.new.role === 'ADMIN' ? 'ADMIN' : 'CLIENT',
-            });
-          }
         }
       )
       .on(
@@ -332,7 +382,19 @@ class MobileSyncService {
           this.fetchDataAndSubscribe(email);
         }
       )
-      .subscribe();
+      .on('postgres_changes', {event:'*',schema:'public',table:'deleted_records'}, this.wake)
+      .on('postgres_changes', {event:'*',schema:'public',table:'journal_resets'}, this.wake)
+      .subscribe((status: string) => {
+        this.updateState({isRealtimeConnected: status === 'SUBSCRIBED'});
+        if (status === 'SUBSCRIBED') this.wake();
+      });
+    if (!this.authSubscription) {
+      this.authSubscription = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_OUT') { this.updateState({syncError:'Sessão encerrada. Entre novamente.',isRealtimeConnected:false}); this.stop(); }
+        else setTimeout(() => { void this.sendSessionToNative(); this.wake(); }, 0);
+      }).data.subscription;
+      if (typeof window !== 'undefined') {window.addEventListener('online',this.wake);window.addEventListener('focus',this.wake);}
+    }
 
     // Polling heartbeat de 3s como garantia extra para o app mobile sem F5
     this.pollInterval = setInterval(() => {

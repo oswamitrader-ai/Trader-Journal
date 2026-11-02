@@ -4,238 +4,152 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 
 object TradeLockNativeSync {
+    private const val URL_BASE = "https://mreykdrbyfrwqovsleqi.supabase.co"
+    private const val PUBLIC_KEY = "sb_publishable_6ntxWuCoI_0Upy2PVIB6Nw__mMUiPUX"
+    private val wake = Semaphore(0)
+    private val http = OkHttpClient.Builder().pingInterval(20, TimeUnit.SECONDS).build()
+    @Volatile private var running = false
+    @Volatile private var socket: WebSocket? = null
+    @Volatile private var socketToken = ""
+    @Volatile private var lastReply = 0L
+    private var thread: Thread? = null
+    private var sequence = 0L
+    fun getPrefs(context: Context): SharedPreferences = context.getSharedPreferences("TradeLockPrefs", Context.MODE_PRIVATE)
+    fun saveUserEmail(context: Context, email: String) { getPrefs(context).edit().putString("locked_user_email", email.trim().lowercase(Locale.ROOT)).apply() }
+    fun getUserEmail(context: Context): String = getPrefs(context).getString("locked_user_email", "") ?: ""
+    fun requestSync() { if (wake.availablePermits() == 0) wake.release() }
 
-    private const val TAG = "TradeLockNativeSync"
-    private const val SUPABASE_URL = "https://mreykdrbyfrwqovsleqi.supabase.co"
-    private const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXlrZHJieWZyd3FvdnNsZXFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1MDQ1NTcsImV4cCI6MjEwNTA4MDU1N30.X8JibBnbQh47nkHv51srbAWrdHZDLojs1xVupV3og1g"
-    private const val SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXlrZHJieWZyd3FvdnNsZXFpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTUwNDU1NywiZXhwIjoyMTA1MDgwNTU3fQ.jFaxN67eNfjCG_OJKKdwG7srYFMEGU10HlUA8Aoqk5Q"
-
-    private const val PREFS_NAME = "TradeLockPrefs"
-    private const val KEY_USER_EMAIL = "locked_user_email"
-
-    @Volatile
-    private var isSyncingRunning = false
-    private var syncThread: Thread? = null
-
-    fun getPrefs(context: Context): SharedPreferences {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    @Synchronized fun acceptSession(context: Context, session: JSONObject) {
+        if (session.optString("access_token").isBlank() || session.optString("refresh_token").isBlank()) return
+        val previous = NativeSessionStore.read(context)
+        // Do not replace a background-refreshed session with a stale WebView snapshot.
+        if (previous?.optJSONObject("user")?.optString("id") == session.optJSONObject("user")?.optString("id") &&
+            (previous?.optLong("expires_at") ?: 0) > session.optLong("expires_at")) return
+        NativeSessionStore.save(context, session)
+        requestSync()
     }
-
-    fun saveUserEmail(context: Context, email: String) {
-        if (email.isNotBlank()) {
-            getPrefs(context).edit().putString(KEY_USER_EMAIL, email.trim().lowercase(Locale.getDefault())).apply()
-            Log.i(TAG, "E-mail ancorado nativamente no Android: $email")
+    @Synchronized private fun accessToken(context: Context): String {
+        var session = NativeSessionStore.read(context) ?: throw IllegalStateException("Entre novamente no TradeLock.")
+        if (session.optLong("expires_at") <= System.currentTimeMillis()/1000 + 60) {
+            session = JSONObject(request("/auth/v1/token?grant_type=refresh_token", null, JSONObject().put("refresh_token",session.getString("refresh_token"))))
+            if (!session.has("expires_at")) session.put("expires_at",System.currentTimeMillis()/1000+session.optLong("expires_in",3600))
+            NativeSessionStore.save(context,session)
         }
+        return session.getString("access_token")
     }
-
-    fun getUserEmail(context: Context): String {
-        return getPrefs(context).getString(KEY_USER_EMAIL, "") ?: ""
+    fun restoreProtection(context: Context) {
+        val prefs=getPrefs(context)
+        TradeLockAccessibilityService.isAntiFuriaActive = prefs.getBoolean("native_lock_active",true) || prefs.getBoolean("KEY_PERMANENT_MOBILE_LOCK",false)
+        TradeLockAccessibilityService.lockReason = prefs.getString("native_lock_reason","Aguardando sincronização autenticada.") ?: "Aguardando sincronização."
     }
-
-    fun startNativeBackgroundSync(context: Context) {
-        if (isSyncingRunning) return
-        isSyncingRunning = true
-
-        syncThread = Thread {
-            Log.i(TAG, "Iniciando Motor de Sincronização Nativa TradeLock 24/7...")
-
-            while (isSyncingRunning) {
-                try {
-                    val email = getUserEmail(context)
-                    if (email.isNotBlank()) {
-                        checkSupabaseState(context, email)
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Erro no ciclo de sincronização nativa: ${e.message}", e)
+    @Synchronized fun startNativeBackgroundSync(context: Context) {
+        if(running)return
+        val app=context.applicationContext
+        restoreProtection(app); running=true
+        thread=Thread {
+            while(running) {
+                try { sync(app) }
+                catch(e: Exception) {
+                    getPrefs(app).edit().putString("native_sync_error",e.message ?: "Falha de conexão").apply()
+                    applyProtection(app,true,"Proteção mantida: sincronização indisponível. Abra o TradeLock.")
                 }
-
-                try {
-                    Thread.sleep(15000) // Polling a cada 15 segundos nativamente
-                } catch (ie: InterruptedException) {
-                    break
-                }
+                try { wake.tryAcquire(5,TimeUnit.SECONDS) } catch(_:InterruptedException){break}
             }
-        }.apply {
-            name = "TradeLockNativeSyncThread"
-            isDaemon = true
-            start()
+        }.apply {name="TradeLockAuthenticatedSync";isDaemon=true;start()}
+    }
+    @Synchronized fun stopNativeBackgroundSync(){running=false;thread?.interrupt();thread=null;socket?.cancel();socket=null}
+    private fun encoded(value:String)=URLEncoder.encode(value,"UTF-8")
+    private fun rows(path:String,token:String)=JSONArray(request("/rest/v1/$path",token))
+    private fun sync(context: Context) {
+        val token=accessToken(context)
+        val user=JSONObject(request("/auth/v1/user",token)) // Server validates session and current app_metadata.
+        val email=user.getString("email").lowercase(Locale.ROOT)
+        saveUserEmail(context,email)
+        connectRealtime(token)
+        val id=encoded("settings_$email")
+        val risk=rows("risk_settings?id=eq.$id&select=*",token).optJSONObject(0) ?: throw IllegalStateException("Gestão de risco não configurada.")
+        val management=rows("management_settings?id=eq.$id&select=settings",token).optJSONObject(0)?.optJSONObject("settings") ?: throw IllegalStateException("Configurações não encontradas.")
+        val today=SimpleDateFormat("yyyy-MM-dd",Locale.ROOT).format(Date())
+        val trades=rows("trades?user_email=eq.${encoded(email)}&date=eq.$today&select=pnl,accountType,isReal",token)
+        var real=0.0;var total=0.0
+        for(i in 0 until trades.length()) {
+            val trade=trades.getJSONObject(i);val pnl=trade.optDouble("pnl",0.0)
+            total+=pnl
+            if(trade.optString("accountType")!="DEMO" && (!trade.has("isReal") || trade.isNull("isReal") || trade.optBoolean("isReal",true)))real+=pnl
+        }
+        val limit=risk.optDouble("dailyLossLimit",0.0)
+        val max=risk.optInt("maxTradesPerDay",0)
+        val stop=limit>0 && ((real<0 && real<=-limit+.001)||(total<0 && total<=-limit+.001))
+        val maxHit=max>0 && trades.length()>=max
+        val permanent=management.optBoolean("permanentMobileBrokerLockEnabled",false)
+        val meta=user.optJSONObject("app_metadata") ?: JSONObject()
+        val suspended=!meta.optBoolean("active",true)||meta.optString("subscriptionStatus","ACTIVE")!="ACTIVE"
+        val reason=when {suspended->"Conta ou assinatura inativa";permanent->"Bloqueio Perpétuo de Corretoras no Celular (Eterno Stop Loss)";stop->"Stop Loss Diário Atingido";maxHit->"Limite de Operações Diárias Atingido";else->""}
+        if (NativeSessionStore.read(context)?.optString("access_token") != token) return
+        getPrefs(context).edit().putBoolean("KEY_PERMANENT_MOBILE_LOCK",permanent).putString("native_sync_error","").putLong("native_last_sync",System.currentTimeMillis()).apply()
+        applyProtection(context,suspended||permanent||stop||maxHit,reason)
+    }
+    fun applyProtection(context:Context,active:Boolean,reason:String) {
+        getPrefs(context).edit().putBoolean("native_lock_active",active).putString("native_lock_reason",reason).apply()
+        TradeLockAccessibilityService.isAntiFuriaActive=active
+        TradeLockAccessibilityService.lockReason=reason
+        TradeLockAccessibilityService.checkCurrentWindow()
+        // The accessibility shield is the primary blocker. VPN is optional and only targets broker apps.
+        if(android.net.VpnService.prepare(context)==null) {
+            try {context.startService(Intent(context,TradeLockVpnService::class.java).apply {action=if(active)TradeLockVpnService.ACTION_CONNECT else TradeLockVpnService.ACTION_DISCONNECT})}
+            catch(e:Exception){Log.w("TradeLockSync","VPN indisponível; proteção de acessibilidade mantida.")}
         }
     }
-
-    fun stopNativeBackgroundSync() {
-        isSyncingRunning = false
-        syncThread?.interrupt()
-        syncThread = null
+    private fun connectRealtime(token:String) {
+        if(socket!=null && socketToken==token && System.currentTimeMillis()-lastReply<60000) {
+            send(socket!!,"phoenix","heartbeat",JSONObject());return
+        }
+        socket?.cancel();socketToken=token;lastReply=System.currentTimeMillis()
+        socket=http.newWebSocket(Request.Builder().url("${URL_BASE.replace("https:","wss:")}/realtime/v1/websocket?apikey=$PUBLIC_KEY&vsn=1.0.0").build(),object:WebSocketListener(){
+            override fun onOpen(ws:WebSocket,response:Response) {
+                val changes=JSONArray()
+                for(table in listOf("trades","risk_settings","management_settings","system_users","deleted_records","journal_resets"))changes.put(JSONObject().put("event","*").put("schema","public").put("table",table))
+                send(ws,"realtime:native-risk","phx_join",JSONObject().put("access_token",token).put("config",JSONObject().put("postgres_changes",changes).put("broadcast",JSONObject().put("ack",false).put("self",false)).put("presence",JSONObject().put("enabled",false))))
+            }
+            override fun onMessage(ws:WebSocket,text:String) {
+                if(ws!==socket)return
+                lastReply=System.currentTimeMillis()
+                try {val event=JSONObject(text)
+                    if(event.optString("event")=="postgres_changes")requestSync()
+                    if(event.optString("event") in listOf("phx_error","phx_close") || (event.optString("event")=="phx_reply" && event.optJSONObject("payload")?.optString("status")=="error")){ws.cancel();socket=null}
+                }catch(_:Exception){}
+            }
+            override fun onFailure(ws:WebSocket,t:Throwable,response:Response?){if(ws===socket)socket=null}
+            override fun onClosed(ws:WebSocket,code:Int,reason:String){if(ws===socket)socket=null}
+        })
     }
-
-    private fun checkSupabaseState(context: Context, email: String) {
-        val cleanEmail = email.trim().lowercase(Locale.getDefault())
-
-        // 1. Data de Hoje no Fuso Horário Local (YYYY-MM-DD)
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val todayStr = sdf.format(Date())
-
-        // 2. Consulta Risk Settings do Supabase (id = settings_email ou id = email)
-        var settingsUrl = "$SUPABASE_URL/rest/v1/risk_settings?id=eq.settings_$cleanEmail"
-        var settingsJson = httpGet(settingsUrl)
-
-        if (settingsJson == null || settingsJson.length() == 0) {
-            settingsUrl = "$SUPABASE_URL/rest/v1/risk_settings?id=eq.$cleanEmail"
-            settingsJson = httpGet(settingsUrl)
-        }
-
-        if (settingsJson == null || settingsJson.length() == 0) {
-            settingsUrl = "$SUPABASE_URL/rest/v1/risk_settings?id=eq.default_settings"
-            settingsJson = httpGet(settingsUrl)
-        }
-
-        var dailyLossLimit = 0.0
-        var maxTradesPerDay = 0
-        var permanentMobileLock = getPrefs(context).getBoolean("KEY_PERMANENT_MOBILE_LOCK", false)
-
-        if (settingsJson != null && settingsJson.length() > 0) {
-            val obj = settingsJson.getJSONObject(0)
-            dailyLossLimit = obj.optDouble("dailyLossLimit", obj.optDouble("daily_loss_limit", 0.0))
-            maxTradesPerDay = obj.optInt("maxTradesPerDay", obj.optInt("max_trades_per_day", 0))
-            if (obj.has("permanentMobileBrokerLockEnabled")) {
-                permanentMobileLock = obj.optBoolean("permanentMobileBrokerLockEnabled", permanentMobileLock)
-            }
-
-            // Parse notas JSON fallback se presente
-            val notesStr = obj.optString("notes", "")
-            if (notesStr.isNotBlank() && notesStr.startsWith("{")) {
-                try {
-                    val notesJson = JSONObject(notesStr)
-                    if (dailyLossLimit <= 0.0) dailyLossLimit = notesJson.optDouble("dailyLossLimit", 0.0)
-                    if (maxTradesPerDay <= 0) maxTradesPerDay = notesJson.optInt("maxTradesPerDay", 0)
-                    if (notesJson.has("permanentMobileBrokerLockEnabled")) {
-                        permanentMobileLock = notesJson.optBoolean("permanentMobileBrokerLockEnabled", permanentMobileLock)
-                    }
-                } catch (e: Exception) {}
-            }
-        }
-
-        // Salva em prefs local do Android para acesso offline
-        getPrefs(context).edit().putBoolean("KEY_PERMANENT_MOBILE_LOCK", permanentMobileLock).apply()
-
-        // 3. Consulta Trades de Hoje
-        val tradesUrl = "$SUPABASE_URL/rest/v1/trades?user_email=eq.$cleanEmail&date=eq.$todayStr"
-        val tradesJson = httpGet(tradesUrl)
-
-        var todayRealPnl = 0.0
-        var todayTotalPnl = 0.0
-        var todayTradesCount = 0
-        var todayRealTradesCount = 0
-
-        if (tradesJson != null) {
-            todayTradesCount = tradesJson.length()
-            for (i in 0 until tradesJson.length()) {
-                val t = tradesJson.getJSONObject(i)
-                val accountType = t.optString("accountType", t.optString("account_type", "REAL"))
-                val isReal = t.optBoolean("isReal", accountType != "DEMO")
-                val pnl = t.optDouble("pnl", 0.0)
-                todayTotalPnl += pnl
-
-                if (isReal && accountType != "DEMO") {
-                    todayRealTradesCount++
-                    todayRealPnl += pnl
-                }
-            }
-        }
-
-        val effectivePnl = if (todayRealTradesCount > 0) todayRealPnl else todayTotalPnl
-
-        // 4. Consulta Usuário e Assinatura
-        val userUrl = "$SUPABASE_URL/rest/v1/system_users?email=eq.$cleanEmail"
-        val userJson = httpGet(userUrl)
-
-        var isSubscriptionActive = true
-        if (userJson != null && userJson.length() > 0) {
-            val u = userJson.getJSONObject(0)
-            val active = u.optBoolean("active", true)
-            val subStatus = u.optString("subscriptionStatus", "ACTIVE")
-            if (!active || subStatus == "INACTIVE" || subStatus == "OVERDUE") {
-                isSubscriptionActive = false
-            }
-        }
-
-        // 5. Avaliação das Regras Invioláveis de Risco
-        val isStopHit = dailyLossLimit > 0 && effectivePnl < 0 && Math.abs(effectivePnl) >= dailyLossLimit
-        val isMaxTradesHit = maxTradesPerDay > 0 && todayTradesCount >= maxTradesPerDay
-        val isLockActive = isStopHit || isMaxTradesHit || !isSubscriptionActive || permanentMobileLock
-
-        var reason = "Trava Anti-Fúria Ativa"
-        if (!isSubscriptionActive) {
-            reason = "Assinatura Inadimplente ou Suspensa"
-        } else if (permanentMobileLock) {
-            reason = "Bloqueio Perpétuo de Corretoras no Celular (Eterno Stop Loss)"
-        } else if (isStopHit && isMaxTradesHit) {
-            reason = String.format(Locale.getDefault(), "Stop Loss (R$ %.2f) & Limite de Trades (%d) Atingidos", dailyLossLimit, maxTradesPerDay)
-        } else if (isStopHit) {
-            reason = String.format(Locale.getDefault(), "Stop Loss Diário Atingido: R$ %.2f (Perda: R$ %.2f)", dailyLossLimit, Math.abs(effectivePnl))
-        } else if (isMaxTradesHit) {
-            reason = String.format(Locale.getDefault(), "Limite Máximo de %d Operações no Dia Atingido", maxTradesPerDay)
-        }
-
-        Log.d(TAG, "Sincronia Nativa -> Email: $cleanEmail | LockActive: $isLockActive | PermLock: $permanentMobileLock | StopHit: $isStopHit | PnL Hoje: $todayRealPnl")
-
-        // 6. Atualiza o Estado Global dos Serviços Nativo
-        TradeLockAccessibilityService.isAntiFuriaActive = isLockActive
-        TradeLockAccessibilityService.lockReason = reason
-
-        // 7. Garante que a VPN local acompanhe a Trava
-        if (isLockActive) {
-            val vpnIntent = Intent(context, TradeLockVpnService::class.java).apply {
-                action = TradeLockVpnService.ACTION_CONNECT
-            }
-            context.startService(vpnIntent)
-        } else {
-            val vpnIntent = Intent(context, TradeLockVpnService::class.java).apply {
-                action = TradeLockVpnService.ACTION_DISCONNECT
-            }
-            context.startService(vpnIntent)
-        }
-    }
-
-    private fun httpGet(urlString: String): JSONArray? {
-        var conn: HttpURLConnection? = null
+    @Synchronized private fun send(ws:WebSocket,topic:String,event:String,payload:JSONObject){ws.send(JSONObject().put("topic",topic).put("event",event).put("payload",payload).put("ref",(++sequence).toString()).toString())}
+    private fun request(path:String,token:String?,body:JSONObject?=null):String {
+        val connection=URL(URL_BASE+path).openConnection() as HttpURLConnection
         try {
-            val url = URL(urlString)
-            conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("apikey", SUPABASE_SERVICE_KEY)
-            conn.setRequestProperty("Authorization", "Bearer $SUPABASE_SERVICE_KEY")
-            conn.setRequestProperty("Accept", "application/json")
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-
-            if (conn.responseCode in 200..299) {
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                val sb = StringBuilder()
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    sb.append(line)
-                }
-                reader.close()
-                return JSONArray(sb.toString())
-            }
-        } catch (e: Exception) {
-            // Ignorar erros pontuais de conexão
-        } finally {
-            conn?.disconnect()
-        }
-        return null
+            connection.connectTimeout=8000;connection.readTimeout=8000
+            connection.setRequestProperty("apikey",PUBLIC_KEY)
+            if(token!=null)connection.setRequestProperty("Authorization","Bearer $token")
+            if(body!=null){connection.requestMethod="POST";connection.doOutput=true;connection.setRequestProperty("Content-Type","application/json");connection.outputStream.use{it.write(body.toString().toByteArray())}}
+            if(connection.responseCode !in 200..299)throw IllegalStateException("Falha na sincronização (HTTP ${connection.responseCode}).")
+            return connection.inputStream.bufferedReader().use{it.readText()}
+        } finally {connection.disconnect()}
     }
 }

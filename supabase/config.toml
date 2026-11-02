@@ -1,0 +1,4 @@
+# The handler validates the user's token with Supabase Auth and checks app_metadata.
+# Supports rotated asymmetric signing keys without relying on the legacy gateway JWT check.
+[functions.manage-users]
+verify_jwt = false

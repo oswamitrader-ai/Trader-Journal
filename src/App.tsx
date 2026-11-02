@@ -333,9 +333,11 @@ export default function App() {
 
     let isMounted = true;
     let syncInFlight = false;
+    let syncQueued = false;
 
     const synchronize = async () => {
-      if (!isMounted || syncInFlight) return;
+      if (!isMounted) return;
+      if (syncInFlight) { syncQueued = true; return; }
       syncInFlight = true;
       try {
         const health = await checkSupabaseConnection();
@@ -355,6 +357,45 @@ export default function App() {
           fetchCapitalTransactionsFromSupabase(email),
         ]);
         if (!isMounted) return;
+        // Risk configuration must reach protection even if journal reconciliation fails.
+        if (settingsResult.error) throw new Error(settingsResult.error);
+        if (settingsResult.data) {
+          const previous = settingsRef.current;
+          const incoming = settingsResult.data;
+          const localUpdatedAt = previous.updatedAt ? Date.parse(previous.updatedAt) : 0;
+          const cloudUpdatedAt = incoming.updatedAt ? Date.parse(incoming.updatedAt) : 0;
+          if (localUpdatedAt > cloudUpdatedAt) {
+            const previousLockTime = previous.riskLockUntil ? new Date(previous.riskLockUntil).getTime() : 0;
+            const cloudLockTime = incoming.riskLockUntil ? new Date(incoming.riskLockUntil).getTime() : 0;
+            const keepActiveCloudLock = cloudLockTime > Date.now() && cloudLockTime > previousLockTime;
+            const localSettingsToUpload = keepActiveCloudLock
+              ? { ...previous, riskLockUntil: incoming.riskLockUntil, riskLockDurationDays: incoming.riskLockDurationDays }
+              : previous;
+            const upload = await saveRiskSettingsToSupabase(localSettingsToUpload, email);
+            if (upload.error) throw new Error(`Envio de configurações: ${upload.error}`);
+            if (keepActiveCloudLock && JSON.stringify(previous) !== JSON.stringify(localSettingsToUpload)) {
+              setSettings(localSettingsToUpload);
+            }
+            if (isMounted) setSupabaseHealth({ status: 'connected', message: 'Configurações locais enviadas para a nuvem.' });
+          } else {
+            const previousLockTime = previous.riskLockUntil ? new Date(previous.riskLockUntil).getTime() : 0;
+            const cloudLockTime = incoming.riskLockUntil ? new Date(incoming.riskLockUntil).getTime() : 0;
+            const keepActiveLocalLock = previousLockTime > Date.now() && previousLockTime > cloudLockTime;
+            const mergedSettings: RiskSettings = {
+              ...DEFAULT_RISK_SETTINGS,
+              ...incoming,
+              riskLockUntil: keepActiveLocalLock ? previous.riskLockUntil : incoming.riskLockUntil,
+              riskLockDurationDays: keepActiveLocalLock ? previous.riskLockDurationDays : incoming.riskLockDurationDays,
+              permanentMobileBrokerLockEnabled: Boolean(incoming.permanentMobileBrokerLockEnabled),
+              enforceBrokerStakeLock: Boolean(incoming.enforceBrokerStakeLock),
+            };
+            if (JSON.stringify(previous) !== JSON.stringify(mergedSettings)) setSettings(mergedSettings);
+          }
+        } else {
+          const upload = await saveRiskSettingsToSupabase(settingsRef.current, email);
+          if (upload.error) throw new Error(`Envio de configurações: ${upload.error}`);
+        }
+
         if (tradesResult.error) throw new Error(`Operações: ${tradesResult.error}`);
         if (settingsResult.error) throw new Error(`Configurações: ${settingsResult.error}`);
         if (capitalResult.error) throw new Error(`Movimentações: ${capitalResult.error}`);
@@ -410,42 +451,6 @@ export default function App() {
         const purgeError = await purgeCloudRecordsDeletedByUser(email, deletedRecords.tradeIds, deletedRecords.capitalIds);
         if (purgeError) throw new Error(`Remoção de itens excluídos: ${purgeError}`);
 
-        if (settingsResult.data) {
-          const previous = settingsRef.current;
-          const incoming = settingsResult.data;
-          const localUpdatedAt = previous.updatedAt ? Date.parse(previous.updatedAt) : 0;
-          const cloudUpdatedAt = incoming.updatedAt ? Date.parse(incoming.updatedAt) : 0;
-          if (localUpdatedAt > cloudUpdatedAt) {
-            const previousLockTime = previous.riskLockUntil ? new Date(previous.riskLockUntil).getTime() : 0;
-            const cloudLockTime = incoming.riskLockUntil ? new Date(incoming.riskLockUntil).getTime() : 0;
-            const keepActiveCloudLock = cloudLockTime > Date.now() && cloudLockTime > previousLockTime;
-            const localSettingsToUpload = keepActiveCloudLock
-              ? { ...previous, riskLockUntil: incoming.riskLockUntil, riskLockDurationDays: incoming.riskLockDurationDays }
-              : previous;
-            const upload = await saveRiskSettingsToSupabase(localSettingsToUpload, email);
-            if (upload.error) throw new Error(`Envio de configurações: ${upload.error}`);
-            if (keepActiveCloudLock && JSON.stringify(previous) !== JSON.stringify(localSettingsToUpload)) {
-              setSettings(localSettingsToUpload);
-            }
-            if (isMounted) setSupabaseHealth({ status: 'connected', message: 'Configurações locais enviadas para a nuvem.' });
-          } else {
-            const previousLockTime = previous.riskLockUntil ? new Date(previous.riskLockUntil).getTime() : 0;
-            const cloudLockTime = incoming.riskLockUntil ? new Date(incoming.riskLockUntil).getTime() : 0;
-            const keepActiveLocalLock = previousLockTime > Date.now() && previousLockTime > cloudLockTime;
-            const mergedSettings: RiskSettings = {
-              ...DEFAULT_RISK_SETTINGS,
-              ...incoming,
-              riskLockUntil: keepActiveLocalLock ? previous.riskLockUntil : incoming.riskLockUntil,
-              riskLockDurationDays: keepActiveLocalLock ? previous.riskLockDurationDays : incoming.riskLockDurationDays,
-              permanentMobileBrokerLockEnabled: Boolean(previous.permanentMobileBrokerLockEnabled || incoming.permanentMobileBrokerLockEnabled),
-              enforceBrokerStakeLock: Boolean(previous.enforceBrokerStakeLock || incoming.enforceBrokerStakeLock),
-            };
-            if (JSON.stringify(previous) !== JSON.stringify(mergedSettings)) setSettings(mergedSettings);
-          }
-        } else {
-          const upload = await saveRiskSettingsToSupabase(settingsRef.current, email);
-          if (upload.error) throw new Error(`Envio de configurações: ${upload.error}`);
-        }
 
         if (isMounted) {
           setSupabaseHealth({ status: 'connected', message: `Sincronizado automaticamente às ${new Date().toLocaleTimeString()}.` });
@@ -457,6 +462,7 @@ export default function App() {
         console.warn('Falha na sincronização automática:', error);
       } finally {
         syncInFlight = false;
+        if (syncQueued && isMounted) { syncQueued = false; void synchronize(); }
       }
     };
 
@@ -468,9 +474,11 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'management_settings' }, synchronize)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'deleted_records' }, synchronize)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'capital_transactions' }, synchronize)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'journal_resets' }, synchronize)
       .on('broadcast', { event: 'SYNC_MUTATION' }, synchronize)
       .subscribe((status) => {
         if (!isMounted) return;
+        if (status === 'SUBSCRIBED') void synchronize();
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           setSupabaseHealth({ status: 'error', message: 'Canal em tempo real indisponível; tentando sincronizar automaticamente.' });
         }
@@ -482,6 +490,7 @@ export default function App() {
     const onWindowFocus = () => synchronize();
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('focus', onWindowFocus);
+    window.addEventListener('online', onWindowFocus);
     const pollInterval = window.setInterval(synchronize, 5000);
     synchronize();
 
@@ -490,6 +499,7 @@ export default function App() {
       window.clearInterval(pollInterval);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('focus', onWindowFocus);
+      window.removeEventListener('online', onWindowFocus);
       supabase.removeChannel(realtimeChannel);
     };
   }, [currentUser?.email]);
@@ -607,6 +617,8 @@ export default function App() {
           martingaleLevel1Stake: settings.martingaleLevel1Stake,
           martingaleLevel2Stake: settings.martingaleLevel2Stake,
           managementStyle: settings.managementStyle,
+          consecutiveWins: stakeStreak.consecutiveWins,
+          consecutiveLosses: stakeStreak.consecutiveLosses,
         },
         '*'
       );
@@ -631,6 +643,8 @@ export default function App() {
           martingaleLevel1Stake: settings.martingaleLevel1Stake,
           martingaleLevel2Stake: settings.martingaleLevel2Stake,
           managementStyle: settings.managementStyle,
+          consecutiveWins: stakeStreak.consecutiveWins,
+          consecutiveLosses: stakeStreak.consecutiveLosses,
           updatedAt: Date.now(),
         })
       );
@@ -656,7 +670,7 @@ export default function App() {
         }),
       }).catch(() => {});
       // Sync with Electron Main process & Windows Daemon
-      if (typeof window !== 'undefined' && (window as any).electronAPI?.syncLockState) {
+      if (currentUser && typeof window !== 'undefined' && (window as any).electronAPI?.syncLockState) {
         (window as any).electronAPI.syncLockState({
           isStopHit: isStopHit,
           isMaxTradesHit: isMaxTradesHit,
@@ -678,6 +692,7 @@ export default function App() {
           managementStyle: settings.managementStyle,
           consecutiveWins: stakeStreak.consecutiveWins,
           consecutiveLosses: stakeStreak.consecutiveLosses,
+          userEmail: currentUser.email,
         });
       }
     } catch (e) {
@@ -692,6 +707,7 @@ export default function App() {
     blockedDomains,
     stakeStreak.consecutiveWins,
     stakeStreak.consecutiveLosses,
+    currentUser?.email,
   ]);
 
   // Ouvinte de trades capturados automaticamente pela Extensão Chrome em tempo real
@@ -1435,6 +1451,8 @@ export default function App() {
         data-mg-l1={settings.martingaleLevel1Stake || 100}
         data-mg-l2={settings.martingaleLevel2Stake || 200}
         data-mgmt-style={settings.managementStyle || 'MAO_FIXA'}
+        data-consecutive-wins={stakeStreak.consecutiveWins}
+        data-consecutive-losses={stakeStreak.consecutiveLosses}
         style={{ display: 'none' }}
       />
 
@@ -1831,6 +1849,8 @@ export default function App() {
         data-mg-l1={String(settings.martingaleLevel1Stake || 100)}
         data-mg-l2={String(settings.martingaleLevel2Stake || 200)}
         data-mgmt-style={settings.managementStyle || 'MAO_FIXA'}
+        data-consecutive-wins={stakeStreak.consecutiveWins}
+        data-consecutive-losses={stakeStreak.consecutiveLosses}
         data-blocked-domains={JSON.stringify(blockedDomains)}
         data-user-active={String(currentUser?.active ?? true)}
         data-sub-status={currentUser?.subscriptionStatus || 'ACTIVE'}

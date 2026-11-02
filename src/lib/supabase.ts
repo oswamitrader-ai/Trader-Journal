@@ -287,13 +287,15 @@ export async function fetchDeletedRecordIds(userEmail: string): Promise<{ tradeI
 export async function purgeCloudRecordsDeletedByUser(userEmail: string, tradeIds: Set<string>, capitalIds: Set<string>): Promise<string | null> {
   const cleanEmail = userEmail.toLowerCase().trim();
   try {
-    for (const id of tradeIds) {
-      const { error } = await supabase.from('trades').delete().eq('id', id);
-      if (error) return error.message;
-    }
-    for (const id of capitalIds) {
-      const { error } = await supabase.from('capital_transactions').delete().eq('id', id).eq('user_email', cleanEmail);
-      if (error) return error.message;
+    if (!cleanEmail) return 'Não foi possível sincronizar exclusões sem uma conta identificada.';
+    // Bound URL size and avoid one network round trip for every historical deletion.
+    for (const [table, ids] of [['trades', tradeIds], ['capital_transactions', capitalIds]] as const) {
+      const records = [...ids];
+      for (let offset = 0; offset < records.length; offset += 50) {
+        const { error } = await supabase.from(table).delete()
+          .in('id', records.slice(offset, offset + 50)).eq('user_email', cleanEmail);
+        if (error) return error.message;
+      }
     }
     return null;
   } catch (err: any) {
@@ -438,7 +440,7 @@ export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise
 
     const { data: managementRow, error: managementError } = await supabase
       .from('management_settings')
-      .select('settings')
+      .select('settings,updated_at')
       .eq('id', settingId)
       .maybeSingle();
     if (managementError) return { data: null, error: managementError.message };
@@ -464,7 +466,7 @@ export async function fetchRiskSettingsFromSupabase(userEmail?: string): Promise
     }
 
     const settings: RiskSettings = {
-      updatedAt: data.updated_at ? String(data.updated_at) : undefined,
+      updatedAt: [data.updated_at, managementRow?.updated_at].filter(Boolean).sort((a,b) => Date.parse(b)-Date.parse(a))[0],
       initialCapital: extraManagement.initialCapital ?? (data.initialCapital != null ? Number(data.initialCapital) : 0),
       dailyProfitTarget: extraManagement.dailyProfitTarget ?? (data.dailyProfitTarget != null ? Number(data.dailyProfitTarget) : 500),
       dailyLossLimit: extraManagement.dailyLossLimit ?? (data.dailyLossLimit != null ? Number(data.dailyLossLimit) : 300),
@@ -516,6 +518,9 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
     const settingId = cleanEmail ? `settings_${cleanEmail}` : `settings_${getClientDeviceId()}`;
 
     const managementSettings = {
+      antiFuriaCustomWindowEnabled: settings.antiFuriaCustomWindowEnabled,
+      antiFuriaStartTime: settings.antiFuriaStartTime,
+      antiFuriaEndTime: settings.antiFuriaEndTime,
       riskLockUntil: settings.riskLockUntil,
       riskLockDurationDays: settings.riskLockDurationDays,
       managementStyle: settings.managementStyle,
@@ -541,9 +546,6 @@ export async function saveRiskSettingsToSupabase(settings: RiskSettings, userEma
       monthlyLossLimit: settings.monthlyLossLimit,
       maxTradesPerDay: settings.maxTradesPerDay,
       alertSoundEnabled: settings.alertSoundEnabled,
-      antiFuriaCustomWindowEnabled: settings.antiFuriaCustomWindowEnabled,
-      antiFuriaStartTime: settings.antiFuriaStartTime,
-      antiFuriaEndTime: settings.antiFuriaEndTime,
       updated_at: settings.updatedAt || new Date().toISOString(),
     };
 

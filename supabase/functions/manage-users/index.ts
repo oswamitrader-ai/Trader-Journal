@@ -1,11 +1,15 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
+const modernSecretKey = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default;
 const headers = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Content-Type':'application/json'};
 Deno.serve(async req => {
  if(req.method==='OPTIONS') return new Response('ok',{headers});
  const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{headers,status});
  try {
-  const client=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
+  if (!modernSecretKey?.startsWith('sb_secret_')) return reply({error:'Credencial do servidor não configurada'},503);
+  const client=createClient(Deno.env.get('SUPABASE_URL')!,modernSecretKey,{auth:{persistSession:false}});
   const token=(req.headers.get('Authorization')||'').replace(/^Bearer /i,'');
+  if (!token || token.split('.').length !== 3) return reply({error:'Autenticação necessária'},401);
+  // Validate with Auth so both legacy and rotated asymmetric session signatures work.
   const {data:{user:caller},error}=await client.auth.getUser(token);
   if(error || !caller) return reply({error:'Autenticação necessária'},401);
   if(caller.app_metadata?.role!=='ADMIN' || caller.app_metadata?.active===false) return reply({error:'Acesso administrativo necessário'},403);

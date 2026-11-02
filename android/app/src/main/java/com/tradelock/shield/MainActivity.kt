@@ -54,6 +54,24 @@ class MainActivity : BridgeActivity() {
 
     inner class TradeLockAndroidBridge(private val context: Context) {
         @JavascriptInterface
+        fun setAuthSession(session: String) { try { TradeLockNativeSync.acceptSession(context,JSONObject(session)) } catch (_: Exception) {} }
+
+        @JavascriptInterface
+        fun getAuthSession(): String = NativeSessionStore.read(context)?.toString() ?: "null"
+
+        @JavascriptInterface
+        fun clearAuthSession() { NativeSessionStore.clear(context); TradeLockNativeSync.requestSync() }
+
+        @JavascriptInterface
+        fun getProtectionStatus(): String = JSONObject()
+            .put("accessibilityEnabled", TradeLockAccessibilityService.isConnected())
+            .put("lastSyncedAt", TradeLockNativeSync.getPrefs(context).getLong("native_last_sync",0))
+            .put("syncError", TradeLockNativeSync.getPrefs(context).getString("native_sync_error", ""))
+            .toString()
+
+        @JavascriptInterface
+        fun openAccessibilitySettings() { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        @JavascriptInterface
         fun setUserEmail(email: String) {
             if (email.isNotBlank()) {
                 TradeLockNativeSync.saveUserEmail(context, email)
@@ -64,7 +82,7 @@ class MainActivity : BridgeActivity() {
         fun onLockStateChanged(jsonState: String) {
             try {
                 val json = JSONObject(jsonState)
-                val isLockActive = json.optBoolean("isLockActive", false)
+                val isLockActive = json.optBoolean("isLockActive", true)
                 val reason = json.optString("reason", "Trava Anti-Fúria Ativa")
                 val email = json.optString("userEmail", "")
 
@@ -72,28 +90,10 @@ class MainActivity : BridgeActivity() {
                     TradeLockNativeSync.saveUserEmail(context, email)
                 }
 
-                // Persiste o estado do Bloqueio Perpétuo no SharedPreferences nativo
-                if (json.has("permanentMobileBrokerLockEnabled")) {
-                    val permLock = json.optBoolean("permanentMobileBrokerLockEnabled", false)
-                    TradeLockNativeSync.getPrefs(context).edit()
-                        .putBoolean("KEY_PERMANENT_MOBILE_LOCK", permLock)
-                        .apply()
-                }
+                // A JS snapshot may tighten protection; only an authenticated native read can release it.
+                if (isLockActive) TradeLockNativeSync.applyProtection(context,true,reason)
+                TradeLockNativeSync.requestSync()
 
-                TradeLockAccessibilityService.isAntiFuriaActive = isLockActive
-                TradeLockAccessibilityService.lockReason = reason
-
-                if (isLockActive) {
-                    val vpnIntent = Intent(context, TradeLockVpnService::class.java).apply {
-                        action = TradeLockVpnService.ACTION_CONNECT
-                    }
-                    context.startService(vpnIntent)
-                } else {
-                    val vpnIntent = Intent(context, TradeLockVpnService::class.java).apply {
-                        action = TradeLockVpnService.ACTION_DISCONNECT
-                    }
-                    context.startService(vpnIntent)
-                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }

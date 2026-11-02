@@ -444,6 +444,11 @@ Aplicação de Diário de Trade (Trader Journal) desenvolvida em React, TypeScri
     - Atualizado o build de produção Desktop / Web (`npm run build`) compilando os pacotes finais (`dist/` e `dist/server.cjs`).
     - Todos os commits e artefatos sincronizados e enviados com sucesso para a ramificação remota `main`.
 
+67. **Correção do Card Verde (Overlay TradeLock) sobre o campo "Invest" da Exnova Desktop**:
+    - **Causa Raiz #1 — Verificação `foreground` excessivamente restritiva**: Em `exnovaStakeShield.cjs`, as funções `position()` e `poll()` verificavam `!frame.foreground` como condição de saída. A janela da Exnova Desktop está sempre com `foreground: false` enquanto o TradeLock Desktop (Electron) está em uso — impedindo completamente o overlay de aparecer. Corrigido: overlay aparece com `visible: true` apenas; verificação de `foreground` mantida somente no `input.write` (linha 134), para segurança na digitação automática.
+    - **Causa Raiz #2 — OCR lê "In gost" em vez de "Invest"**: A interface da Exnova Desktop tem baixo contraste. O Tesseract OCR detectava o label com `53%` de confiança como `"In gost"`. A regex original `/\bINVEST(?:MENT|IMENTO)?\b/i` não casava. Corrigido em `investmentRect()` com: (1) regex ampliada para variações fonéticas OCR e (2) fallback que usa a linha `"$ XX"` (confiança 80%+) como âncora de posição.
+    - **Resultado Validado**: Logs confirmam `{"state":"locked","message":"Invest confirmado: R$ 30.00. Campo protegido.","verified":true}`.
+
 ## Regras Importantes
 - Ambiente: Windows.
 - Explicações curtas & diretas ao código.

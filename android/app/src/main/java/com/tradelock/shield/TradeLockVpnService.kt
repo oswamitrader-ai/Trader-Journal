@@ -3,142 +3,42 @@ package com.tradelock.shield
 import android.content.Intent
 import android.net.VpnService
 import android.os.ParcelFileDescriptor
-import android.util.Log
 import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.nio.ByteBuffer
 
-class TradeLockVpnService : VpnService(), Runnable {
-
+/** Optional network block for broker packages only. Other apps keep their normal connection. */
+class TradeLockVpnService : VpnService() {
     companion object {
-        private const val TAG = "TradeLockVpnService"
-        const val ACTION_CONNECT = "com.tradelock.shield.START_VPN"
-        const val ACTION_DISCONNECT = "com.tradelock.shield.STOP_VPN"
-
-        val BLOCKED_DOMAINS = listOf(
-            "exnova.com", "trade.exnova.com", "ws.exnova.com", "api.exnova.com",
-            "iqoption.com", "trade.iqoption.com", "ws.iqoption.com", "api.iqoption.com",
-            "quotex.com", "qxbroker.com", "ws.qxbroker.com",
-            "pocketoption.com", "binomo.com"
-        )
+        const val ACTION_CONNECT="com.tradelock.shield.START_VPN"
+        const val ACTION_DISCONNECT="com.tradelock.shield.STOP_VPN"
     }
-
-    private var vpnInterface: ParcelFileDescriptor? = null
-    private var vpnThread: Thread? = null
-    @Volatile
-    private var isRunning = false
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val action = intent?.action
-        if (action == ACTION_DISCONNECT) {
-            stopVpn()
-            return START_NOT_STICKY
-        }
-
-        if (!isRunning) {
-            startVpn()
-        }
-        return START_STICKY
-    }
-
-    private fun startVpn() {
+    private var tunnel: ParcelFileDescriptor?=null
+    private var worker: Thread?=null
+    @Volatile private var running=false
+    override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int {
+        if(intent?.action==ACTION_DISCONNECT || !TradeLockAccessibilityService.isAntiFuriaActive){shutdown();stopSelf();return START_NOT_STICKY}
+        if(running)return START_STICKY
+        if(prepare(this)!=null){stopSelf();return START_NOT_STICKY}
         try {
-            Log.d(TAG, "Iniciando VPN Local TradeLock...")
-            val builder = Builder()
-                .addAddress("10.0.0.2", 32)
-                .addRoute("0.0.0.0", 0)
-                .addDnsServer("8.8.8.8")
-                .setSession("TradeLock Anti-Furia Shield")
-                .setBlocking(true)
-
-            try {
-                builder.addDisallowedApplication(packageName)
-            } catch (e: Exception) {
-                Log.w(TAG, "Nao foi possivel excluir o proprio pacote da VPN", e)
+            val builder=Builder().setSession("TradeLock — corretoras bloqueadas").addAddress("10.0.0.2",32).addAddress("fd00::2",128)
+                .addRoute("0.0.0.0",0).addRoute("::",0).setBlocking(true)
+            var packages=0
+            for(pkg in TradeLockAccessibilityService.BROKER_PACKAGE_NAMES) {
+                try {packageManager.getPackageInfo(pkg,0);builder.addAllowedApplication(pkg);packages++}catch(_:android.content.pm.PackageManager.NameNotFoundException){}
             }
-
-            vpnInterface = builder.establish()
-            isRunning = true
-
-            vpnThread = Thread(this, "TradeLockVpnThread").apply { start() }
-            Log.i(TAG, "VPN TradeLock ativada com sucesso!")
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao estabelecer VpnService local", e)
-            stopVpn()
-        }
+            // An empty allowlist would capture the entire device. Never establish it.
+            if(packages==0){stopSelf();return START_NOT_STICKY}
+            val descriptor=builder.establish() ?: run {stopSelf();return START_NOT_STICKY}
+            tunnel=descriptor;running=true
+            worker=Thread {
+                try { FileInputStream(descriptor.fileDescriptor).use {input ->
+                    val buffer=ByteArray(32767)
+                    while(running && input.read(buffer)>=0) { /* Drop only traffic from explicitly blocked broker apps. */ }
+                }}catch(_:Exception){}finally{running=false}
+            }.apply {name="TradeLockBrokerBlock";start()}
+            return START_STICKY
+        }catch(_:Exception){shutdown();stopSelf();return START_NOT_STICKY}
     }
-
-    override fun run() {
-        val descriptor = vpnInterface?.fileDescriptor ?: return
-        val inputStream = FileInputStream(descriptor)
-        val outputStream = FileOutputStream(descriptor)
-        val packet = ByteBuffer.allocate(32767)
-
-        while (isRunning) {
-            try {
-                val length = inputStream.read(packet.array())
-                if (length > 0) {
-                    packet.limit(length)
-                    val isBlocked = inspectAndFilterPacket(packet)
-                    if (!isBlocked) {
-                        outputStream.write(packet.array(), 0, length)
-                    } else {
-                        Log.d(TAG, "Pacote de corretora interceptado e bloqueado pela Trava Anti-Fúria!")
-                    }
-                    packet.clear()
-                }
-            } catch (e: Exception) {
-                if (!isRunning) break
-                Log.e(TAG, "Erro no loop de pacotes da VPN", e)
-            }
-        }
-    }
-
-    private fun inspectAndFilterPacket(packet: ByteBuffer): Boolean {
-        try {
-            val array = packet.array()
-            val length = packet.limit()
-            if (length < 28) return false
-
-            val protocol = array[9].toInt() and 0xFF
-            if (protocol != 17) return false // Apenas pacotes UDP
-
-            val ipHeaderLength = (array[0].toInt() and 0x0F) * 4
-            if (length < ipHeaderLength + 8) return false
-
-            val destPort = ((array[ipHeaderLength + 2].toInt() and 0xFF) shl 8) or (array[ipHeaderLength + 3].toInt() and 0xFF)
-
-            // Intercepta consultas DNS na Porta 53
-            if (destPort == 53) {
-                val payloadString = String(array, ipHeaderLength + 8, length - (ipHeaderLength + 8), Charsets.ISO_8859_1).lowercase(java.util.Locale.getDefault())
-                for (domain in BLOCKED_DOMAINS) {
-                    if (payloadString.contains(domain)) {
-                        Log.w(TAG, "Requisição DNS para corretora bloqueada via VPN local: $domain")
-                        return true
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            // Ignorar erros de parse para não afetar tráfego normal
-        }
-        return false
-    }
-
-    private fun stopVpn() {
-        isRunning = false
-        try {
-            vpnThread?.interrupt()
-            vpnInterface?.close()
-            vpnInterface = null
-            Log.i(TAG, "VPN TradeLock encerrada.")
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao parar VpnService", e)
-        }
-        stopSelf()
-    }
-
-    override fun onDestroy() {
-        stopVpn()
-        super.onDestroy()
-    }
+    private fun shutdown(){running=false;try{tunnel?.close()}catch(_:Exception){};tunnel=null;worker?.interrupt();worker=null}
+    override fun onRevoke(){shutdown();stopSelf();super.onRevoke()}
+    override fun onDestroy(){shutdown();super.onDestroy()}
 }

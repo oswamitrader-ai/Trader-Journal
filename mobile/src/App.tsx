@@ -4,13 +4,16 @@ import { restoreAuthenticatedUser } from '../../src/utils/auth';
 import { supabase } from '../../src/lib/supabase';
 import { SystemUser } from '../../src/types';
 import { mobileSyncService, MobileLockState } from '../../src/services/mobileSyncService';
+import { restoreNativeSession, subscribeNativeSession } from '../../src/services/nativeAuthBridge';
 
 export const TradeLockMobileApp: React.FC = () => {
   const [user,setUser] = useState<SystemUser|null>(null);
   useEffect(() => {
-    restoreAuthenticatedUser().then(setUser).catch(()=>setUser(null));
+    let detach = () => {};
+    let mounted = true;
+    restoreNativeSession().then(() => { if(mounted) detach = subscribeNativeSession(); return restoreAuthenticatedUser(); }).then(value => {if(mounted)setUser(value);}).catch(()=>{if(mounted)setUser(null);});
     const {data:{subscription}}=supabase.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT')setUser(null);});
-    return ()=>subscription.unsubscribe();
+    return ()=>{mounted=false;detach();subscription.unsubscribe();};
   },[]);
   return user ? <AuthenticatedMobile key={user.id} email={user.email}/> : <LoginScreen onLoginSuccess={setUser}/>;
 };
@@ -21,6 +24,7 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
   const [inputEmail, setInputEmail] = useState<string>(email);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [nativeProtection, setNativeProtection] = useState<{accessibilityEnabled:boolean;syncError?:string}|null>(null);
 
   useEffect(() => {
     mobileSyncService.setUserEmail(email);
@@ -32,6 +36,7 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
     });
 
     const timerInterval = setInterval(() => {
+      try {const raw=(window as any).TradeLockAndroidBridge?.getProtectionStatus?.();if(raw)setNativeProtection(JSON.parse(raw));}catch{}
       const now = new Date();
       const endOfDay = new Date();
       endOfDay.setHours(23, 59, 59, 999);
@@ -51,6 +56,7 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
 
     return () => {
       unsubscribe();
+      mobileSyncService.stop();
       clearInterval(timerInterval);
     };
   }, []);
@@ -73,8 +79,10 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
     setSyncFeedback('Sincronizando...');
 
     try {
-      const success = mobileSyncService.setUserEmail(inputEmail.trim());
+      const success = mobileSyncService.setUserEmail(email);
       if (success) {
+        await mobileSyncService.fetchDataAndSubscribe(email);
+        if (mobileSyncService.getState().syncError) throw new Error('Falha ao sincronizar');
         setSyncFeedback('✅ Sincronizado!');
       } else {
         alert(
@@ -99,13 +107,14 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  const handleTogglePermanentLock = () => {
+  const handleTogglePermanentLock = async () => {
     const nextState = !lockState.permanentMobileBrokerLockEnabled;
     if (!nextState && (lockState.isStopHit || lockState.isMaxTradesHit)) {
       alert('🔒 Ação Bloqueada!\n\nVocê NÃO pode desativar o Bloqueio Perpétuo enquanto a Trava Anti-Fúria do dia estiver ativa para garantir a proteção do seu capital.');
       return;
     }
-    mobileSyncService.setPermanentMobileBrokerLock(nextState);
+    try { await mobileSyncService.setPermanentMobileBrokerLock(nextState); }
+    catch (error: any) { alert(error?.message || 'Não foi possível salvar a trava na nuvem.'); }
   };
 
   return (
@@ -136,7 +145,7 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
               <h1 className="text-base font-black tracking-tight text-white uppercase">TRADELOCK MOBILE</h1>
               <div className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <p className="text-[9px] text-emerald-400 font-mono font-bold uppercase">SUPABASE REALTIME</p>
+                <p className="text-[9px] text-emerald-400 font-mono font-bold uppercase">{lockState.syncError ? 'FALHA NA SINCRONIZAÇÃO' : lockState.isRealtimeConnected ? 'TEMPO REAL CONECTADO' : 'RECONECTANDO'}</p>
               </div>
             </div>
           </div>
@@ -152,6 +161,11 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
             </span>
           </div>
         </header>
+        {nativeProtection && !nativeProtection.accessibilityEnabled && <div className="my-3 p-3 border border-amber-500 rounded text-sm text-amber-300">
+          A proteção dos apps de corretora precisa da acessibilidade ativada no Android.
+          <button className="block mt-2 underline" onClick={()=>(window as any).TradeLockAndroidBridge?.openAccessibilitySettings?.()}>Abrir configurações de acessibilidade</button>
+        </div>}
+        {(lockState.syncError || nativeProtection?.syncError) && <p className="my-2 text-xs text-amber-300">{lockState.syncError || nativeProtection?.syncError}</p>}
 
         {/* User Email Sync Box - Bloqueado contra bypass quando a trava ativa */}
         <form
@@ -172,7 +186,7 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
               </label>
               <input
                 type="email"
-                disabled={lockState.isLockActive}
+                readOnly
                 value={inputEmail}
                 onChange={(e) => setInputEmail(e.target.value)}
                 className={`w-full border rounded px-2.5 py-1.5 text-xs font-mono focus:outline-none ${
@@ -239,7 +253,7 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
                 <span className="text-xs font-bold font-mono text-slate-400 uppercase tracking-wider">
                   Status do Celular (Acessibilidade & VPN)
                 </span>
-                <span className="text-xs font-mono text-emerald-400 font-bold">{countdown}</span>
+                <span className="text-xs font-mono text-emerald-400 font-bold">{lockState.permanentMobileBrokerLockEnabled ? '∞ PERMANENTE' : countdown}</span>
               </div>
               <h2 className="text-xl font-black text-white mb-1">
                 {lockState.isLockActive ? 'BLINDAGEM NATIVA ATIVA' : 'SISTEMA MONITORANDO'}
@@ -431,7 +445,7 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
               {/* Contagem Regressiva */}
               <div className="p-3 bg-black/90 rounded-xl border border-slate-800">
                 <span className="text-[10px] text-slate-400 font-mono uppercase">Reset em</span>
-                <p className="text-lg font-black text-emerald-400 font-mono mt-1">{countdown}</p>
+                <p className="text-lg font-black text-emerald-400 font-mono mt-1">{lockState.permanentMobileBrokerLockEnabled ? '∞ PERMANENTE' : countdown}</p>
                 <span className="text-[9px] text-slate-500 font-mono">Meia-noite</span>
               </div>
             </div>

@@ -4,14 +4,26 @@ const path = require('path');
 const { setNativeLockState } = require('./windowsDaemon.cjs');
 const { createExnovaCaptureService } = require('./exnovaCapture.cjs');
 const { createExnovaStakeShield } = require('./exnovaStakeShield.cjs');
+const ownsInstance = app.requestSingleInstanceLock();
+if (!ownsInstance) app.quit();
 
 let mainWindow = null;
+app.on('second-instance', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); mainWindow.focus(); }
+});
 let tray = null;
 let currentLockState = { isLockActive: false };
 let exnovaCapture = null;
 let exnovaStakeShield = null;
 let exnovaTradeListenerReady = false;
 const pendingExnovaTrades = [];
+let persistedShieldState = '';
+function saveShieldState(data) {
+  const fields = ['enforceBrokerStakeLock','fixedStakeAmount','sorosLevel1Stake','sorosLevel2Stake','sorosLevel3Stake','martingaleLevel1Stake','martingaleLevel2Stake','managementStyle','consecutiveWins','consecutiveLosses','userEmail'];
+  const value = JSON.stringify(Object.fromEntries(fields.map(key=>[key,data[key]])));
+  if (value === persistedShieldState) return;
+  try { fs.writeFileSync(path.join(app.getPath('userData'),'exnova-stake-state.json'), value); persistedShieldState=value; } catch(error) {console.warn('Não foi possível guardar a configuração do card:',error.message);}
+}
 
 function sendCaptureUpdate(channel, data) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -97,7 +109,8 @@ function setupAutoStart() {
 
 // IPC Listener do Frontend React
 ipcMain.on('sync-lock-state', (event, data) => {
-  if (!data) return;
+  if (!isTrustedRenderer(event) || !data) return;
+  if (isDev) console.log('[Exnova configuration]',JSON.stringify({enabled:data.enforceBrokerStakeLock,amount:data.fixedStakeAmount,style:data.managementStyle}));
   const isStopHit = Boolean(data.isStopHit);
   const isMaxTradesHit = Boolean(data.isMaxTradesHit);
   const isSubBlocked = Boolean(data.isSubBlocked);
@@ -116,6 +129,7 @@ ipcMain.on('sync-lock-state', (event, data) => {
   // Aplica blindagem nativa do Windows Daemon
   setNativeLockState(isLockActive, data.blockedDomains || []);
   exnovaStakeShield?.setLockState(data);
+  if (data.userEmail) saveShieldState(data);
 });
 
 ipcMain.on('subscribe-exnova-trade-captured', (event) => {
@@ -162,6 +176,7 @@ ipcMain.handle('stop-exnova-capture', async (event) => {
 });
 
 app.whenReady().then(() => {
+  if (!ownsInstance) return;
   exnovaCapture = createExnovaCaptureService({
     desktopCapturer,
     nativeImage,
@@ -174,8 +189,15 @@ app.whenReady().then(() => {
     screen,
     BrowserWindow,
     app,
-    onStatus: (status) => sendCaptureUpdate('exnova-stake-shield-status', status),
+    onStatus: (status) => {
+      sendCaptureUpdate('exnova-stake-shield-status', status);
+      if (isDev) console.log('[Exnova Stake Shield]', JSON.stringify(status));
+    },
   });
+  try {
+    const saved=fs.readFileSync(path.join(app.getPath('userData'),'exnova-stake-state.json'),'utf8');
+    exnovaStakeShield.setLockState(JSON.parse(saved));persistedShieldState=saved;
+  } catch {}
   exnovaStakeShield.start().catch((error) => {
     console.warn('[TradeLock Desktop] Não foi possível iniciar o escudo de entrada:', error.message);
   });

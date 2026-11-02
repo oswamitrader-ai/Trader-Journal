@@ -18,7 +18,7 @@ interface ExnovaCaptureStatus {
 }
 
 interface ExnovaStakeShieldStatus {
-  state: 'disabled' | 'waiting' | 'locked' | 'error';
+  state: 'disabled' | 'waiting' | 'detecting' | 'verifying' | 'locked' | 'error';
   message: string;
   enabled?: boolean;
   amount?: number;

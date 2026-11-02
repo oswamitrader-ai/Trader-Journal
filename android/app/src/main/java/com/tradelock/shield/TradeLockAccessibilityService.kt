@@ -6,10 +6,15 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.util.Locale
+import android.os.Handler
+import android.os.Looper
 
 class TradeLockAccessibilityService : AccessibilityService() {
 
     companion object {
+        private var instance: TradeLockAccessibilityService? = null
+        fun isConnected() = instance != null
+        fun checkCurrentWindow() { instance?.let { service -> service.handler.post { service.enforceCurrentWindow() } } }
         private const val TAG = "TradeLockAccessibility"
 
         val BROKER_PACKAGE_NAMES = setOf(
@@ -47,10 +52,22 @@ class TradeLockAccessibilityService : AccessibilityService() {
         )
 
         @Volatile
-        var isAntiFuriaActive: Boolean = false
+        var isAntiFuriaActive: Boolean = true
 
         @Volatile
         var lockReason: String = "Stop Loss Diário Atingido (Trava Anti-Fúria)"
+    }
+    private val handler = Handler(Looper.getMainLooper())
+    private var lastOverlayAt = 0L
+    private val monitor = object : Runnable {
+        override fun run() { enforceCurrentWindow(); handler.postDelayed(this,1000) }
+    }
+    private fun enforceCurrentWindow() {
+        if (!isAntiFuriaActive) return
+        val root = rootInActiveWindow ?: return
+        val pkg = root.packageName?.toString() ?: return
+        if (BROKER_PACKAGE_NAMES.any {pkg==it || pkg.startsWith("$it.")}) launchFullBlockOverlay(pkg)
+        else if (BROWSER_PACKAGE_NAMES.contains(pkg) && checkNodeForBrokerKeywords(root)) launchFullBlockOverlay(pkg)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -59,7 +76,7 @@ class TradeLockAccessibilityService : AccessibilityService() {
         val packageName = event.packageName?.toString() ?: return
 
         // 1. Bloqueio direto de apps nativos de corretoras
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && BROKER_PACKAGE_NAMES.contains(packageName)) {
+        if (BROKER_PACKAGE_NAMES.any { packageName==it || packageName.startsWith("$it.") }) {
             Log.e(TAG, "TRAVA ANTI-FÚRIA ATIVA! Bloqueando App de Corretora: $packageName")
             launchFullBlockOverlay(packageName)
             return
@@ -86,8 +103,10 @@ class TradeLockAccessibilityService : AccessibilityService() {
         val text = node.text?.toString()?.lowercase(Locale.getDefault()) ?: ""
         val contentDescription = node.contentDescription?.toString()?.lowercase(Locale.getDefault()) ?: ""
 
+        val id = node.viewIdResourceName.orEmpty().lowercase(Locale.ROOT)
+        val addressField = listOf("url_bar","url_field","location_bar","address_bar","omnibox").any { id.contains(it) }
         for (keyword in BROKER_KEYWORDS) {
-            if (text.contains(keyword) || contentDescription.contains(keyword)) {
+            if (addressField && Regex("(^|[/:.])"+Regex.escape(keyword)+"\\.(com|io|net|org)([/?:#]|$)").containsMatchIn(text)) {
                 return true
             }
         }
@@ -103,6 +122,8 @@ class TradeLockAccessibilityService : AccessibilityService() {
     }
 
     private fun launchFullBlockOverlay(brokerPackage: String) {
+        if (System.currentTimeMillis()-lastOverlayAt < 1200) return
+        lastOverlayAt = System.currentTimeMillis()
         try {
             val intent = Intent(this, OverlayBlockActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -121,6 +142,11 @@ class TradeLockAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
+        TradeLockNativeSync.restoreProtection(this)
+        TradeLockForegroundService.startService(this)
+        handler.post(monitor)
         Log.i(TAG, "TradeLockAccessibilityService conectado e pronto para blindar apps de corretoras!")
     }
+    override fun onDestroy() { handler.removeCallbacksAndMessages(null); instance=null; super.onDestroy() }
 }

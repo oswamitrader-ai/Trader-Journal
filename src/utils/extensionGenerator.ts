@@ -419,6 +419,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         martingaleLevel1Stake: martingaleLevel1Stake,
         martingaleLevel2Stake: martingaleLevel2Stake,
         managementStyle: managementStyle,
+        consecutiveWins: Math.max(0,Number(msg.consecutiveWins)||0),
+        consecutiveLosses: Math.max(0,Number(msg.consecutiveLosses)||0),
       }, () => {
         const isLockActive = isHit || isMaxTradesHit || isSubBlocked;
         if (isLockActive) {
@@ -959,6 +961,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           managementStyle: event.data.managementStyle || 'MAO_FIXA'
         };
       }
+      if (Number.isFinite(Number(event.data.consecutiveWins))) consecutiveWins = Math.max(0,Number(event.data.consecutiveWins));
+      if (Number.isFinite(Number(event.data.consecutiveLosses))) consecutiveLosses = Math.max(0,Number(event.data.consecutiveLosses));
       updateBrokerBanner();
       enforceStakeLockOnBroker();
     }
@@ -1192,15 +1196,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       document.body.appendChild(overlay);
     }
 
-    // Expand width by +50px so it covers all the way to the right edge (+ and - buttons)
-    const overlayWidth = Math.max(Math.round(rect.width + 50), 195);
-    const overlayHeight = Math.max(Math.round(rect.height), 44);
-    const overlayTop = Math.round(rect.top);
-    const overlayLeft = Math.round(rect.left);
-
-    overlay.style.cssText = 'position: fixed !important; top: ' + overlayTop + 'px !important; left: ' + overlayLeft + 'px !important; width: ' + overlayWidth + 'px !important; height: ' + overlayHeight + 'px !important; z-index: 999999999 !important; background: rgba(6, 78, 59, 0.92) !important; border: 2px solid #10b981 !important; border-radius: 8px !important; cursor: not-allowed !important; pointer-events: auto !important; box-sizing: border-box !important; box-shadow: 0 0 30px rgba(16, 185, 129, 0.95) !important; display: flex !important; align-items: center !important; justify-content: center !important; backdrop-filter: blur(4px) !important;';
-
-    overlay.innerHTML = '<div style="font-family: monospace; font-size: 13px; font-weight: 900; color: #34d399; background: #064e3b; padding: 4px 12px; border-radius: 6px; border: 1.5px solid #10b981; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">🔒 R$ ' + targetVal.toFixed(2) + '</div>';
+    // Round outward so fractional browser pixels cannot expose a clickable edge.
+    const overlayTop = Math.max(0, Math.floor(rect.top));
+    const overlayLeft = Math.max(0, Math.floor(rect.left));
+    const overlayWidth = Math.max(0, Math.min(vw, Math.ceil(rect.left + rect.width)) - overlayLeft);
+    const overlayHeight = Math.max(0, Math.ceil(rect.top + rect.height) - overlayTop);
+    const renderKey = [overlayTop,overlayLeft,overlayWidth,overlayHeight,targetVal].join(':');
+    if (overlay.dataset.renderKey !== renderKey) {
+      overlay.dataset.renderKey = renderKey;
+      overlay.style.cssText = 'position:fixed!important;top:'+overlayTop+'px!important;left:'+overlayLeft+'px!important;width:'+overlayWidth+'px!important;height:'+overlayHeight+'px!important;z-index:999999999!important;pointer-events:auto!important;cursor:not-allowed!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#064e3b!important;';
+      overlay.innerHTML = '<div style="box-sizing:border-box;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#064e3b;border:2px solid #10b981;border-radius:5px;color:#d1fae5;font:bold 12px Segoe UI,Arial,sans-serif;white-space:nowrap;pointer-events:none">🔒 R$ '+targetVal.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>';
+    }
 
     if (!overlay.__shieldEventsAttached) {
       overlay.__shieldEventsAttached = true;
@@ -1208,7 +1214,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        alert('🔒 TRAVA DE STAKE INVIOLÁVEL TRADELOCK:\\n\\nO valor da sua entrada (R$ ' + targetVal.toFixed(2) + ') foi definido na sua Tela de Gestão de Risco e está TRANCADO!\\n\\nVocê não pode alterar a stake na corretora.');
+        alert('🔒 TRAVA DE STAKE INVIOLÁVEL TRADELOCK:\\n\\nO valor da sua entrada (R$ ' + Number(getTargetStakeAmount()).toFixed(2) + ') foi definido na sua Tela de Gestão de Risco e está TRANCADO!\\n\\nVocê não pode alterar a stake na corretora.');
         return false;
       };
 
@@ -1227,22 +1233,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return stakeLockState.fixedStakeAmount || 50;
     }
     
-    if (style === 'SOROS_1') {
-      if (consecutiveWins === 1) return stakeLockState.sorosLevel1Stake || 93.5;
-      return stakeLockState.fixedStakeAmount || 50;
-    }
-    
-    if (style === 'SOROS_2') {
-      if (consecutiveWins === 1) return stakeLockState.sorosLevel1Stake || 93.5;
-      if (consecutiveWins === 2) return stakeLockState.sorosLevel2Stake || 174.8;
-      return stakeLockState.fixedStakeAmount || 50;
-    }
-
-    if (style === 'SOROS_3') {
-      if (consecutiveWins === 1) return stakeLockState.sorosLevel1Stake || 93.5;
-      if (consecutiveWins === 2) return stakeLockState.sorosLevel2Stake || 174.8;
-      if (consecutiveWins === 3) return stakeLockState.sorosLevel3Stake || 326.9;
-      return stakeLockState.fixedStakeAmount || 50;
+    const sorosLevels = {SOROS_1:1,SOROS_2:2,SOROS_3:3};
+    if (sorosLevels[style]) {
+      const level = consecutiveWins % (sorosLevels[style] + 1);
+      return level ? stakeLockState['sorosLevel'+level+'Stake'] : stakeLockState.fixedStakeAmount;
     }
 
     if (style === 'MARTINGALE' || style === 'SOROSGALE') {
@@ -1254,10 +1248,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return stakeLockState.fixedStakeAmount || 50;
   }
 
+  let writingStakeInput = false;
   function setNativeInputValue(input, valStr) {
-    if (!input) return;
+    if (!input || writingStakeInput) return;
+    writingStakeInput = true;
     try {
-      try { input.focus(); } catch(e) {}
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
         'value'
@@ -1278,7 +1273,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       } catch(e) {}
     } catch(e) {
       input.value = valStr;
-    }
+    } finally { writingStakeInput = false; }
   }
 
   function enforceStakeLockOnBroker() {
@@ -1328,11 +1323,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!input.__tradeLockAttached) {
         input.__tradeLockAttached = true;
         const blockEvent = function(e) {
-          if (stakeLockState.enforceBrokerStakeLock) {
+          if (stakeLockState.enforceBrokerStakeLock && !writingStakeInput && e.isTrusted) {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
-            setNativeInputValue(input, targetStr);
+            const currentTarget = getTargetStakeAmount();
+            if (currentTarget > 0) setNativeInputValue(input, String(currentTarget));
             return false;
           }
         };
@@ -1351,7 +1347,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   setInterval(enforceStakeLockOnBroker, 150);
   try {
     const stakeObserver = new MutationObserver(() => enforceStakeLockOnBroker());
-    stakeObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
+    stakeObserver.observe(document.body, { childList: true, subtree: true });
   } catch(e) {}
 
   // Intercept Call / Put / Buy / Sell button clicks on broker UI
@@ -1546,6 +1542,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         martingaleLevel1Stake: mgL1,
         martingaleLevel2Stake: mgL2,
         managementStyle: mgmtStyle,
+        consecutiveWins: Number(bridgeEl.getAttribute('data-consecutive-wins'))||0,
+        consecutiveLosses: Number(bridgeEl.getAttribute('data-consecutive-losses'))||0,
       }, '*');
 
       chrome.runtime.sendMessage({
@@ -1572,6 +1570,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         martingaleLevel1Stake: mgL1,
         martingaleLevel2Stake: mgL2,
         managementStyle: mgmtStyle,
+        consecutiveWins: Number(bridgeEl.getAttribute('data-consecutive-wins'))||0,
+        consecutiveLosses: Number(bridgeEl.getAttribute('data-consecutive-losses'))||0,
       });
     }
   }
@@ -1603,6 +1603,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         martingaleLevel1Stake: event.data.martingaleLevel1Stake,
         martingaleLevel2Stake: event.data.martingaleLevel2Stake,
         managementStyle: event.data.managementStyle,
+        consecutiveWins: event.data.consecutiveWins,
+        consecutiveLosses: event.data.consecutiveLosses,
       });
     }
 
@@ -1621,7 +1623,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       'isStopHit', 'isMaxTradesHit', 'maxTradesPerDay', 'todayTradesCount',
       'enforceBrokerStakeLock', 'fixedStakeAmount',
       'sorosLevel1Stake', 'sorosLevel2Stake', 'sorosLevel3Stake',
-      'martingaleLevel1Stake', 'martingaleLevel2Stake', 'managementStyle'
+      'martingaleLevel1Stake', 'martingaleLevel2Stake', 'managementStyle', 'consecutiveWins', 'consecutiveLosses'
     ], (data) => {
       window.postMessage({
         type: 'ANTI_FURIA_LOCK_STATE',
@@ -1637,6 +1639,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         martingaleLevel1Stake: Number(data.martingaleLevel1Stake) || 100,
         martingaleLevel2Stake: Number(data.martingaleLevel2Stake) || 200,
         managementStyle: data.managementStyle || 'MAO_FIXA',
+        consecutiveWins: Number(data.consecutiveWins)||0,
+        consecutiveLosses: Number(data.consecutiveLosses)||0,
       }, '*');
     });
   }

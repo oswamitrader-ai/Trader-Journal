@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <package android:name="com.exnova" />
+        <package android:name="com.iqoption" />
+        <package android:name="com.iqoption.x" />
+        <package android:name="com.qxbroker.app" />
+        <package android:name="com.quotex.trade" />
+        <package android:name="com.pocketoption.app" />
+        <package android:name="com.binomo.app" />
+        <package android:name="com.olymptrade" />
+    </queries>
 
     <!-- Permissões de Rede e Conectividade -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -18,7 +28,7 @@
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="TradeLock Mobile"
         android:roundIcon="@mipmap/ic_launcher_round"

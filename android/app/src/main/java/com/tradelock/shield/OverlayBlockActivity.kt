@@ -1,8 +1,11 @@
 package com.tradelock.shield
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
@@ -16,6 +19,19 @@ class OverlayBlockActivity : Activity() {
     private lateinit var tvReason: TextView
     private lateinit var btnUnderstand: Button
     private var timer: CountDownTimer? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val refreshProtection = object : Runnable {
+        override fun run() {
+            if (!TradeLockAccessibilityService.isAntiFuriaActive) { finish(); return }
+            val reason = TradeLockAccessibilityService.lockReason
+            if (intent.getStringExtra("LOCK_REASON") != reason) {
+                intent.putExtra("LOCK_REASON",reason)
+                tvReason.text = "⚠️ $reason"
+                timer?.cancel(); startCountdownToMidnight()
+            }
+            handler.postDelayed(this,1000)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,6 +46,7 @@ class OverlayBlockActivity : Activity() {
 
         setContentView(createNativeBlockLayout())
         startCountdownToMidnight()
+        handler.post(refreshProtection)
     }
 
     private fun createNativeBlockLayout(): View {
@@ -95,6 +112,7 @@ class OverlayBlockActivity : Activity() {
             setTextColor(android.graphics.Color.WHITE)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             setOnClickListener {
+                startActivity(Intent(this@OverlayBlockActivity,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
                 finish()
             }
         }
@@ -137,17 +155,24 @@ class OverlayBlockActivity : Activity() {
             }
 
             override fun onFinish() {
-                tvTimer.text = "00:00:00 - MERCADO LIBERADO!"
-                finish()
+                tvTimer.text = "CONFIRMANDO LIMITES NA NUVEM"
+                TradeLockNativeSync.requestSync()
             }
         }.start()
     }
 
     override fun onBackPressed() {
-        moveTaskToBack(true)
+        startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent); setIntent(intent); timer?.cancel()
+        tvReason.text = "⚠️ ${intent.getStringExtra("LOCK_REASON") ?: TradeLockAccessibilityService.lockReason}"
+        startCountdownToMidnight()
     }
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         timer?.cancel()
         super.onDestroy()
     }
