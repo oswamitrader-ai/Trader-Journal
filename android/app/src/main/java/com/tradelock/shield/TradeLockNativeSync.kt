@@ -84,8 +84,14 @@ object TradeLockNativeSync {
         saveUserEmail(context,email)
         connectRealtime(token)
         val id=encoded("settings_$email")
-        val risk=rows("risk_settings?id=eq.$id&select=*",token).optJSONObject(0) ?: throw IllegalStateException("Gestão de risco não configurada.")
         val management=rows("management_settings?id=eq.$id&select=settings",token).optJSONObject(0)?.optJSONObject("settings") ?: throw IllegalStateException("Configurações não encontradas.")
+        if (management.optBoolean("permanentMobileBrokerLockEnabled",false)) {
+            if (NativeSessionStore.read(context)?.optString("access_token") != token) return
+            getPrefs(context).edit().putBoolean("KEY_PERMANENT_MOBILE_LOCK",true).putString("native_sync_error","").putLong("native_last_sync",System.currentTimeMillis()).apply()
+            applyProtection(context,true,"Bloqueio Perpétuo de Corretoras no Celular (Eterno Stop Loss)")
+            return
+        }
+        val risk=rows("risk_settings?id=eq.$id&select=*",token).optJSONObject(0) ?: throw IllegalStateException("Gestão de risco não configurada.")
         val today=SimpleDateFormat("yyyy-MM-dd",Locale.ROOT).format(Date())
         val trades=rows("trades?user_email=eq.${encoded(email)}&date=eq.$today&select=pnl,accountType,isReal",token)
         var real=0.0;var total=0.0

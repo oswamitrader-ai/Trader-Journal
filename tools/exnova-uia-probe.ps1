@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string] $TitlePattern = 'Exnova',
   [int] $MaxNodesPerWindow = 5000,
   [int] $MaxDepth = 24,
@@ -176,7 +176,8 @@ if ($parent -and -not (Test-Path -LiteralPath $parent)) {
 }
 Set-Content -LiteralPath $OutputPath -Value $json -Encoding UTF8
 
-$total = ($results | Measure-Object -Property nodeCount -Sum).Sum
+$total = 0
+foreach ($result in $results) { $total += $result.nodeCount }
 Write-Output "Sonda concluída. Janelas: $($results.Count); elementos acessíveis: $total."
 Write-Output "Relatório salvo localmente em: $OutputPath"
 if ($results | Where-Object { $_.truncated }) {

@@ -23,17 +23,6 @@ function investmentRect(lines, size, crop, scale, unit = 1) {
   const INVEST_RE = /\bINVEST(?:MENT|IMENTO)?\b|\bIn[\s]?(?:gost|vest|gest|vost|vast|gast|gust)\b/i;
   let label = lines.filter(l => Number(l.confidence) >= 25 && INVEST_RE.test(l.text || '')).sort((a,b)=>a.bbox.y0-b.bbox.y0)[0];
 
-  // Fallback: localiza pelo padrão monetário "$ XX" ou "$ X.XX" na região direita
-  // (o valor do campo Invest é detectado com alta confiança mesmo quando o label falha)
-  if (!label) {
-    const AMOUNT_RE = /^\$\s*\d[\d.,]*$/;
-    const amountLine = lines.filter(l => Number(l.confidence) >= 50 && AMOUNT_RE.test((l.text || '').trim())).sort((a,b)=>a.bbox.y0-b.bbox.y0)[0];
-    if (amountLine) {
-      // Usa a linha do valor como âncora: o label "Invest" fica ~25px acima do valor
-      label = { bbox: { x0: amountLine.bbox.x0, y0: Math.max(0, amountLine.bbox.y0 - 25*scale), x1: amountLine.bbox.x1, y1: amountLine.bbox.y0 } };
-    }
-  }
-
   if (!label) return null;
   const left = crop.x + label.bbox.x0 / scale, top = crop.y + label.bbox.y0 / scale;
   if (left < size.width*.65 || top > size.height*.35) return null;
@@ -44,7 +33,7 @@ function physicalField(frame,region){const b=frame.bounds;return {x:Math.round(b
 function readInvestAmount(lines,size,region){
   const candidates=lines.filter(l=>Number(l.confidence)>=50 && l.bbox.x0>=size.width*region.x && l.bbox.y0>=size.height*(region.y+region.height*.32) && l.bbox.y1<=size.height*(region.y+region.height)+2);
   for(const line of candidates){
-    const text=String(line.text||'').replace(/R\s*\$|\$/gi,'').replace(/\s*[+-]\s*$/,'').trim();
+    const text=String(line.text||'').trim().replace(/^(?:[RS]\s*)?\$/i,'').replace(/\s*[+-]\s*$/,'').trim();
     if(!/^(?:\d+|\d{1,3}(?:[.,]\d{3})+)(?:[.,]\d{1,2})?$/.test(text))continue;
     const decimal=/[.,]\d{1,2}$/.exec(text);
     const normalized=decimal?text.slice(0,decimal.index).replace(/[.,]/g,'')+'.'+decimal[0].slice(1):text.replace(/[.,]/g,'');
@@ -59,15 +48,15 @@ function geometryFor(frame, region, screen) {
 function makeShieldPage(amount, verified) {
   const value=Number(amount).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const bg=verified?'#064e3b':'#78350f',border=verified?'#10b981':'#f59e0b',fg=verified?'#d1fae5':'#fef3c7';
-  const label=verified?`🔒 R$ ${value}`:`⏳ aplicando R$ ${value}`;
+  const label=verified?`🔒 R$ ${value}`:`⏳ conferir R$ ${value}`;
   return `<!doctype html><html><meta charset="utf-8"><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:${bg}}body{display:flex;align-items:center;justify-content:center;border:2px solid ${border};border-radius:5px;color:${fg};font:bold ${verified?12:10}px 'Segoe UI',sans-serif;white-space:nowrap;user-select:none;cursor:not-allowed}</style><body>${label}</body></html>`;
 }
 
 function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onStatus,trackerFactory=createWindowTracker,inputFactory=createStakeInput}) {
   let stopped=true,processing=false,timer,overlay,workerPromise;
   let lockState={},calibration=null,lastAmount=null,lastPublished='',lastAttempt=0;
-  let confirmedAmount=null,editing=false,lastWriteAt=0;
-  let writeKey='',writeAttempts=0,validationError='',lastConfirmedKey='';
+  let confirmedAmount=null, writing=false;
+  let writeKey='',writeAttempts=0,validationError='';
 
   // FIX 1: Memoização de bounds para evitar flickering
   // Só chama setBounds() quando a posição muda de fato
@@ -90,7 +79,7 @@ function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onSta
   function frameKey(f){return `${f.handle}:${f.bounds.width}:${f.bounds.height}`;}
   function position(){
     const frame=tracker.getState(),amount=toTargetAmount(lockState);
-    if(stopped||!(amount>0)||editing){hide();return;}
+    if(stopped||writing||!(amount>0)){hide();return;}
     if(!frame?.visible){hide();publish('waiting','Trava pronta; aguardando a Exnova aberta.');return;}
     if(!calibration||calibration.key!==frameKey(frame)){hide();return;}
     if(!overlay||overlay.isDestroyed()){
@@ -100,7 +89,7 @@ function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onSta
       // mas o valor é protegido via write automático — overlay é apenas visual
       overlay.setIgnoreMouseEvents(false);
       overlay.webContents.on('did-finish-load',()=>{
-        if(!overlay.isDestroyed()&&!overlayVisible){overlay.showInactive();overlayVisible=true;}
+        if(!writing&&!stopped&&!overlay.isDestroyed()&&!overlayVisible){overlay.showInactive();overlayVisible=true;}
       });
       overlayVisible=false;
       lastBoundsKey='';
@@ -169,44 +158,37 @@ function createExnovaStakeShield({desktopCapturer,screen,BrowserWindow,app,onSta
       // FIX 3: writeKey inclui consecutiveWins/Losses para que mudança de gestão
       // (ex: Soros após WIN) force redigitação do novo valor no campo
       const streakKey=`${lockState.consecutiveWins||0}:${lockState.consecutiveLosses||0}`;
-      const nextKey=frameKey(frame)+':'+amount+':'+streakKey;
-      if(nextKey!==writeKey){writeKey=nextKey;writeAttempts=0;lastWriteAt=0;validationError='';}
+      const nextKey=frameKey(frame)+':'+amount;
+      if(nextKey!==writeKey){writeKey=nextKey;writeAttempts=0;validationError='';}
+      if(!writeAttempts){
+        if(!frame.foreground || !(amount>0))return;
+        confirmedAmount=null;
+        await input.ready();
+        const current=tracker.getState();
+        if(stopped||toTargetAmount(lockState)!==amount||!current?.foreground||frameKey(current)!==frameKey(frame))return;
+        writing=true;hide();
+        try {
+          await new Promise(resolve=>setTimeout(resolve,150));
+          if(stopped||toTargetAmount(lockState)!==amount)return;
+          writeAttempts++;
+          await input.write(frame,physicalField(frame,region),amount);
+        } finally {writing=false;position();}
+        publish('verifying',`Valor enviado ao Invest: ${amount.toFixed(2)}.`,{amount,verified:false});
+        return;
+      }
       const fullLines=lines.map(l=>({...l,bbox:{x0:crop.x+l.bbox.x0/scale,y0:crop.y+l.bbox.y0/scale,x1:crop.x+l.bbox.x1/scale,y1:crop.y+l.bbox.y1/scale}}));
       const observed=readInvestAmount(fullLines,size,region);
       if(!app.isPackaged) console.log('[Exnova Invest readback]',JSON.stringify({expected:amount,observed,streak:streakKey,lines:fullLines.filter(l=>l.bbox.y0>=size.height*region.y&&l.bbox.y1<=size.height*(region.y+region.height)+2).map(l=>({text:l.text,confidence:l.confidence}))}));
-      if(observed!==null&&Math.abs(observed-amount)<.005){lastConfirmedKey=nextKey;confirmedAmount=amount;writeAttempts=0;validationError='';position();return;}
-      confirmedAmount=null;
-      // An unreadable frame is not evidence that the broker changed the value.
-      // Keep reporting unverified, but do not retype a previously confirmed target.
-      if(observed===null&&lastConfirmedKey===nextKey){validationError='Leitura do Invest temporariamente indisponível; aguardando nova confirmação.';position();return;}
-      if(observed!==null)lastConfirmedKey='';
-      if(writeAttempts>=2){
-        if(Date.now()-lastWriteAt<6000){validationError='Valor do Invest diferente do card; nova tentativa em instantes.';position();return;}
-        writeAttempts=0;
-      }
-      if(Date.now()-lastWriteAt<2500)return;
-      await input.ready();
-      if(stopped||toTargetAmount(lockState)!==amount)return;
-      if(!tracker.getState()?.foreground||frameKey(tracker.getState())!==frameKey(frame))return;
-      lastWriteAt=Date.now();writeAttempts++;editing=true;hide();
-      try{
-        await new Promise(resolve=>setTimeout(resolve,150));
-        if(stopped||toTargetAmount(lockState)!==amount)return;
-        await input.write(frame,physicalField(frame,region),amount);
-        // FIX 2: Após digitar o valor, aguarda 120ms e fecha o modal da calculadora
-        // que a Exnova Desktop abre quando o campo Invest recebe um clique
-        await new Promise(resolve=>setTimeout(resolve,120));
-        await input.closeModal();
-      }
-      finally{editing=false;position();}
-      // Confirmation is deliberately deferred to a NEW frame, after broker formatting.
-      publish('verifying',`Valor enviado ao Invest; aguardando confirmação de R$ ${amount.toFixed(2)}.`,{amount,verified:false});
+      confirmedAmount=observed!==null&&Math.abs(observed-amount)<.005?amount:null;
+      if(confirmedAmount!==null)validationError='';
+      else validationError=validationError||'Não foi possível confirmar o valor aplicado ao Invest.';
+      position();
     }catch(error){confirmedAmount=null;validationError=`Trava de entrada: ${String(error.message).slice(0,180)}`;publish('error',validationError,{verified:false});position();}
     finally{processing=false;}
   }
   return {
     getStatus:()=>lastPublished?JSON.parse(lastPublished):{state:'waiting',enabled:false,message:'Inicializando trava nativa.'},
-    setLockState(state){lockState={...lockState,...state};position();if(!stopped)void poll();},
+    setLockState(state){if(state?.enforceBrokerStakeLock===false){writeKey='';confirmedAmount=null;}lockState={...lockState,...state};position();if(!stopped)void poll();},
     async start(){if(!stopped)return;stopped=false;tracker.start();timer=setInterval(()=>void poll(),250);timer.unref?.();await poll();},
     async stop(){stopped=true;clearInterval(timer);tracker.stop();input.stop();hide();if(workerPromise){try{await(await workerPromise).terminate();}catch{}workerPromise=null;}overlay?.destroy();overlay=null;overlayVisible=false;lastBoundsKey='';},
   };

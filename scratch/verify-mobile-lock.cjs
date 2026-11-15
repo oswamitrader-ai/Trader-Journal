@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const esbuild = require('esbuild');
-let failRisk = false, failSave = false, permanent = true, channels = 0, trades = [];
+let deadline=null, failRisk = false, failSave = false, permanent = true, channels = 0, trades = [];
 const client = {
   auth: {
     getUser: async () => ({data:{user:{id:'test-user',email:'test@example.com',app_metadata:{subscriptionStatus:'ACTIVE'}}}}),
@@ -14,7 +14,7 @@ const client = {
   from(table) {
     const query = {select(){return this},eq(){return this},update(){this.writing=true;return this},insert(){this.writing=true;return this},maybeSingle(){return this},
       then(resolve,reject) {
-        const data = this.writing ? [{id:'settings_test@example.com'}] : table==='system_users' ? {active:true,role:'CLIENT'} : table==='risk_settings' ? {dailyLossLimit:60,dailyProfitTarget:70,maxTradesPerDay:10} : table==='management_settings' ? {settings:{permanentMobileBrokerLockEnabled:permanent},updated_at:'2026-11-01T00:00:00Z'} : trades;
+        const data = this.writing ? [{id:'settings_test@example.com'}] : table==='system_users' ? {active:true,role:'CLIENT'} : table==='risk_settings' ? {dailyLossLimit:60,dailyProfitTarget:70,maxTradesPerDay:10} : table==='management_settings' ? {settings:{permanentMobileBrokerLockEnabled:permanent,riskLockUntil:deadline},updated_at:'2026-11-01T00:00:00Z'} : trades;
         return Promise.resolve({data,error:(failRisk&&table==='risk_settings') || (failSave&&this.writing) ? {message:'offline'} : null}).then(resolve,reject);
       }};
     return query;
@@ -41,6 +41,12 @@ const client = {
   trades=[];
   await service.fetchDataAndSubscribe('test@example.com');
   assert.equal(service.getState().isLockActive,false);
+  deadline=new Date(Date.now()+3600000).toISOString();permanent=true;failRisk=true;
+  await service.fetchDataAndSubscribe('test@example.com');
+  assert.equal(service.getState().permanentMobileBrokerLockEnabled,true,'cloud lock applies even if risk read fails');
+  failRisk=false;await service.fetchDataAndSubscribe('test@example.com');
+  await assert.rejects(service.setPermanentMobileBrokerLock(false),/protegida/);
+  permanent=false;deadline=null;await service.fetchDataAndSubscribe('test@example.com');
   failSave=true;
   await assert.rejects(service.setPermanentMobileBrokerLock(true));
   assert.equal(service.getState().permanentMobileBrokerLockEnabled,false,'failed save must not report cloud confirmation');

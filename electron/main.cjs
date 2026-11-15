@@ -192,6 +192,7 @@ app.whenReady().then(() => {
     app,
     onStatus: (status) => sendCaptureUpdate('exnova-capture-status', status),
     onTrade: deliverExnovaTrade,
+    getLockedStake: () => toTargetAmount(lastShieldData),
   });
   exnovaStakeShield = createExnovaStakeShield({
     desktopCapturer,

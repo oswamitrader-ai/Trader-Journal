@@ -1,3 +1,4 @@
+import { getStakeProgression } from './utils/stakeProgression';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
@@ -575,18 +576,7 @@ export default function App() {
 
   const todayPnl = todayPerformance?.pnl || 0;
   const todayTradesCount = todayPerformance?.tradesCount || 0;
-  const stakeStreak = useMemo(() => {
-    const ordered = trades.filter((trade) => trade.date === todayStr).slice().sort((a, b) =>
-      (b.time || '').localeCompare(a.time || '') || String((b as any).updatedAt || '').localeCompare(String((a as any).updatedAt || '')));
-    let consecutiveWins = 0;
-    let consecutiveLosses = 0;
-    for (const trade of ordered) {
-      if (trade.result === 'GAIN' && consecutiveLosses === 0) consecutiveWins += 1;
-      else if (trade.result === 'LOSS' && consecutiveWins === 0) consecutiveLosses += 1;
-      else break;
-    }
-    return { consecutiveWins, consecutiveLosses };
-  }, [trades, todayStr]);
+  const stakeStreak = useMemo(() => getStakeProgression(trades, settings, todayStr), [trades, settings, todayStr]);
   
   // Anti-Fúria lock triggers if REAL account daily loss or total daily loss reaches limit
   const isStopHit =

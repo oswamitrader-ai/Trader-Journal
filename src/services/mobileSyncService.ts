@@ -5,6 +5,7 @@ export interface MobileLockState {
   isStopHit: boolean;
   isMaxTradesHit: boolean;
   permanentMobileBrokerLockEnabled: boolean;
+  riskLockUntil: string | null;
   isUserActive: boolean;
   subscriptionStatus: 'ACTIVE' | 'OVERDUE' | 'INACTIVE';
   userRole: 'ADMIN' | 'CLIENT';
@@ -34,6 +35,7 @@ class MobileSyncService {
     isStopHit: false,
     isMaxTradesHit: false,
     permanentMobileBrokerLockEnabled: false,
+    riskLockUntil: null,
     isUserActive: true,
     subscriptionStatus: 'ACTIVE',
     userRole: 'CLIENT',
@@ -183,6 +185,7 @@ class MobileSyncService {
         if (readError) throw readError;
         const settings = existing?.settings && typeof existing.settings === 'object' ? existing.settings : {};
 
+        if (!enabled && Date.parse(settings.riskLockUntil || '') > Date.now()) throw new Error('A gestão está protegida até o fim do prazo definido pelo trader.');
         const payload = {
           settings: { ...settings, permanentMobileBrokerLockEnabled: enabled },
           updated_at: new Date().toISOString()
@@ -222,6 +225,29 @@ class MobileSyncService {
       this.currentState.userEmail = activeEmail;
     }
 
+      // 2. Risk and management settings are separate records scoped to this account.
+      const settingsId = `settings_${activeEmail}`;
+      const [riskResult, managementResult] = await Promise.all([
+        supabase
+        .from('risk_settings')
+        .select('dailyLossLimit,dailyProfitTarget,maxTradesPerDay')
+        .eq('id', settingsId)
+        .maybeSingle(),
+        supabase
+          .from('management_settings')
+          .select('settings')
+          .eq('id', settingsId)
+          .maybeSingle(),
+      ]);
+      if (generation !== this.generation) return;
+      if (managementResult.error || !managementResult.data) throw managementResult.error || new Error('Gestão não encontrada.');
+      const management = managementResult.data.settings;
+      const permanentMobileBrokerLockEnabled = management?.permanentMobileBrokerLockEnabled === true;
+      const riskLockUntil = management?.riskLockUntil || null;
+      // Apply a confirmed lock even when profile, risk limits or journal reads fail.
+      if (permanentMobileBrokerLockEnabled) this.updateState({permanentMobileBrokerLockEnabled, riskLockUntil});
+      if (riskResult.error || !riskResult.data) throw riskResult.error || new Error('Limites não encontrados.');
+      const {dailyLossLimit, dailyProfitTarget, maxTradesPerDay} = riskResult.data;
       // 1. Fetch user subscription status
       const { data: userData, error: profileError } = await supabase
         .from('system_users')
@@ -237,38 +263,6 @@ class MobileSyncService {
           userRole: userData.role === 'ADMIN' ? 'ADMIN' : 'CLIENT',
         });
       }
-
-      // 2. Risk and management settings are separate records scoped to this account.
-      const settingsId = `settings_${activeEmail}`;
-      const [riskResult, managementResult] = await Promise.all([
-        supabase
-        .from('risk_settings')
-        .select('dailyLossLimit,dailyProfitTarget,maxTradesPerDay')
-        .eq('id', settingsId)
-        .maybeSingle(),
-        supabase
-          .from('management_settings')
-          .select('settings')
-          .eq('id', settingsId)
-          .maybeSingle(),
-      ]);
-      if (riskResult.error || managementResult.error) throw riskResult.error || managementResult.error;
-      const settingsData = riskResult.data, managementData = managementResult.data;
-      if (!settingsData || !managementData) throw new Error('Configure a gestão de risco no TradeLock antes de operar.');
-
-      const dailyLossLimit = settingsData?.dailyLossLimit ?? (settingsData as any)?.daily_loss_limit ?? 60;
-      const dailyProfitTarget = settingsData?.dailyProfitTarget ?? (settingsData as any)?.daily_profit_target ?? 70;
-      const maxTradesPerDay = settingsData?.maxTradesPerDay ?? (settingsData as any)?.max_trades_per_day ?? 4;
-
-      const extraSettings = managementData?.settings && typeof managementData.settings === 'object'
-        ? managementData.settings
-        : {};
-
-      const localPerm = typeof window !== 'undefined' ? localStorage.getItem(`tradelock_permanent_mobile_lock_${activeEmail}`) === 'true' : false;
-      const permanentMobileBrokerLockEnabled = Boolean(
-        extraSettings.permanentMobileBrokerLockEnabled ??
-        localPerm
-      );
 
       // 3. Fetch today's trades
       const todayStr = getLocalDateStr();
@@ -320,6 +314,7 @@ class MobileSyncService {
         isStopHit,
         isMaxTradesHit,
         permanentMobileBrokerLockEnabled,
+        riskLockUntil,
         syncError: null,
         lastSyncedAt: new Date().toISOString(),
       });

@@ -288,6 +288,8 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
 
                 <button
                   type="button"
+                  disabled={Boolean(lockState.syncError) || !lockState.lastSyncedAt || (lockState.permanentMobileBrokerLockEnabled && Date.parse(lockState.riskLockUntil || '') > Date.now())}
+                  aria-label="Stop Loss Eterno no celular" aria-pressed={lockState.permanentMobileBrokerLockEnabled}
                   onClick={handleTogglePermanentLock}
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                     lockState.permanentMobileBrokerLockEnabled ? 'bg-rose-600' : 'bg-slate-800'
@@ -302,7 +304,8 @@ const AuthenticatedMobile: React.FC<{email:string}> = ({email}) => {
               </div>
 
               <p className="text-xs text-slate-300 leading-relaxed mt-2 border-t border-slate-800/80 pt-2.5">
-                {lockState.permanentMobileBrokerLockEnabled ? (
+                {lockState.permanentMobileBrokerLockEnabled && Date.parse(lockState.riskLockUntil || '') > Date.now() && <p>Gestão protegida até {new Date(lockState.riskLockUntil!).toLocaleString('pt-BR')}.</p>}
+                {!lockState.permanentMobileBrokerLockEnabled && (lockState.syncError || !lockState.lastSyncedAt) ? <span>Sincronizando a trava com a gestão do trader.</span> : lockState.permanentMobileBrokerLockEnabled ? (
                   <span className="text-rose-300 font-bold">
                     🔒 ATIVADO 24/7: Todos os aplicativos de corretoras (Exnova, IQ Option, Quotex, Binomo, etc.) no celular estão permanentemente bloqueados. Você é forçado a operar 100% pelo Computador!
                   </span>

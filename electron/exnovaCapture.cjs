@@ -1,8 +1,9 @@
 const crypto = require('crypto');
+const {createWindowFrameReader} = require('./exnovaWindowFrame.cjs');
 const path = require('path');
 const { createWorker } = require('tesseract.js');
 
-const POLL_INTERVAL_MS = 1200;
+const POLL_INTERVAL_MS = 250;
 const CAPTURE_WIDTH = 1600;
 const CAPTURE_HEIGHT = 1000;
 const MIN_LINE_CONFIDENCE = 72;
@@ -50,6 +51,7 @@ function getOcrLines(ocrData) {
         confidence: Number(line.confidence) || 0,
         top: Number(line.bbox?.y0) || 0,
         left: Number(line.bbox?.x0) || 0,
+        bottom: Number(line.bbox?.y1) || 0,
       }))
       .filter((line) => line.text);
   }
@@ -384,16 +386,68 @@ function readTradeLine(line, date, accountType, occurrence, sourceLabel) {
   };
 }
 
-async function readVisibleResultNotification(worker, thumbnail, nativeImage) {
+// The result box moves with the expiration marker in the chart. Its solid
+// green/red background has a wider horizontal edge than a candlestick.
+function locateReturnPanel(thumbnail, width, height) {
+  const pixels = thumbnail.toBitmap(), unit = width / 1366;
+  if (pixels.length !== width * height * 4) return null;
+  const start = Math.floor(width * .07), end = Math.floor(width * .90);
+  const candidates = [];
+  for (let y = Math.floor(height * .15); y < height * .85; y += Math.max(2, Math.round(3 * unit))) {
+    let left = start;
+    for (let x = start + 1; x <= end; x++) {
+      const i = (y * width + left) * 4, j = (y * width + x) * 4;
+      if (x !== end && pixels[i] === pixels[j] && pixels[i+1] === pixels[j+1] && pixels[i+2] === pixels[j+2]) continue;
+      const span = x - left, b = pixels[i], g = pixels[i+1], r = pixels[i+2];
+      if (span >= 85*unit && span <= 155*unit && (g > r+22 && g > b+18 || r > g+30 && r > b+25)) {
+        const box = candidates.find(c => Math.abs(c.left-left)<5*unit && y-c.last<55*unit);
+        if (box) { box.last=y; box.rows++; } else candidates.push({left,top:y,last:y,rows:1});
+      }
+      left=x;
+    }
+  }
+  const box=candidates.filter(c=>c.rows>=3 && c.last-c.top>=18*unit && c.last-c.top<=62*unit).sort((a,b)=>b.rows-a.rows)[0];
+  if(!box)return null;
+  const x=Math.max(0,Math.floor(box.left-12*unit)), y=Math.max(0,Math.floor(box.top-18*unit));
+  return {x,y,width:Math.min(width-x,Math.ceil(175*unit)),height:Math.min(height-y,Math.ceil(85*unit))};
+}
+
+async function readVisibleResultNotification(worker, thumbnail, nativeImage, toastMemory, detectedPanel) {
   const { width, height } = thumbnail.getSize();
-  // The result toast appears over the center-right chart area. Read a focused
-  // crop and binarize it so the small white label stands out from the chart.
-  const crop = {
-    x: Math.round(width * 0.50),
-    y: Math.round(height * 0.34),
-    width: Math.round(width * 0.32),
-    height: Math.round(height * 0.30),
-  };
+  const candidate = detectedPanel === undefined ? locateReturnPanel(thumbnail,width,height) : detectedPanel;
+  if(candidate){
+    const result = await readResultCrop(worker,thumbnail,nativeImage,toastMemory,candidate);
+    if(Number.isFinite(result?.amount))return result;
+    const fallback = await readResultCrop(worker,thumbnail,nativeImage,toastMemory,defaultReturnCrop(width,height));
+    return fallback || result;
+  }
+  return readResultCrop(worker,thumbnail,nativeImage,toastMemory,defaultReturnCrop(width,height));
+}
+
+function defaultReturnCrop(width,height){
+  return {x:Math.round(width*.50), y:Math.round(height*.34), width:Math.round(width*.32), height:Math.round(height*.30)};
+}
+
+// Grid lines and price markers sometimes share an OCR line with the toast.
+// Anchor on the actual RETORNO word, then keep only words in its value column.
+function toastLines(data, scale) {
+  const raw = data.lines || (data.blocks || []).flatMap(b => (b.paragraphs || []).flatMap(p => p.lines || []));
+  const labels = raw.flatMap(line => line.words || []).filter(w => /^RET[O0]RN[O0]$/i.test(w.text.trim()));
+  if (labels.length !== 1 || !labels[0].bbox) return getOcrLines(data);
+  const label = labels[0], box = label.bbox;
+  const result = [{text:label.text, confidence:label.confidence, left:box.x0, top:box.y0, bottom:box.y1}];
+  for (const line of raw) {
+    const words=(line.words || []).filter(w=>w.bbox && w.bbox.y0 >= box.y1 - scale && w.bbox.y0 <= box.y0+32*scale &&
+      w.bbox.x0 >= box.x0-4*scale && w.bbox.x0 < box.x0+105*scale);
+    if (!words.length) continue;
+    result.push({text:words.map(w=>w.text).join(' '), confidence:Math.min(...words.map(w=>w.confidence)),
+      left:words[0].bbox.x0, top:words[0].bbox.y0, bottom:Math.max(...words.map(w=>w.bbox.y1))});
+  }
+  return result;
+}
+
+async function readResultCrop(worker,thumbnail,nativeImage,toastMemory,crop){
+  const {width,height}=thumbnail.getSize();
   crop.width = Math.min(crop.width, width - crop.x);
   crop.height = Math.min(crop.height, height - crop.y);
   if (crop.width < 100 || crop.height < 80) return null;
@@ -419,27 +473,104 @@ async function readVisibleResultNotification(worker, thumbnail, nativeImage) {
   } finally {
     await worker.setParameters({ tessedit_pageseg_mode: '3' });
   }
-  const lines = getOcrLines(data).filter((line) => line.confidence >= 45);
-  const normalized = normalizeText(`${lines.map((line) => line.text).join(' ')} ${data.text || ''}`);
-  const returnLabel = normalized.match(/\bRET[O0]RN[O0]\b/);
-  if (!returnLabel) return null;
-
-  // Exnova's visible result is the source of truth for this capture path.
-  const followingText = normalized.slice(returnLabel.index + returnLabel[0].length, returnLabel.index + returnLabel[0].length + 120);
-  const moneyMatches = Array.from(followingText.matchAll(/([+-])?\s*(R\s*[$S]|US\$|\$|€|£)\s*((?:\d{1,3}(?:[., ]\d{3})+|\d+)(?:[.,]\d{1,2})?)/g));
-  const match = moneyMatches[moneyMatches.length - 1];
-  if (!match) return null;
-
-  const amount = parseMoney(match[3]);
-  if (amount === null) return null;
-  const sign = match[1] || '';
-  const currency = match[2].replace(/\s+/g, '');
-  const signedAmount = Math.round((sign === '-' ? -amount : amount) * 100) / 100;
-  return { amount: signedAmount, sign, currency, display: `RETORNO ${sign}${currency}${match[3]}` };
+  const lines = toastLines(data, scale);
+  let notice = parseReturnLines(lines, scale);
+  const label = lines.find(line => /\bRET[O0]RN[O0]\b/.test(normalizeText(line.text)));
+  if (label && label.confidence >= 55 && label.bottom > label.top) {
+    const x = Math.max(0, label.left - 3 * scale), y = Math.max(0, label.bottom - scale);
+    const amountRect = {x, y, width: Math.min(105 * scale, imageSize.width - x), height: Math.min(21 * scale, imageSize.height - y)};
+    if (amountRect.width > 0 && amountRect.height > 0) {
+      try {
+        await worker.setParameters({tessedit_pageseg_mode:'7', tessedit_char_whitelist:'0123456789.,+-$R€£'});
+        const {data: amountData} = await worker.recognize(highContrastImage.crop(amountRect).toPNG(), {}, {blocks:true});
+        const amounts = getOcrLines(amountData).map(line => ({...line, top:line.top+y, left:line.left+x}));
+        const focused = parseReturnLines([label, ...amounts], scale);
+        if (Number.isFinite(focused?.amount)) {
+          const first = Number.isFinite(notice?.amount) ? notice : null;
+          notice = focused;
+          // A second pass uses the original greyscale pixels (no threshold).
+          // Both passes share a frozen frame, even if the toast has disappeared.
+          let alternate = first;
+          if (!alternate) {
+            const {data: raw} = await worker.recognize(image.crop(amountRect).toPNG(), {}, {blocks:true});
+            alternate = parseReturnLines([label, ...getOcrLines(raw).map(l=>({...l,top:l.top+y,left:l.left+x}))],scale,50);
+          }
+          notice.confirmedInFrame = alternate?.amount === focused.amount && alternate?.currency === focused.currency;
+          if (Number.isFinite(alternate?.amount) && !notice.confirmedInFrame) notice = {amount:null};
+        }
+      } finally { await worker.setParameters({tessedit_pageseg_mode:'3', tessedit_char_whitelist:''}); }
+    }
+  }
+  if (label) {
+    const x = crop.x + Math.floor(label.left / scale), y = crop.y + Math.floor(label.top / scale);
+    const rect = {x, y, width: Math.min(44, width - x), height: Math.min(12, height - y)};
+    if (rect.width > 0 && rect.height > 0) {
+      toastMemory.rect = rect;
+      toastMemory.pixels = thumbnail.crop(rect).toBitmap();
+    }
+  } else if (toastMemory.rect && toastMemory.rect.x + toastMemory.rect.width <= width && toastMemory.rect.y + toastMemory.rect.height <= height) {
+    // OCR may drop the word while the same painted notification is still there.
+    const pixels = thumbnail.crop(toastMemory.rect).toBitmap(), previous = toastMemory.pixels;
+    if (sameReturnLabel(previous,pixels)) return {amount:null};
+  }
+  return notice;
 }
 
-function parseVisibleResultTrade(ocrData, notification, now = new Date()) {
-  if (!notification) return null;
+// Compare the bright lettering, not the predominantly black background.
+function sameReturnLabel(previous, pixels) {
+  if (pixels.length !== previous.length) return false;
+  let lettering = 0, matching = 0;
+  for(let i=0;i<previous.length;i+=4){
+    if(Math.min(previous[i],previous[i+1],previous[i+2]) < 160)continue;
+    lettering++;
+    if(Math.max(...[0,1,2].map(c=>Math.abs(pixels[i+c]-previous[i+c]))) < 40)matching++;
+  }
+  return lettering >= 8 && matching / lettering >= .8;
+}
+
+// Keep the label and its amount together. Chart prices and other currency amounts
+// in the same screenshot do not belong to the result notification.
+function parseReturnLines(lines, scale = 3, minAmountConfidence = 55) {
+  const labelPattern = /\bRET[O0]RN[O0]\b/;
+  const labels = lines.filter(line => labelPattern.test(normalizeText(line.text)));
+  if (!labels.length) return null;
+  const unreadable = { amount: null };
+  if (labels.length !== 1 || labels[0].confidence < 55) return unreadable;
+  const label = labels[0];
+  const inline = normalizeText(label.text).split(labelPattern)[1].trim().replace(/^[X×]$/, '');
+  const nearby = lines.filter(line => line.top > label.top && line.top - label.top <= 32 * scale &&
+    Math.abs(line.left - label.left) <= 18 * scale);
+  const candidates = inline ? [inline] : nearby.filter(line => line.confidence >= minAmountConfidence).map(line => normalizeText(line.text));
+  const money = /^([+-]?)\s*(R\s*[$S]|US\$|\$|€|£)\s*(\d+(?:[.,]\d{2})?)$/;
+  const matches = candidates.map(text => text.match(money)).filter(Boolean);
+  if (matches.length !== 1) return unreadable;
+  const [, sign, currency, raw] = matches[0];
+  const amount = parseMoney(raw) * (sign === '-' ? -1 : 1);
+  return {amount, currency, display: `RETORNO ${sign}${currency}${raw}`};
+}
+
+function createToastGate() {
+  let emitted = false, misses = 0, previous = null;
+  return {
+    observe(notice) {
+      if (!notice) {
+        previous = null;
+        if (++misses >= 3) emitted = false;
+        return false;
+      }
+      misses = 0;
+      const key = Number.isFinite(notice.amount) ? `${notice.currency}:${notice.amount}` : null;
+      const stable = key !== null && key === previous;
+      previous = key;
+      return (stable || (key !== null && notice.confirmedInFrame === true)) && !emitted;
+    },
+    isRecorded() { return emitted; },
+    markRecorded() { emitted = true; },
+  };
+}
+
+function parseVisibleResultTrade(ocrData, notification, now = new Date(), lockedStake = 0) {
+  if (!Number.isFinite(notification?.amount)) return null;
   const lines = getOcrLines(ocrData);
   const fullText = normalizeText(lines.map((line) => line.text).join(' '));
   const assetLines = lines
@@ -452,10 +583,13 @@ function parseVisibleResultTrade(ocrData, notification, now = new Date()) {
   // (conta de prática no Exnova Desktop exibe "Prática" → PRATICA após normalização)
   const accountType = readAccountType(lines) || 'DEMO';
   const investmentMatch = fullText.match(/\b(?:INVEST|INVESTMENT|INVESTIMENTO)\s*(?:R\s*\$|US\$|\$|€|£)?\s*((?:\d{1,3}(?:[., ]\d{3})+|\d+)(?:[.,]\d{1,2})?)/);
-  const stake = investmentMatch ? parseMoney(investmentMatch[1]) : 0;
+  const stake = (investmentMatch && parseMoney(investmentMatch[1])) || lockedStake;
+  // Binary option RETORNO is the total paid back (principal included).
+  if (!(stake > 0) || notification.amount > stake * 2 + 0.005 || notification.amount < -stake - 0.005) return null;
+  const pnl = Math.round((notification.amount < 0 ? notification.amount : notification.amount - stake) * 100) / 100;
   const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const result = notification.amount > 0 ? 'GAIN' : notification.amount < 0 ? 'LOSS' : 'BREAKEVEN';
+  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+  const result = pnl > 0 ? 'GAIN' : pnl < 0 ? 'LOSS' : 'BREAKEVEN';
   const identity = [date, time, asset, notification.amount.toFixed(2), stake.toFixed(2), accountType || 'UNKNOWN'].join('|');
   const id = `exnova-toast-${crypto.createHash('sha256').update(identity).digest('hex').slice(0, 20)}`;
   const missing = [
@@ -470,7 +604,7 @@ function parseVisibleResultTrade(ocrData, notification, now = new Date()) {
     type: 'UNKNOWN',
     strategy: 'Captura local Exnova (aviso de retorno)',
     result,
-    pnl: notification.amount,
+    pnl,
     contractsOrQuantity: stake,
     accountType,
     isReal: accountType === 'REAL',
@@ -557,22 +691,44 @@ function findExnovaSources(sources) {
   });
 }
 
-function createExnovaCaptureService({ desktopCapturer, nativeImage, app, onStatus, onTrade }) {
+// Keep frames in chronological order. Reserve room for transitions without
+// accumulating seconds of identical background frames while OCR is busy.
+function bufferCaptureFrame(queue, frame) {
+  const last = queue[queue.length - 1];
+  const previous = queue[queue.length - 2];
+  if (last && previous && last.kind === frame.kind && previous.kind === frame.kind) {
+    queue[queue.length - 1] = frame;
+    return;
+  }
+  if (queue.length >= 8) {
+    const redundant = queue.findIndex((item, i) => i > 0 && item.kind === queue[i-1].kind);
+    queue.splice(redundant >= 0 ? redundant : 0, 1);
+  }
+  queue.push(frame);
+}
+
+function createExnovaCaptureService({ desktopCapturer, nativeImage, app, onStatus, onTrade, getLockedStake = () => 0 }) {
   let timer = null;
   let workerPromise = null;
-  let processing = false;
+  let processing = false, sampling = false, generation = 0;
+  const frames = [];
+  let lastBroadScan = 0;
+  const nativeReader = createWindowFrameReader(nativeImage);
+  let lastProvider = '';
   let stopped = true;
   let lastStatus = null;
   let capturedCount = 0;
   let lastReadAt = null;
   const seenTrades = new Set();
-  let activeResultFingerprint = null;
+  const toastGate = createToastGate();
+  const toastMemory = {};
   let resultSequence = 0;
 
   function publish(state, message) {
     const status = { state, message, capturedCount, lastReadAt, enabled: !stopped };
     const fingerprint = JSON.stringify(status);
     if (fingerprint === lastStatus) return;
+    if (!app.isPackaged && (!lastStatus || JSON.parse(lastStatus).message !== message)) console.log('[Exnova captura]',new Date().toISOString(),state,message);
     lastStatus = fingerprint;
     onStatus?.(status);
   }
@@ -596,21 +752,41 @@ function createExnovaCaptureService({ desktopCapturer, nativeImage, app, onStatu
     return workerPromise;
   }
 
-  async function poll() {
-    if (stopped || processing) return;
-    processing = true;
+  async function sample() {
+    if (stopped || sampling) return;
+    sampling = true;
+    const token = generation;
+    const start = Date.now();
     try {
-      const sources = await withTimeout(desktopCapturer.getSources({
-        types: ['window'],
-        thumbnailSize: { width: CAPTURE_WIDTH, height: CAPTURE_HEIGHT },
-        fetchWindowIcons: false,
-      }), 12000, 'O Windows não retornou as janelas disponíveis para captura.');
-      const exnovaWindows = findExnovaSources(sources);
-      if (!exnovaWindows.length) {
-        publish('searching', 'Aguardando uma janela Exnova ou o histórico de trading da Exnova aberto no navegador.');
+      const thumbnail=await nativeReader.read();
+      if(stopped || token!==generation)return;
+      const windows = thumbnail ? [{source:{thumbnail},sourceLabel:'Desktop',requireExnovaBrand:false}] : findExnovaSources(await withTimeout(desktopCapturer.getSources({types:['window'],thumbnailSize:{width:CAPTURE_WIDTH,height:CAPTURE_HEIGHT},fetchWindowIcons:false}),12000,'O Windows não retornou as janelas.'));
+      if(stopped || token!==generation)return;
+      const provider = thumbnail ? 'janela nativa' : 'Electron';
+      if(!app.isPackaged && provider!==lastProvider)console.log('[Exnova fonte]',provider,'captura ms',Date.now()-start);
+      lastProvider=provider;
+      const desktop = windows.find(info=>info.sourceLabel==='Desktop' && !info.source.thumbnail.isEmpty());
+      if (!windows.length) {
+        if (!processing && !frames.length) publish('searching','Aguardando imagem da janela Exnova.');
         return;
       }
+      let panel = null;
+      if (desktop) {
+        const image=desktop.source.thumbnail, size=image.getSize();
+        panel=locateReturnPanel(image,size.width,size.height);
+      }
+      bufferCaptureFrame(frames,{windows:desktop?[desktop]:windows, kind:panel?'panel':'background', panel, at:Date.now(), captureMs:Date.now()-start, stake:getLockedStake()});
+      void poll();
+    } catch(error) { if(!stopped)publish('error',String(error.message)); }
+    finally { sampling=false; }
+  }
 
+  async function poll() {
+    if (stopped || processing || !frames.length) return;
+    const frame=frames.shift(), exnovaWindows=frame.windows;
+    const started=Date.now();
+    processing = true;
+    try {
       const currentState = lastStatus ? JSON.parse(lastStatus).state : null;
       if (!['connected', 'reading', 'attention'].includes(currentState)) {
         publish('connected', 'Janela Exnova encontrada. Preparando leitura local da janela.');
@@ -622,58 +798,55 @@ function createExnovaCaptureService({ desktopCapturer, nativeImage, app, onStatu
       let lastReason = 'Janela Exnova encontrada, mas a imagem não está disponível. Deixe o app aberto e desbloqueado.';
       let resultNotificationMessage = null;
       let newTradesThisCycle = 0;
-      for (const processInfo of exnovaWindows) {
+      const desktop = exnovaWindows.find(info => info.sourceLabel === 'Desktop');
+      for (const processInfo of desktop ? [desktop] : exnovaWindows) {
         const target = processInfo.source;
         if (!target || !target.thumbnail || target.thumbnail.isEmpty()) continue;
-        const png = target.thumbnail.toPNG();
-        if (!png || png.length < 2048) continue;
+
 
         // The desktop app records closed trades from the visible RETORNO toast.
         // Do this focused OCR first; do not require the history panel to be open.
         if (processInfo.sourceLabel === 'Desktop') {
           desktopWindowAvailable = true;
-          const notification = await readVisibleResultNotification(worker, target.thumbnail, nativeImage);
+          // Look outside the colour detector periodically; ordinary chart frames
+          // should not keep a later popup waiting behind repeated broad OCR scans.
+          if (!frame.panel && frame.at-lastBroadScan < 1000) return;
+          if (!frame.panel) lastBroadScan=frame.at;
+          const notification = await withTimeout(readVisibleResultNotification(worker, target.thumbnail, nativeImage, toastMemory, frame.panel), 15000, 'A leitura do retorno excedeu 15 segundos; reiniciando o OCR.');
           recognizedWindow = true;
           lastReadAt = new Date().toISOString();
-          if (!notification) {
-            activeResultFingerprint = null;
+          if (!toastGate.observe(notification)) {
+            if (notification) resultNotificationMessage = Number.isFinite(notification.amount) ? (toastGate.isRecorded() ? 'Aviso já registrado. Aguardando seu desaparecimento para aceitar a próxima operação.' : 'Retorno lido; aguardando confirmação da leitura.') : 'Aviso localizado; valor do retorno ilegível.';
             continue;
           }
 
+          const size=target.thumbnail.getSize();
+          const header=target.thumbnail.crop({x:0,y:0,width:size.width,height:Math.min(size.height,Math.max(230,Math.round(size.height*.34)))});
           const { data } = await withTimeout(
-            worker.recognize(png, {}, { blocks: true }),
+            worker.recognize(header.toPNG(), {}, { blocks: true }),
             20000,
             'A leitura OCR excedeu o tempo esperado.'
           );
           if (stopped) return;
-          const parsedResult = parseVisibleResultTrade(data, notification, new Date());
+          const parsedResult = parseVisibleResultTrade(data, notification, new Date(frame.at), frame.stake);
           if (!parsedResult) {
             lastReason = `O aviso “RETORNO” apareceu (${notification.display}), mas os campos complementares não puderam ser lidos. O resultado não foi registrado.`;
-            activeResultFingerprint = null;
+            resultNotificationMessage = lastReason;
             continue;
           }
-          const fingerprint = `${parsedResult.asset}|${parsedResult.pnl}|${parsedResult.contractsOrQuantity}|${parsedResult.accountType || 'UNKNOWN'}`;
-          resultNotificationMessage = `Resultado da tela capturado: ${notification.display}.`;
-          if (fingerprint !== activeResultFingerprint) {
-            activeResultFingerprint = fingerprint;
-            resultSequence += 1;
-            parsedResult.id = `${parsedResult.id}-${resultSequence}`;
-            if (!seenTrades.has(parsedResult.id)) {
-              seenTrades.add(parsedResult.id);
-              capturedCount += 1;
-              newTradesThisCycle += 1;
-              onTrade?.(parsedResult);
-            }
-            resultNotificationMessage += ` Operação registrada${parsedResult.type === 'UNKNOWN' ? '; direção não identificada' : ''}.`;
-          } else {
-            resultNotificationMessage += ' Operação já registrada; aviso repetido ignorado.';
-          }
+          toastGate.markRecorded();
+          parsedResult.id += `-${++resultSequence}`;
+          seenTrades.add(parsedResult.id);
+          capturedCount++;
+          newTradesThisCycle++;
+          onTrade?.(parsedResult);
+          resultNotificationMessage = `Operação registrada. ${notification.display}.`;
           lastReason = resultNotificationMessage;
           continue;
         }
 
         const { data } = await withTimeout(
-          worker.recognize(png, {}, { blocks: true }),
+          worker.recognize(target.thumbnail.toPNG(), {}, { blocks: true }),
           20000,
           'A leitura OCR excedeu o tempo esperado.'
         );
@@ -724,7 +897,9 @@ function createExnovaCaptureService({ desktopCapturer, nativeImage, app, onStatu
         publish('error', `Falha na captura local: ${String(error?.message || 'erro desconhecido').slice(0, 140)}`);
       }
     } finally {
+      if(!app.isPackaged && frame.panel) console.log('[Exnova duração ms]',JSON.stringify({captura:frame.captureMs,fila:started-frame.at,leitura:Date.now()-started}));
       processing = false;
+      if(!stopped && frames.length)setImmediate(poll);
     }
   }
 
@@ -740,13 +915,15 @@ function createExnovaCaptureService({ desktopCapturer, nativeImage, app, onStatu
       if (!stopped) return this.getStatus();
       stopped = false;
       publish('searching', 'Procurando o aplicativo Exnova no Windows.');
-      await poll();
-      timer = setInterval(poll, POLL_INTERVAL_MS);
+      await sample();
+      if(stopped)return this.getStatus();
+      timer = setInterval(sample, POLL_INTERVAL_MS);
       timer.unref?.();
       return this.getStatus();
     },
     async stop() {
       stopped = true;
+      generation++;frames.length=0;nativeReader.stop();
       if (timer) clearInterval(timer);
       timer = null;
       if (workerPromise) {
@@ -760,6 +937,6 @@ function createExnovaCaptureService({ desktopCapturer, nativeImage, app, onStatu
 }
 
 module.exports = {
-  createExnovaCaptureService,
-  parseClosedTrades,
+  createExnovaCaptureService, bufferCaptureFrame,
+  parseClosedTrades, sameReturnLabel, toastLines, readVisibleResultNotification, parseReturnLines, parseVisibleResultTrade, createToastGate,
 };
